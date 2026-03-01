@@ -51,8 +51,11 @@ def _build_common_metrics(symbol: str, df: pd.DataFrame, scan_date: str) -> dict
     above_ma = is_above_30w_ma(df)
     ma_up = is_ma_trending_up(df)
 
+    # Convert scan_date string to date object for SQLAlchemy
+    scan_date_obj = date.fromisoformat(scan_date) if isinstance(scan_date, str) else scan_date
+
     return {
-        "scan_date": scan_date,
+        "scan_date": scan_date_obj,
         "symbol": symbol,
         "close_price": round(float(df["Close"].iloc[-1]), 2),
         "volume": int(df["Volume"].iloc[-1]),
