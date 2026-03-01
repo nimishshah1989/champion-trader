@@ -38,10 +38,16 @@ app = FastAPI(
 )
 
 # CORS — allow frontend to connect
+# In production on Railway, frontend domain varies; allow all origins
+# since this is a private trading tool, not a public API
+_origins = [origin.strip() for origin in settings.allowed_origins.split(",")]
+if settings.environment == "production" or "*" in _origins:
+    _origins = ["*"]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[origin.strip() for origin in settings.allowed_origins.split(",")],
-    allow_credentials=True,
+    allow_origins=_origins,
+    allow_credentials=False if "*" in _origins else True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
