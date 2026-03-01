@@ -18,6 +18,9 @@ class Settings(BaseSettings):
     # TradingView Webhook
     webhook_secret: str = ""
 
+    # CORS
+    allowed_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
+
     # App settings
     app_port: int = 8000
     environment: str = "development"

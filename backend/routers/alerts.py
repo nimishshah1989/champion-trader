@@ -5,7 +5,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from pydantic import BaseModel, Field
-from sqlalchemy import Column, Float, Integer, String, Text, desc, text
+from sqlalchemy import Column, Float, Integer, String, Text, desc, func
 from sqlalchemy.orm import Session
 
 from backend.config import settings
@@ -21,7 +21,7 @@ class WebhookLog(Base):
     __tablename__ = "webhook_logs"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    received_at = Column(String, server_default=text("(datetime('now'))"))
+    received_at = Column(String, server_default=func.now())
     source = Column(String, nullable=False)  # tradingview, dhan
     alert_type = Column(String)
     symbol = Column(String)

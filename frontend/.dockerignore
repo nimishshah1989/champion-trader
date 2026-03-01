@@ -1,0 +1,10 @@
+node_modules/
+.next/
+out/
+.env*
+.git/
+.gitignore
+.vscode/
+*.log
+coverage/
+.DS_Store

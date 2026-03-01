@@ -1,0 +1,4 @@
+[build]
+# Railway detects Dockerfiles automatically.
+# Backend service: set "Dockerfile Path" to "Dockerfile.backend" in Railway dashboard.
+# Frontend service: set "Root Directory" to "frontend" in Railway dashboard.

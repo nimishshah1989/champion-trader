@@ -8,7 +8,7 @@ from sqlalchemy import (
     String,
     Text,
     create_engine,
-    text,
+    func,
 )
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
@@ -38,7 +38,7 @@ class Stock(Base):
     industry = Column(String)
     exchange = Column(String, default="NSE")
     is_active = Column(Boolean, default=True)
-    created_at = Column(String, server_default="CURRENT_TIMESTAMP")
+    created_at = Column(String, server_default=func.now())
 
 
 # --- Table 2: scan_results ---
@@ -87,7 +87,7 @@ class ScanResult(Base):
     trigger_level = Column(Float)
 
     notes = Column(Text)
-    created_at = Column(String, server_default="CURRENT_TIMESTAMP")
+    created_at = Column(String, server_default=func.now())
 
 
 # --- Table 3: watchlist ---
@@ -119,8 +119,8 @@ class Watchlist(Base):
     removed_reason = Column(Text)
 
     notes = Column(Text)
-    last_updated = Column(String, server_default="CURRENT_TIMESTAMP")
-    created_at = Column(String, server_default="CURRENT_TIMESTAMP")
+    last_updated = Column(String, server_default=func.now())
+    created_at = Column(String, server_default=func.now())
 
 
 # --- Table 4: trades ---
@@ -173,8 +173,8 @@ class Trade(Base):
     entry_notes = Column(Text)
     exit_notes = Column(Text)
 
-    created_at = Column(String, server_default="CURRENT_TIMESTAMP")
-    updated_at = Column(String, server_default="CURRENT_TIMESTAMP")
+    created_at = Column(String, server_default=func.now())
+    updated_at = Column(String, server_default=func.now())
 
 
 # --- Table 5: partial_exits ---
@@ -190,7 +190,7 @@ class PartialExit(Base):
     r_multiple_at_exit = Column(Float)
     pnl = Column(Float)
     notes = Column(Text)
-    created_at = Column(String, server_default="CURRENT_TIMESTAMP")
+    created_at = Column(String, server_default=func.now())
 
 
 # --- Table 6: market_stance_log ---
@@ -214,7 +214,7 @@ class MarketStanceLog(Base):
     max_positions = Column(Integer)
 
     notes = Column(Text)
-    created_at = Column(String, server_default="CURRENT_TIMESTAMP")
+    created_at = Column(String, server_default=func.now())
 
 
 # --- Table 7: weekly_journal ---
@@ -282,8 +282,8 @@ class WeeklyJournal(Base):
     poor_at = Column(Text)
     key_learnings = Column(Text)
 
-    created_at = Column(String, server_default="CURRENT_TIMESTAMP")
-    updated_at = Column(String, server_default="CURRENT_TIMESTAMP")
+    created_at = Column(String, server_default=func.now())
+    updated_at = Column(String, server_default=func.now())
 
 
 # --- Table 8: position_calc_sessions ---
@@ -314,7 +314,7 @@ class PositionCalcSession(Base):
     target_ee = Column(Float)
 
     notes = Column(Text)
-    created_at = Column(String, server_default="CURRENT_TIMESTAMP")
+    created_at = Column(String, server_default=func.now())
 
 
 # --- Table 10: app_alerts ---
@@ -329,7 +329,7 @@ class AppAlert(Base):
     severity = Column(String, default="info")  # info, warning, critical
     is_read = Column(Boolean, default=False)
     data = Column(Text)  # JSON string with extra data
-    created_at = Column(String, server_default=text("(datetime('now'))"))
+    created_at = Column(String, server_default=func.now())
 
 
 def init_db() -> None:
