@@ -1,4 +1,4 @@
-from datetime import date
+import datetime
 from typing import Optional
 
 from pydantic import BaseModel
@@ -6,12 +6,12 @@ from pydantic import BaseModel
 
 class ScanRequest(BaseModel):
     scan_type: str  # PPC, NPC, CONTRACTION, ALL
-    date: Optional[date] = None  # defaults to today
+    date: Optional[datetime.date] = None  # defaults to today
 
 
 class ScanResultResponse(BaseModel):
     id: int
-    scan_date: date
+    scan_date: datetime.date
     symbol: str
     scan_type: str
     close_price: Optional[float] = None

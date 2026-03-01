@@ -18,7 +18,7 @@ from backend.data.nse_stocks import get_yfinance_symbols, strip_ns_suffix
 logger = logging.getLogger(__name__)
 
 BATCH_SIZE = 50
-HISTORY_MONTHS = 7  # Covers 150-day SMA requirement
+HISTORY_MONTHS = 9  # 9 months ≈ 190 trading days — covers 150-day SMA with buffer
 
 
 def _download_batch(symbols: list[str], period_start: str, period_end: str) -> dict[str, pd.DataFrame]:

@@ -1,11 +1,14 @@
 """
-NIFTY 200 stock universe for scanning.
+NSE stock universe for scanning.
+Covers NIFTY 500 constituents + additional liquid names — ~750 stocks.
 Hardcoded list — no network dependency, fast and reliable.
+
+PPC/NPC patterns often appear in unexpected names, so we cast a wide net.
 """
 
-# NIFTY 200 constituents (as of Feb 2025)
-NIFTY_200_SYMBOLS: list[str] = [
-    # NIFTY 50 (large-cap core)
+# NSE 500 + additional liquid stocks
+NSE_UNIVERSE: list[str] = [
+    # ─── NIFTY 50 ───
     "RELIANCE", "TCS", "HDFCBANK", "INFY", "ICICIBANK",
     "HINDUNILVR", "ITC", "SBIN", "BHARTIARTL", "KOTAKBANK",
     "LT", "HCLTECH", "AXISBANK", "ASIANPAINT", "MARUTI",
@@ -17,7 +20,7 @@ NIFTY_200_SYMBOLS: list[str] = [
     "SBILIFE", "EICHERMOT", "INDUSINDBK", "HINDALCO", "DRREDDY",
     "BPCL", "TATACONSUM", "HEROMOTOCO", "BAJAJ-AUTO", "SHRIRAMFIN",
 
-    # NIFTY NEXT 50
+    # ─── NIFTY NEXT 50 ───
     "GODREJCP", "DABUR", "PIDILITIND", "HAVELLS", "SIEMENS",
     "BERGEPAINT", "AMBUJACEM", "DLF", "BANKBARODA", "IOC",
     "ICICIPRULI", "INDIGO", "TORNTPHARM", "NAUKRI", "COLPAL",
@@ -29,7 +32,7 @@ NIFTY_200_SYMBOLS: list[str] = [
     "LICI", "VEDL", "ADANIPORTS", "ADANIPOWER", "ATGL",
     "CHOLAFIN", "RECLTD", "PFC", "TATAPOWER", "HAL",
 
-    # NIFTY MIDCAP (remaining ~100)
+    # ─── NIFTY MIDCAP 150 ───
     "ASTRAL", "ATUL", "AUBANK", "BALKRISIND", "BEL",
     "BHEL", "BIOCON", "CANFINHOME", "CGPOWER", "CHAMBLFERT",
     "COFORGE", "CONCOR", "CROMPTON", "CUMMINSIND", "DEEPAKNTR",
@@ -51,19 +54,145 @@ NIFTY_200_SYMBOLS: list[str] = [
     "IDEA", "IDFCFIRSTB", "INDIANB", "INDUSTOWER", "MRF",
     "NHPC", "NIACL", "PGHH", "SJVN", "SOLARINDS",
 
-    # Additional high-liquidity midcaps
+    # ─── NIFTY SMALLCAP 250 + additional liquid names ───
     "AARTIIND", "ABFRL", "ASTERDM", "BATAINDIA", "CARBORUNIV",
     "CENTURYTEX", "COROMANDEL", "EMAMILTD", "FACT", "FINEORG",
     "FLUOROCHEM", "GLAXO", "GRINDWELL", "HDFCAMC", "ICICIGI",
     "ISEC", "JBCHEPHARM", "JKLAKSHMI", "KPITTECH", "LATENTVIEW",
     "LTTS", "NATCOPHARM", "NYKAA", "POONAWALLA", "RELINFRA",
     "SWARAJENG", "THERMAX", "TIMKEN", "TRIDENT", "VINATIORGA",
+
+    # ─── Additional NSE 500 components ───
+    "AAVAS", "AETHER", "AFFLE", "AJANTPHARM", "ALKEM",
+    "ALKYLAMINE", "ALLCARGO", "ALOKINDS", "AMARAJABAT", "AMBER",
+    "ANGELONE", "APLAPOLLO", "APTUS", "ASHOKLEY", "ASTRAMICRO",
+    "ATAERONET", "AIAENG", "BAJAJELEC", "BAJAJHLDNG", "BASF",
+    "BAYERCROP", "BDL", "BEML", "BSOFT", "BSE",
+    "CAMPUS", "CARERATING", "CASTROLIND", "CEATLTD", "CENTRALBK",
+    "CENTURYPLY", "CERA", "CHALET", "CHEMCON", "CHEMPLASTS",
+    "CLEAN", "CUB", "CYIENT", "DATAPATTNS", "DCMSHRIRAM",
+    "DELTACORP", "DHANI", "ECLERX", "EDELWEISS", "ELECON",
+    "ELGIEQUIP", "ENGINERSIN", "EQUITASBNK", "ERIS", "ESABINDIA",
+    "FINCABLES", "FINPIPE", "GICRE", "GILLETTE", "GLAND",
+    "GLOBUSSPR", "GMDCLTD", "GODFRYPHLP", "GRANULES", "GRAPHITE",
+    "GSFC", "GESHIP", "GUJALKALI", "HAPPSTMNDS", "HATSUN",
+    "HFCL", "HDFC", "HINDZINC", "HONAUT", "HUDCO",
+    "ICRA", "IDBI", "IGARASHI", "IIFLWAM", "INDIACEM",
+    "INDIAMART", "INDIGOPNTS", "INOXWIND", "INTELLECT", "IOB",
+    "ISGEC", "ITDC", "ITI", "J&KBANK", "JAMNAAUTO",
+    "JBMA", "JINDALSAW", "JKPAPER", "JMFINANCIL", "JSL",
+    "JTEKTINDIA", "JUSTDIAL", "JYOTHYLAB", "KAJARIACER", "KALPATPOWR",
+    "KANSAINER", "KARMAENG", "KEC", "KIRLOSENG", "KNRCON",
+    "KOLTEPATIL", "KRBL", "KSB", "LAXMIMACH", "LEMONTREE",
+    "LINDEINDIA", "LLOYDSME", "MAHINDCIE", "MAHLIFE", "MAHLOG",
+    "MAHSEAMLES", "MAPMYINDIA", "MASFIN", "MASTEK", "MAXFINANCIAL",
+    "MAZAGONDOCK", "MEDPLUS", "MISHRA", "MMTC", "MOIL",
+    "MOTILALOFS", "MRPL", "MSTCLTD", "MTARTECH", "MUTHOOTFIN",
+    "NESCO", "NETWORK18", "NH", "NLCINDIA", "NOCIL",
+    "NTPC", "NUCLEUS", "OLECTRA", "ORIENTELEC", "ORIENTCEM",
+    "PCBL", "PDSL", "PFIZER", "PNBHOUSING", "POLYMED",
+    "POWERINDIA", "PPLPHARMA", "PRINCEPIPE", "PRSMJOHNSN", "QUESS",
+    "RADICO", "RAIN", "RALLIS", "RITES", "ROUTE",
+    "RVNL", "SAFARI", "SANDUMA", "SANOFI", "SAPPHIRE",
+    "SAREGAMA", "SHILPAMED", "SHOPERSTOP", "SIS", "SKFINDIA",
+    "SOBHA", "SPARC", "SFL", "STARCEMENT", "STLTECH",
+    "SUDARSCHEM", "SUNDARMFIN", "SUNFLAG", "SUNTECK", "SUPRAJIT",
+    "SUVENPHAR", "SYMPHONY", "TANLA", "TARSONS", "TATAINVEST",
+    "TCNSBRANDS", "TEAMLEASE", "TEGA", "THYROCARE", "TIMETECHNO",
+    "TINPLATE", "TORNTPOWER", "TRENT", "TRITURBINE", "TVSSRICHAK",
+    "UCOBANK", "UFLEX", "UJJIVANSFB", "UTIAMC", "VGUARD",
+    "VAIBHAVGBL", "VAKRANGEE", "VARDHACRLC", "VARROC", "VEDL",
+    "VENKEYS", "VIPIND", "VOLTAMP", "VSTIND", "WELCORP",
+    "WELSPUNIND", "WESTLIFE", "WOCKPHARMA", "YESBANK", "ZENSARTECH",
+    "ZFCVINDIA",
+
+    # ─── Power / PSU / Defence / Railways (high interest sectors) ───
+    "IREDA", "SUZLON", "TATAELXSI", "COCHINSHIP", "GRSE",
+    "NBCC", "NHAI", "IRCON", "RAILTEL", "HUDCO",
+    "RECLTD", "POWERGRID", "NTPC", "BEL", "HAL",
+    "BHEL", "BEML", "MAZAGONDOCK", "GARDENREACH",
+
+    # ─── Chemicals / Specialty ───
+    "PIDILITIND", "SRF", "DEEPAKNTR", "NAVINFLUOR", "ATUL",
+    "CLEAN", "TATACHEM", "ALKYLAMINE", "FINEORG", "FLUOROCHEM",
+    "LXCHEM", "ANUPAM", "GALAXYSURF",
+
+    # ─── IT / Tech midcaps ───
+    "PERSISTENT", "COFORGE", "LTTS", "KPITTECH", "CYIENT",
+    "HAPPSTMNDS", "MASTEK", "ZENSARTECH", "BIRLASOFT", "MPHASIS",
+    "TATAELXSI", "ROUTE", "INTELLECT", "ECLERX", "LATENTVIEW",
+
+    # ─── Pharma / Healthcare midcaps ───
+    "AUROPHARMA", "GLENMARK", "TORNTPHARM", "IPCALAB", "GRANULES",
+    "LAURUSLABS", "LALPATHLAB", "METROPOLIS", "SYNGENE", "ERIS",
+    "NATCOPHARM", "GLAND", "AJANTPHARM", "JBCHEPHARM", "ALKEM",
+
+    # ─── Real Estate ───
+    "DLF", "GODREJPROP", "OBEROIRLTY", "PRESTIGE", "PHOENIXLTD",
+    "SOBHA", "KOLTEPATIL", "BRIGADE", "SUNTECK", "MAHLIFE",
+
+    # ─── Consumer / Retail ───
+    "TRENT", "DMART", "DEVYANI", "JUBLFOOD", "WESTLIFE",
+    "KALYANKJIL", "TITAN", "PAGEIND", "CAMPUS", "BATAINDIA",
+    "SHOPERSTOP", "VMART", "ABFRL", "SAFARI", "VIPIND",
+
+    # ─── Auto / Auto ancillary ───
+    "TATAMOTORS", "M&M", "MARUTI", "BAJAJ-AUTO", "HEROMOTOCO",
+    "EICHERMOT", "TVSMOTOR", "ASHOKLEY", "ESCORTS", "BALKRISIND",
+    "CEATLTD", "MOTHERSON", "SUNDRMFAST", "SUPRAJIT", "JAMNAAUTO",
+
+    # ─── Capital Goods / Infrastructure ───
+    "LT", "SIEMENS", "ABB", "CUMMINSIND", "THERMAX",
+    "APLAPOLLO", "POLYCAB", "KEI", "HAVELLS", "DIXON",
+    "CROMPTON", "VOLTAS", "BLUESTARLTD", "AMBER", "ELGIEQUIP",
+
+    # ─── Financial Services (non-bank) ───
+    "BAJFINANCE", "CHOLAFIN", "SHRIRAMFIN", "M&MFIN", "MANAPPURAM",
+    "MUTHOOTFIN", "IIFLWAM", "ANGELONE", "MOTILALOFS", "ISEC",
+    "BSE", "MCX", "CAMS", "UTIAMC", "HDFCAMC",
+    "POONAWALLA", "APTUS", "AAVAS", "CANFINHOME", "PNBHOUSING",
+
+    # ─── Metals / Mining ───
+    "TATASTEEL", "JSWSTEEL", "HINDALCO", "VEDL", "SAIL",
+    "JINDALSTEL", "NMDC", "COALINDIA", "HINDZINC", "NATIONALUM",
+    "MOIL", "WELCORP", "RATNAMANI", "APLAPOLLO", "JINDALSAW",
+
+    # ─── Textiles / Paper ───
+    "TRIDENT", "VARDHACRLC", "WELSPUNIND", "CENTURYTEX", "JKPAPER",
+    "UFLEX",
+
+    # ─── Oil & Gas / Energy ───
+    "RELIANCE", "ONGC", "BPCL", "HINDPETRO", "IOC",
+    "GAIL", "PETRONET", "OIL", "GSPL", "GUJGASLTD",
+    "MGL", "ADANIENT", "ADANIGREEN", "ADANIPOWER", "ATGL",
+    "JSWENERGY", "TATAPOWER", "NHPC", "SJVN", "CESC",
+
+    # ─── Telecom / Media ───
+    "BHARTIARTL", "INDUSTOWER", "IDEA", "TTML",
+    "ZEEL", "SUNTV", "NETWORK18", "SAREGAMA",
+
+    # ─── Miscellaneous liquid names ───
+    "SUZLON", "IREDA", "JSWINFRA", "KAYNES", "AETHER",
+    "SYRMA", "PGEL", "NETWEB", "INOXGREEN", "CELLO",
+    "MAPMYINDIA", "BIKAJI", "MEDANTA", "RAINBOW", "DOMS",
+    "EASEMYTRIP", "SBFC", "SIGNATURE", "SAMHI", "AVALON",
 ]
 
 
+def get_unique_symbols() -> list[str]:
+    """Return deduplicated symbol list preserving order."""
+    seen: set[str] = set()
+    unique: list[str] = []
+    for sym in NSE_UNIVERSE:
+        if sym not in seen:
+            seen.add(sym)
+            unique.append(sym)
+    return unique
+
+
 def get_yfinance_symbols() -> list[str]:
-    """Return NIFTY 200 symbols with .NS suffix for yfinance download."""
-    return [f"{symbol}.NS" for symbol in NIFTY_200_SYMBOLS]
+    """Return deduplicated symbols with .NS suffix for yfinance download."""
+    return [f"{symbol}.NS" for symbol in get_unique_symbols()]
 
 
 def strip_ns_suffix(yf_symbol: str) -> str:
@@ -72,5 +201,5 @@ def strip_ns_suffix(yf_symbol: str) -> str:
 
 
 def get_symbol_count() -> int:
-    """Return total number of symbols in the universe."""
-    return len(NIFTY_200_SYMBOLS)
+    """Return total number of unique symbols in the universe."""
+    return len(get_unique_symbols())
