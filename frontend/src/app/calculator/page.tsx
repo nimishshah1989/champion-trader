@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -65,12 +66,27 @@ function formatINR(value: number): string {
 }
 
 export default function CalculatorPage() {
+  return (
+    <Suspense>
+      <CalculatorContent />
+    </Suspense>
+  );
+}
+
+function CalculatorContent() {
+  const searchParams = useSearchParams();
   const [accountValue, setAccountValue] = useState<number>(500000);
   const [rptPct, setRptPct] = useState<number>(0.5);
   const [symbol, setSymbol] = useState<string>("");
   const [entryPrice, setEntryPrice] = useState<number>(0);
   const [trpPct, setTrpPct] = useState<number>(0);
   const [saving, setSaving] = useState(false);
+
+  // Pre-fill symbol from URL query param (e.g. /calculator?symbol=ASTERDM)
+  useEffect(() => {
+    const urlSymbol = searchParams.get("symbol");
+    if (urlSymbol) setSymbol(urlSymbol.toUpperCase());
+  }, [searchParams]);
   const [savedCalcs, setSavedCalcs] = useState<Array<{
     symbol: string;
     position_size: number;

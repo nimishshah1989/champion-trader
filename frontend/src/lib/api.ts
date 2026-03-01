@@ -93,6 +93,27 @@ export function addToWatchlist(data: {
   return apiFetch<WatchlistItem>("/watchlist/add", { method: "POST", body: data });
 }
 
+export function updateWatchlistItem(
+  id: number,
+  data: {
+    bucket?: string;
+    trigger_level?: number;
+    planned_entry_price?: number;
+    planned_sl_pct?: number;
+    planned_position_size?: number;
+    planned_half_qty?: number;
+    status?: string;
+    removed_reason?: string;
+    notes?: string;
+  },
+): Promise<WatchlistItem> {
+  return apiFetch<WatchlistItem>(`/watchlist/${id}`, { method: "PATCH", body: data });
+}
+
+export function removeFromWatchlist(id: number): Promise<{ message: string }> {
+  return apiFetch<{ message: string }>(`/watchlist/${id}`, { method: "DELETE" });
+}
+
 export function getWatchlistAlerts(): Promise<{
   symbol: string;
   trigger_level: number;
@@ -164,6 +185,18 @@ export interface MarketStance {
 
 export function getLatestStance(): Promise<MarketStance | null> {
   return apiFetch<MarketStance | null>("/market-stance/latest");
+}
+
+export function logMarketStance(data: {
+  log_date: string;
+  strong_sectors: string[];
+  weak_sectors: string[];
+  stance: string;
+  rpt_pct?: number;
+  max_positions?: number;
+  notes?: string;
+}): Promise<MarketStance> {
+  return apiFetch<MarketStance>("/market-stance/log", { method: "POST", body: data });
 }
 
 export function getStanceHistory(days: number = 30): Promise<MarketStance[]> {
