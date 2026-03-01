@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { AppSidebar } from "@/components/app-sidebar";
+import { AlertBell } from "@/components/alert-bell";
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
 import { Toaster } from "@/components/ui/sonner";
 
@@ -26,8 +27,9 @@ export default function RootLayout({
         <SidebarProvider>
           <AppSidebar />
           <SidebarInset>
-            <header className="flex h-14 items-center gap-2 border-b px-4">
+            <header className="flex h-14 items-center justify-between border-b px-4">
               <SidebarTrigger />
+              <AlertBell />
             </header>
             <main className="flex-1 p-6">{children}</main>
           </SidebarInset>

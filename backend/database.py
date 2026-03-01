@@ -8,6 +8,7 @@ from sqlalchemy import (
     String,
     Text,
     create_engine,
+    text,
 )
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
@@ -314,6 +315,21 @@ class PositionCalcSession(Base):
 
     notes = Column(Text)
     created_at = Column(String, server_default="CURRENT_TIMESTAMP")
+
+
+# --- Table 10: app_alerts ---
+class AppAlert(Base):
+    __tablename__ = "app_alerts"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    alert_type = Column(String, nullable=False)  # SL_HIT, TRIGGER_LEVEL, PPC_DETECTED, NPC_DETECTED, 2R_HIT, EXTENSION, EARNINGS_WARNING, MARKET_STANCE, SYSTEM
+    symbol = Column(String)
+    title = Column(String, nullable=False)
+    message = Column(Text, nullable=False)
+    severity = Column(String, default="info")  # info, warning, critical
+    is_read = Column(Boolean, default=False)
+    data = Column(Text)  # JSON string with extra data
+    created_at = Column(String, server_default=text("(datetime('now'))"))
 
 
 def init_db() -> None:

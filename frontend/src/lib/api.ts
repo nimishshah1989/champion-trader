@@ -164,6 +164,62 @@ export function getTrades(status?: string): Promise<Trade[]> {
   return apiFetch<Trade[]>(`/trades${params}`);
 }
 
+export function getTrade(id: number): Promise<Trade> {
+  return apiFetch<Trade>(`/trades/${id}`);
+}
+
+export interface TradeCreateRequest {
+  symbol: string;
+  entry_date: string;
+  entry_type?: string;
+  entry_price_half1: number;
+  entry_price_half2?: number;
+  qty_half1: number;
+  qty_half2?: number;
+  total_qty: number;
+  avg_entry_price: number;
+  trp_at_entry: number;
+  sl_price: number;
+  sl_pct: number;
+  rpt_amount: number;
+  target_2r?: number;
+  target_ne?: number;
+  target_ge?: number;
+  target_ee?: number;
+  market_stance_at_entry?: string;
+  setup_type?: string;
+  entry_notes?: string;
+}
+
+export function createTrade(data: TradeCreateRequest): Promise<Trade> {
+  return apiFetch<Trade>("/trades", { method: "POST", body: data });
+}
+
+export function recordPartialExit(
+  tradeId: number,
+  data: {
+    exit_date: string;
+    exit_price: number;
+    exit_qty: number;
+    exit_reason: string;
+    notes?: string;
+  },
+): Promise<{ message: string; remaining_qty: number }> {
+  return apiFetch(`/trades/${tradeId}/partial-exit`, { method: "PATCH", body: data });
+}
+
+export function closeTrade(
+  tradeId: number,
+  data: {
+    exit_price: number;
+    exit_reason: string;
+    exit_date: string;
+    exit_notes?: string;
+  },
+): Promise<{ message: string; gross_pnl: number }> {
+  return apiFetch(`/trades/${tradeId}/close`, { method: "PATCH", body: data });
+}
+
 export function getTradeStats(): Promise<TradeStats> {
   return apiFetch<TradeStats>("/trades/stats");
 }
@@ -224,6 +280,83 @@ export interface Journal {
 
 export function getJournals(): Promise<Journal[]> {
   return apiFetch<Journal[]>("/journal");
+}
+
+export interface JournalCreateRequest {
+  week_start: string;
+  week_end: string;
+  account_value_start?: number;
+  account_value_end?: number;
+  grave_casual_trade?: boolean;
+  grave_sl_violation?: boolean;
+  grave_risk_exceeded?: boolean;
+  grave_averaged_down?: boolean;
+  grave_rebought_loser?: boolean;
+  rm_winrate_arr_eval?: string;
+  rm_market_stance_accuracy?: string;
+  rm_rpt_consistency?: string;
+  rm_or_matrix_violated?: boolean;
+  rm_slippage_issues?: string;
+  rm_streak_handling?: string;
+  tech_random_trades?: string;
+  tech_poor_setups?: string;
+  tech_entry_timing?: string;
+  tech_sl_placement?: string;
+  tech_exit_framework?: string;
+  tech_extension_judgment?: string;
+  tech_earnings_handling?: string;
+  routine_scans_daily?: boolean;
+  routine_watchlist_updated?: boolean;
+  routine_setup_tracker_updated?: boolean;
+  routine_screen_time_minimised?: boolean;
+  routine_historical_analysis?: string;
+  psych_affirmations_read?: boolean;
+  psych_impulsive_actions?: string;
+  psych_fear_greed_influence?: string;
+  psych_social_trading_influence?: boolean;
+  psych_stress_level?: string;
+  excelled_at?: string;
+  poor_at?: string;
+  key_learnings?: string;
+}
+
+export function createJournal(data: JournalCreateRequest): Promise<Journal> {
+  return apiFetch<Journal>("/journal", { method: "POST", body: data });
+}
+
+export function updateJournal(weekStart: string, data: Partial<JournalCreateRequest>): Promise<Journal> {
+  return apiFetch<Journal>(`/journal/${weekStart}`, { method: "PATCH", body: data });
+}
+
+// --- Alerts (In-App) ---
+
+export interface AppAlert {
+  id: number;
+  alert_type: string;
+  symbol: string | null;
+  title: string;
+  message: string;
+  severity: string;
+  is_read: boolean;
+  created_at: string;
+  data: string | null;
+}
+
+export function getAlerts(unreadOnly: boolean = false): Promise<AppAlert[]> {
+  const params = unreadOnly ? "?unread_only=true" : "";
+  return apiFetch<AppAlert[]>(`/alerts${params}`);
+}
+
+export function markAlertRead(id: number): Promise<{ message: string }> {
+  return apiFetch(`/alerts/${id}/read`, { method: "PATCH" });
+}
+
+export function markAllAlertsRead(): Promise<{ message: string }> {
+  return apiFetch("/alerts/read-all", { method: "PATCH" });
+}
+
+export function getUnreadAlertCount(): Promise<{ count: number }> {
+  return apiFetch("/alerts/unread-count");
 }
 
 // --- Health ---

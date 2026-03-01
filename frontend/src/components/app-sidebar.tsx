@@ -23,6 +23,7 @@ const NAV_ITEMS = [
   { title: "Journal", href: "/journal", icon: "BookOpen" },
   { title: "Market Stance", href: "/market-stance", icon: "BarChart3" },
   { title: "Performance", href: "/performance", icon: "LineChart" },
+  { title: "Methodology", href: "/methodology", icon: "GraduationCap" },
 ] as const;
 
 export function AppSidebar() {

@@ -1,0 +1,237 @@
+// =============================================================================
+// CTS - Positive Pivotal Candle (PPC) Scanner
+// Champion Trader System by Jhaveri Securities
+// =============================================================================
+// A Positive Pivotal Candle signals strong institutional buying pressure.
+// It combines unusual range expansion (TRP), bullish close position, and
+// above-average volume into a single signal. PPCs often mark the beginning
+// of significant upward moves — they are the "footprints" of big money
+// entering a position.
+//
+// ALL four conditions must be true simultaneously:
+//   1. TRP >= 1.5x average TRP (range expansion — something happened)
+//   2. Close in upper 60% of range (bulls won the session)
+//   3. Volume >= 1.5x 20-day avg volume (participation confirms intent)
+//   4. Close > Open (green candle — net buying pressure)
+// =============================================================================
+
+//@version=5
+indicator("CTS - PPC Scanner", overlay=true, max_labels_count=500, max_bars_back=500)
+
+// ---------------------------------------------------------------------------
+// INPUT PARAMETERS
+// ---------------------------------------------------------------------------
+
+// TRP calculation period — same as the TRP indicator for consistency
+trp_period = input.int(20, "TRP Average Period", minval=5, maxval=100,
+    tooltip="Period for calculating average TRP. Keep consistent with TRP Indicator.")
+
+// Volume average period — 20 days is roughly one trading month
+vol_period = input.int(20, "Volume Average Period", minval=5, maxval=100,
+    tooltip="Period for calculating average volume.")
+
+// Minimum TRP ratio to qualify as a pivotal candle — 1.5x means the bar
+// must be at least 50% wider than normal
+min_trp_ratio = input.float(1.5, "Min TRP Ratio", minval=1.0, maxval=5.0, step=0.1,
+    tooltip="Minimum TRP/Avg TRP ratio for PPC detection. 1.5 = 50% wider than average.")
+
+// Strong PPC threshold — bars above this are exceptional and deserve
+// special highlighting
+strong_trp_ratio = input.float(2.5, "Strong PPC TRP Ratio", minval=2.0, maxval=5.0, step=0.1,
+    tooltip="TRP ratio above this marks a Strong PPC (exceptional buying).")
+
+// Minimum close position within the bar's range — 0.60 means close must
+// be in the upper 40% of the candle (strong bullish finish)
+min_close_position = input.float(0.60, "Min Close Position", minval=0.50, maxval=0.90, step=0.05,
+    tooltip="Close must be in this percentile of the bar range. 0.60 = upper 40%.")
+
+// Minimum volume ratio — 1.5x ensures meaningful participation
+min_vol_ratio = input.float(1.5, "Min Volume Ratio", minval=1.0, maxval=5.0, step=0.1,
+    tooltip="Volume must exceed average by this multiple.")
+
+// How many bars to look back for PPC count
+lookback_bars = input.int(60, "Lookback Bars for Count", minval=10, maxval=200,
+    tooltip="Count PPCs within this many recent bars.")
+
+// Visual settings
+show_labels = input.bool(true, "Show PPC Labels", tooltip="Display labels above PPC candles.")
+show_table = input.bool(true, "Show Info Table", tooltip="Display PPC metrics table.")
+table_position = input.string("top_right", "Table Position",
+    options=["top_right", "top_left", "bottom_right", "bottom_left"])
+
+// ---------------------------------------------------------------------------
+// CORE CALCULATIONS
+// ---------------------------------------------------------------------------
+
+// TRP — True Range Percentage for each bar
+candle_range = high - low
+trp = candle_range / close * 100
+avg_trp = ta.sma(trp, trp_period)
+
+// TRP ratio — how this bar compares to normal volatility
+trp_ratio = avg_trp > 0 ? trp / avg_trp : 0.0
+
+// Close position within the candle range (0 = closed at low, 1 = closed at high)
+// Guarded against zero-range bars (doji with high == low)
+close_position = candle_range > 0 ? (close - low) / candle_range : 0.5
+
+// Volume analysis
+avg_volume = ta.sma(volume, vol_period)
+vol_ratio = avg_volume > 0 ? volume / avg_volume : 0.0
+
+// ---------------------------------------------------------------------------
+// PPC DETECTION LOGIC
+// ---------------------------------------------------------------------------
+
+// Condition 1: Range expansion — the candle is significantly wider than normal.
+// This means something moved the stock, whether it's news, institutional
+// accumulation, or a breakout from a tight range.
+condition_trp = trp_ratio >= min_trp_ratio
+
+// Condition 2: Bullish close position — the bulls controlled the session.
+// Even if the bar opened low, it closed near the high, showing buying
+// pressure dominated throughout the day.
+condition_close = close_position >= min_close_position
+
+// Condition 3: Above-average volume — the move has conviction. Wide-range
+// bars on low volume are suspect (could be thin liquidity, not real demand).
+condition_volume = vol_ratio >= min_vol_ratio
+
+// Condition 4: Green candle — net buying. Close above open confirms
+// the directional bias.
+condition_bullish = close > open
+
+// ALL four conditions must be true simultaneously
+is_ppc = condition_trp and condition_close and condition_volume and condition_bullish
+
+// Classify PPC strength based on TRP ratio magnitude
+is_strong_ppc = is_ppc and trp_ratio >= strong_trp_ratio
+is_standard_ppc = is_ppc and trp_ratio < strong_trp_ratio
+
+// ---------------------------------------------------------------------------
+// PPC COUNT OVER LOOKBACK PERIOD
+// ---------------------------------------------------------------------------
+
+// Count how many PPCs occurred in the recent lookback window.
+// Multiple PPCs in a short period signal sustained institutional interest.
+ppc_count = 0
+for i = 0 to lookback_bars - 1
+    candle_range_i = high[i] - low[i]
+    trp_i = candle_range_i / close[i] * 100
+    avg_trp_i = ta.sma(trp, trp_period)[i]
+    trp_ratio_i = avg_trp_i > 0 ? trp_i / avg_trp_i : 0.0
+    close_pos_i = candle_range_i > 0 ? (close[i] - low[i]) / candle_range_i : 0.5
+    avg_vol_i = ta.sma(volume, vol_period)[i]
+    vol_ratio_i = avg_vol_i > 0 ? volume[i] / avg_vol_i : 0.0
+    if trp_ratio_i >= min_trp_ratio and close_pos_i >= min_close_position and vol_ratio_i >= min_vol_ratio and close[i] > open[i]
+        ppc_count += 1
+
+// ---------------------------------------------------------------------------
+// VISUAL PLOTTING
+// ---------------------------------------------------------------------------
+
+// Paint PPC candles with distinct colors so they stand out on the chart.
+// Strong PPCs get a brighter, more saturated color.
+barcolor(is_strong_ppc ? color.new(color.lime, 0) : is_standard_ppc ? color.new(color.green, 20) : na,
+    title="PPC Bar Color")
+
+// Background flash on PPC bars for additional visibility
+bgcolor(is_strong_ppc ? color.new(color.lime, 90) : is_standard_ppc ? color.new(color.green, 92) : na,
+    title="PPC Background")
+
+// Label above PPC candles showing strength classification
+if show_labels and is_strong_ppc
+    label.new(bar_index, high, "STRONG\nPPC",
+        style=label.style_label_down,
+        color=color.new(color.lime, 10),
+        textcolor=color.black,
+        size=size.small)
+else if show_labels and is_standard_ppc
+    label.new(bar_index, high, "PPC",
+        style=label.style_label_down,
+        color=color.new(color.green, 20),
+        textcolor=color.white,
+        size=size.tiny)
+
+// ---------------------------------------------------------------------------
+// SHAPE MARKERS for screener compatibility
+// ---------------------------------------------------------------------------
+
+// plotshape works with TradingView's screener — labels do not
+plotshape(is_strong_ppc, title="Strong PPC Marker", location=location.abovebar,
+    style=shape.diamond, color=color.lime, size=size.small)
+plotshape(is_standard_ppc, title="Standard PPC Marker", location=location.abovebar,
+    style=shape.triangleup, color=color.green, size=size.tiny)
+
+// ---------------------------------------------------------------------------
+// INFO TABLE
+// ---------------------------------------------------------------------------
+
+if show_table and barstate.islast
+    tbl_pos = switch table_position
+        "top_right"    => position.top_right
+        "top_left"     => position.top_left
+        "bottom_right" => position.bottom_right
+        "bottom_left"  => position.bottom_left
+        => position.top_right
+
+    var tbl = table.new(tbl_pos, 2, 7,
+        bgcolor=color.new(color.black, 10),
+        border_color=color.new(color.gray, 60),
+        border_width=1)
+
+    // Header
+    table.cell(tbl, 0, 0, "PPC Scanner", text_color=color.white, text_size=size.small,
+        bgcolor=color.new(color.green, 30))
+    table.cell(tbl, 1, 0, syminfo.tickerid, text_color=color.white, text_size=size.small,
+        bgcolor=color.new(color.green, 30))
+
+    // Current TRP
+    table.cell(tbl, 0, 1, "TRP", text_color=color.gray, text_size=size.small)
+    table.cell(tbl, 1, 1, str.tostring(trp, "#.##") + "%", text_color=color.white, text_size=size.small)
+
+    // TRP Ratio
+    ratio_color = trp_ratio >= strong_trp_ratio ? color.lime : trp_ratio >= min_trp_ratio ? color.green : color.gray
+    table.cell(tbl, 0, 2, "TRP Ratio", text_color=color.gray, text_size=size.small)
+    table.cell(tbl, 1, 2, str.tostring(trp_ratio, "#.##") + "x", text_color=ratio_color, text_size=size.small)
+
+    // Close Position
+    cp_color = close_position >= min_close_position ? color.green : color.red
+    table.cell(tbl, 0, 3, "Close Pos", text_color=color.gray, text_size=size.small)
+    table.cell(tbl, 1, 3, str.tostring(close_position * 100, "#.#") + "%", text_color=cp_color, text_size=size.small)
+
+    // Volume Ratio
+    vr_color = vol_ratio >= min_vol_ratio ? color.green : color.gray
+    table.cell(tbl, 0, 4, "Vol Ratio", text_color=color.gray, text_size=size.small)
+    table.cell(tbl, 1, 4, str.tostring(vol_ratio, "#.##") + "x", text_color=vr_color, text_size=size.small)
+
+    // PPC Count in lookback
+    count_color = ppc_count >= 3 ? color.lime : ppc_count >= 1 ? color.green : color.gray
+    table.cell(tbl, 0, 5, "PPCs (" + str.tostring(lookback_bars) + " bars)", text_color=color.gray, text_size=size.small)
+    table.cell(tbl, 1, 5, str.tostring(ppc_count), text_color=count_color, text_size=size.small)
+
+    // Current bar PPC status
+    ppc_status = is_strong_ppc ? "STRONG PPC" : is_standard_ppc ? "PPC" : "---"
+    ppc_status_color = is_strong_ppc ? color.lime : is_standard_ppc ? color.green : color.gray
+    table.cell(tbl, 0, 6, "Current Bar", text_color=color.gray, text_size=size.small)
+    table.cell(tbl, 1, 6, ppc_status, text_color=ppc_status_color, text_size=size.small)
+
+// ---------------------------------------------------------------------------
+// ALERT CONDITIONS
+// ---------------------------------------------------------------------------
+
+// Build the webhook JSON message with all relevant metrics.
+// The backend can parse this to store PPC events and trigger notifications.
+ppc_alert_message = '{"symbol": "{{ticker}}", "alert_type": "PPC_DETECTED", "price": {{close}}, "close": {{close}}, "volume": {{volume}}, "trp": ' + str.tostring(trp, "#.##") + ', "trp_ratio": ' + str.tostring(trp_ratio, "#.##") + ', "volume_ratio": ' + str.tostring(vol_ratio, "#.##") + ', "close_position": ' + str.tostring(close_position, "#.###") + '}'
+
+strong_ppc_alert_message = '{"symbol": "{{ticker}}", "alert_type": "STRONG_PPC_DETECTED", "price": {{close}}, "close": {{close}}, "volume": {{volume}}, "trp": ' + str.tostring(trp, "#.##") + ', "trp_ratio": ' + str.tostring(trp_ratio, "#.##") + ', "volume_ratio": ' + str.tostring(vol_ratio, "#.##") + ', "close_position": ' + str.tostring(close_position, "#.###") + '}'
+
+// Alert for any PPC detection (standard or strong)
+alertcondition(is_ppc,
+    title="PPC Detected",
+    message=ppc_alert_message)
+
+// Separate alert for strong PPCs only — these are the highest-conviction signals
+alertcondition(is_strong_ppc,
+    title="Strong PPC Detected",
+    message=strong_ppc_alert_message)

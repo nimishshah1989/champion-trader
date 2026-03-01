@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from backend.config import settings
 from backend.database import Base, ScanResult, get_db
+from backend.services.alert_service import create_alert
 
 logger = logging.getLogger("cts.webhooks")
 
@@ -179,6 +180,9 @@ async def receive_tradingview_alert(
     )
     db.add(log_entry)
 
+    # Clean symbol for display (remove exchange suffix)
+    clean_symbol = alert.symbol.upper().replace(".NS", "")
+
     # Route based on alert type
     result = {"status": "received", "alert_type": alert.alert_type, "symbol": alert.symbol}
 
@@ -190,7 +194,7 @@ async def receive_tradingview_alert(
         }
         scan_result = ScanResult(
             scan_date=date.today(),
-            symbol=alert.symbol.upper().replace(".NS", ""),
+            symbol=clean_symbol,
             scan_type=scan_type_map[alert.alert_type],
             close_price=alert.close or alert.price,
             volume=alert.volume,
@@ -205,20 +209,70 @@ async def receive_tradingview_alert(
         log_entry.status = "processed"
         result["action"] = f"Saved to scan_results as {scan_type_map[alert.alert_type]}"
 
+        # Create in-app alert for scan detections
+        scan_label = scan_type_map[alert.alert_type]
+        trp_info = f" TRP ratio: {alert.trp_ratio}x," if alert.trp_ratio else ""
+        vol_info = f" Volume ratio: {alert.volume_ratio}x" if alert.volume_ratio else ""
+        create_alert(
+            db,
+            alert.alert_type,
+            f"{clean_symbol} {scan_label} detected at {alert.price}.{trp_info}{vol_info}",
+            symbol=clean_symbol,
+            data={
+                "price": alert.price,
+                "trp_ratio": alert.trp_ratio,
+                "volume_ratio": alert.volume_ratio,
+            },
+        )
+
     elif alert.alert_type == "ENTRY":
         log_entry.status = "processed"
         result["action"] = "Entry alert logged"
         result["trigger_level"] = alert.trigger_level
         result["message"] = f"{alert.symbol} broke trigger level at {alert.price}"
 
+        # Create in-app alert for entry trigger
+        create_alert(
+            db,
+            "TRIGGER_LEVEL",
+            f"{clean_symbol} broke trigger level at {alert.price}",
+            symbol=clean_symbol,
+            data={
+                "price": alert.price,
+                "trigger_level": alert.trigger_level,
+            },
+        )
+
     elif alert.alert_type == "SL_HIT":
         log_entry.status = "processed"
         result["action"] = "SL hit alert logged — monitor for 10 minutes before exiting"
         result["sl_price"] = alert.sl_price or alert.price
 
+        # Create critical in-app alert for SL hit
+        create_alert(
+            db,
+            "SL_HIT",
+            f"{clean_symbol} hit stop-loss at {alert.sl_price or alert.price}. Monitor for 10 minutes before exiting.",
+            symbol=clean_symbol,
+            data={
+                "price": alert.price,
+                "sl_price": alert.sl_price or alert.price,
+            },
+        )
+
     else:
         log_entry.status = "processed"
         result["action"] = "Custom alert logged"
+
+        # Create in-app alert for custom/unknown types
+        custom_message = alert.message or f"Custom alert for {clean_symbol} at {alert.price}"
+        create_alert(
+            db,
+            alert.alert_type,
+            custom_message,
+            symbol=clean_symbol,
+            data={"price": alert.price, "raw_type": alert.alert_type},
+        )
 
     db.commit()
 

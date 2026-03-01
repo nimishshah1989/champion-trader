@@ -1,0 +1,373 @@
+// =============================================================================
+// CTS - Weinstein Stage Analysis
+// Champion Trader System by Jhaveri Securities
+// =============================================================================
+// Stan Weinstein's Stage Analysis divides a stock's lifecycle into four stages:
+//
+//   Stage 1 (Base/Accumulation): Stock trades sideways after a decline.
+//     The 30-week MA flattens, volume is low. Smart money accumulates here.
+//
+//   Stage 1 Breakout (S1B): Price breaks above the flat 30wMA on volume.
+//     This is the earliest entry point — the stock is just starting to move.
+//
+//   Stage 2 (Advancing): Price is above a rising 30wMA. This is the only
+//     stage where you should be long. The 30wMA acts as dynamic support.
+//     Buy the dips to the rising MA.
+//
+//   Stage 3 (Top/Distribution): Price stalls at the 30wMA, which flattens.
+//     Institutions distribute (sell) to retail. Volume often picks up on
+//     declines. Exit all longs here.
+//
+//   Stage 4 (Declining): Price is below a falling 30wMA. Stay away or
+//     consider shorting. Don't catch falling knives.
+//
+// The 30-week MA translates to approximately 150-day SMA on the daily chart.
+// This script uses the 150-day SMA as the primary trend filter and classifies
+// the current stage based on price position, MA slope, and volume patterns.
+// =============================================================================
+
+//@version=5
+indicator("CTS - Stage Analysis", overlay=true, max_labels_count=500)
+
+// ---------------------------------------------------------------------------
+// INPUT PARAMETERS
+// ---------------------------------------------------------------------------
+
+// 30-week MA = ~150 trading days. This is the Weinstein standard.
+// Some traders use 200-day, but 150 is closer to the original 30-week concept.
+ma_period = input.int(150, "30-Week MA Period (days)", minval=50, maxval=250,
+    tooltip="150 days approximates the 30-week moving average. Weinstein's core trend filter.")
+
+// Slope calculation period — how many bars to measure the MA's direction
+slope_period = input.int(10, "Slope Calculation Period", minval=5, maxval=30,
+    tooltip="Number of bars to calculate MA slope direction.")
+
+// Proximity threshold — how close price must be to the MA to count as "near"
+// Used for Stage 1 (base) and Stage 3 (top) detection
+proximity_pct = input.float(3.0, "MA Proximity (%)", minval=1.0, maxval=10.0, step=0.5,
+    tooltip="Price within this % of the 30wMA is considered 'near' the MA.")
+
+// Slope flatness threshold — below this absolute value, the MA is considered flat.
+// This distinguishes Stage 1/3 (flat) from Stage 2/4 (trending).
+// Expressed as a percentage of the MA value per bar.
+flat_threshold = input.float(0.03, "Flat Slope Threshold (%)", minval=0.01, maxval=0.10, step=0.005,
+    tooltip="MA slope below this % per bar is considered flat (Stage 1 or 3).")
+
+// Volume average period for volume analysis
+vol_period = input.int(50, "Volume Average Period", minval=20, maxval=200,
+    tooltip="Period for average volume calculation.")
+
+// Visual settings
+show_ma = input.bool(true, "Show 30-Week MA", tooltip="Display the 150-day SMA on chart.")
+show_bg = input.bool(true, "Show Stage Background Color", tooltip="Color the chart background by stage.")
+show_labels = input.bool(true, "Show Stage Labels", tooltip="Display stage change labels.")
+show_table = input.bool(true, "Show Info Table", tooltip="Display stage analysis metrics table.")
+table_position = input.string("top_right", "Table Position",
+    options=["top_right", "top_left", "bottom_right", "bottom_left"])
+
+// Background transparency (higher = more transparent)
+bg_transparency = input.int(92, "Background Transparency", minval=80, maxval=97,
+    tooltip="Transparency of stage background color. Higher = more subtle.")
+
+// ---------------------------------------------------------------------------
+// CORE CALCULATIONS
+// ---------------------------------------------------------------------------
+
+// The 30-week (150-day) Simple Moving Average — Weinstein's primary trend filter
+ma_30w = ta.sma(close, ma_period)
+
+// MA Slope: measures the direction and speed of the MA over the slope period.
+// Positive = trending up (bullish), Negative = trending down (bearish),
+// Near zero = flat (transitional — either basing or topping).
+ma_slope = ma_30w - ma_30w[slope_period]
+
+// Normalize slope as percentage of MA value — makes it comparable across
+// different price levels (a 1-point slope on a Rs 100 stock vs Rs 1000 stock)
+ma_slope_pct = ma_30w > 0 ? (ma_slope / ma_30w) * 100 : 0.0
+
+// Slope per bar (averaged over slope period) — compared against flat_threshold
+slope_per_bar = ma_slope_pct / slope_period
+
+// Price distance from the 30wMA as percentage — used for proximity checks
+price_distance_pct = ma_30w > 0 ? ((close - ma_30w) / ma_30w) * 100 : 0.0
+
+// Absolute distance — used for "near MA" condition regardless of direction
+abs_distance = math.abs(price_distance_pct)
+
+// Price position relative to MA
+price_above_ma = close > ma_30w
+price_below_ma = close < ma_30w
+price_near_ma = abs_distance <= proximity_pct
+
+// Volume analysis — used to confirm Stage 1 (low volume) and breakouts (high volume)
+avg_volume = ta.sma(volume, vol_period)
+vol_ratio = avg_volume > 0 ? volume / avg_volume : 1.0
+low_volume = vol_ratio < 0.8     // below 80% of average
+high_volume = vol_ratio > 1.3    // above 130% of average
+
+// MA direction classification
+ma_flat = math.abs(slope_per_bar) < flat_threshold
+ma_rising = slope_per_bar >= flat_threshold
+ma_falling = slope_per_bar <= -flat_threshold
+
+// Check if MA is just starting to turn up — the earliest sign of a Stage 1 breakout.
+// Current slope is positive but small, and it was flat or negative recently.
+ma_just_turning_up = slope_per_bar > 0 and slope_per_bar < flat_threshold * 3 and ma_30w[slope_period] <= ma_30w[slope_period * 2]
+
+// Higher highs check — used to confirm Stage 2 uptrend.
+// Compare the highest high of recent 20 bars vs the 20 bars before that.
+recent_hh = ta.highest(high, 20)
+prior_hh = ta.highest(high, 20)[20]
+making_higher_highs = recent_hh > prior_hh
+
+// ---------------------------------------------------------------------------
+// STAGE CLASSIFICATION
+// ---------------------------------------------------------------------------
+// Each stage is assigned a numeric value for easy comparison and plotting:
+//   1.0 = Stage 1 (Base)
+//   1.5 = Stage 1 Breakout
+//   2.0 = Stage 2 (Advancing)
+//   3.0 = Stage 3 (Top)
+//   4.0 = Stage 4 (Declining)
+
+var float current_stage = 0.0
+
+// Stage 1 (Base): Price near the flat 30wMA, low volume — accumulation phase.
+// The stock has stopped declining and is building a base.
+is_stage_1 = price_near_ma and ma_flat and not high_volume
+
+// Stage 1 Breakout: Price breaks above the 30wMA on above-average volume,
+// with the MA just beginning to turn up. This is the transition from base
+// to advancing — the highest-potential entry point.
+is_stage_1_breakout = price_above_ma and abs_distance <= proximity_pct * 2 and (ma_flat or ma_just_turning_up) and high_volume
+
+// Stage 2 (Advancing): Price above a rising 30wMA. The stock is in an
+// established uptrend. This is the only stage to be long.
+is_stage_2 = price_above_ma and ma_rising
+
+// Stage 3 (Top): Price near or just below the 30wMA, which has stopped
+// rising and is flattening or beginning to turn down. Distribution phase.
+is_stage_3 = (price_near_ma or (price_below_ma and abs_distance <= proximity_pct * 2)) and (ma_flat or (ma_falling and math.abs(slope_per_bar) < flat_threshold * 2))
+
+// Stage 4 (Declining): Price below a falling 30wMA. Downtrend confirmed.
+is_stage_4 = price_below_ma and ma_falling
+
+// Priority-based assignment — check in order of specificity.
+// Stage 1 Breakout is checked before Stage 1 because it's a specific
+// sub-condition of the broader Stage 1 pattern.
+if is_stage_1_breakout
+    current_stage := 1.5
+else if is_stage_2
+    current_stage := 2.0
+else if is_stage_3
+    current_stage := 3.0
+else if is_stage_4
+    current_stage := 4.0
+else if is_stage_1
+    current_stage := 1.0
+else
+    // Fallback classification based on simple price/MA relationship
+    // This handles edge cases between stages
+    if price_above_ma
+        current_stage := ma_rising ? 2.0 : ma_flat ? 1.5 : 3.0
+    else
+        current_stage := ma_falling ? 4.0 : ma_flat ? 1.0 : 3.0
+
+// Track stage changes — label the chart when the stage transitions
+stage_changed = current_stage != current_stage[1]
+
+// ---------------------------------------------------------------------------
+// COLOR DEFINITIONS BY STAGE
+// ---------------------------------------------------------------------------
+
+// Stage colors — intuitive traffic-light scheme:
+//   Green = Stage 2 (go, be long)
+//   Yellow/Gold = Stage 1/1B (caution, building base, potential)
+//   Orange = Stage 3 (warning, distribution)
+//   Red = Stage 4 (stop, declining, don't be long)
+
+stage_color = switch
+    current_stage == 1.0 => color.new(color.yellow, bg_transparency)
+    current_stage == 1.5 => color.new(color.lime, bg_transparency)
+    current_stage == 2.0 => color.new(color.green, bg_transparency)
+    current_stage == 3.0 => color.new(color.orange, bg_transparency)
+    current_stage == 4.0 => color.new(color.red, bg_transparency)
+    => color.new(color.gray, bg_transparency)
+
+// MA line color matches the stage
+ma_color = switch
+    current_stage == 1.0 => color.new(color.yellow, 20)
+    current_stage == 1.5 => color.new(color.lime, 10)
+    current_stage == 2.0 => color.new(color.green, 10)
+    current_stage == 3.0 => color.new(color.orange, 10)
+    current_stage == 4.0 => color.new(color.red, 10)
+    => color.new(color.gray, 30)
+
+// Stage name for labels and table
+stage_name = switch
+    current_stage == 1.0 => "S1: BASE"
+    current_stage == 1.5 => "S1B: BREAKOUT"
+    current_stage == 2.0 => "S2: ADVANCING"
+    current_stage == 3.0 => "S3: TOP"
+    current_stage == 4.0 => "S4: DECLINING"
+    => "UNDEFINED"
+
+// Short stage name for compact display
+stage_short = switch
+    current_stage == 1.0 => "S1"
+    current_stage == 1.5 => "S1B"
+    current_stage == 2.0 => "S2"
+    current_stage == 3.0 => "S3"
+    current_stage == 4.0 => "S4"
+    => "?"
+
+// Action recommendation based on stage
+stage_action = switch
+    current_stage == 1.0 => "WATCH"
+    current_stage == 1.5 => "EARLY BUY"
+    current_stage == 2.0 => "BUY / HOLD"
+    current_stage == 3.0 => "EXIT LONGS"
+    current_stage == 4.0 => "AVOID"
+    => "---"
+
+// ---------------------------------------------------------------------------
+// VISUAL PLOTTING
+// ---------------------------------------------------------------------------
+
+// 30-Week MA line — the core trend reference
+plot(show_ma ? ma_30w : na, "30-Week MA", color=ma_color, linewidth=3)
+
+// Stage background color
+bgcolor(show_bg ? stage_color : na, title="Stage Background")
+
+// Stage change labels — mark the chart when the stock transitions between stages
+if show_labels and stage_changed and not na(current_stage[1])
+    label_color = switch
+        current_stage == 1.0 => color.new(color.yellow, 10)
+        current_stage == 1.5 => color.new(color.lime, 10)
+        current_stage == 2.0 => color.new(color.green, 10)
+        current_stage == 3.0 => color.new(color.orange, 10)
+        current_stage == 4.0 => color.new(color.red, 10)
+        => color.new(color.gray, 10)
+
+    text_col = current_stage == 1.5 or current_stage == 1.0 ? color.black : color.white
+
+    label.new(bar_index, price_above_ma ? low : high,
+        stage_name,
+        style=price_above_ma ? label.style_label_up : label.style_label_down,
+        color=label_color,
+        textcolor=text_col,
+        size=size.small)
+
+// ---------------------------------------------------------------------------
+// INFO TABLE
+// ---------------------------------------------------------------------------
+
+if show_table and barstate.islast
+    tbl_pos = switch table_position
+        "top_right"    => position.top_right
+        "top_left"     => position.top_left
+        "bottom_right" => position.bottom_right
+        "bottom_left"  => position.bottom_left
+        => position.top_right
+
+    var tbl = table.new(tbl_pos, 2, 9,
+        bgcolor=color.new(color.black, 10),
+        border_color=color.new(color.gray, 60),
+        border_width=1)
+
+    // Header — color matches current stage
+    header_bg = switch
+        current_stage == 1.0 => color.new(color.yellow, 20)
+        current_stage == 1.5 => color.new(color.lime, 20)
+        current_stage == 2.0 => color.new(color.green, 20)
+        current_stage == 3.0 => color.new(color.orange, 20)
+        current_stage == 4.0 => color.new(color.red, 20)
+        => color.new(color.gray, 20)
+
+    header_text_col = current_stage == 1.0 or current_stage == 1.5 ? color.black : color.white
+
+    table.cell(tbl, 0, 0, "Stage Analysis", text_color=header_text_col, text_size=size.small, bgcolor=header_bg)
+    table.cell(tbl, 1, 0, syminfo.tickerid, text_color=header_text_col, text_size=size.small, bgcolor=header_bg)
+
+    // Current Stage
+    stage_text_color = switch
+        current_stage == 1.0 => color.yellow
+        current_stage == 1.5 => color.lime
+        current_stage == 2.0 => color.green
+        current_stage == 3.0 => color.orange
+        current_stage == 4.0 => color.red
+        => color.gray
+    table.cell(tbl, 0, 1, "Stage", text_color=color.gray, text_size=size.small)
+    table.cell(tbl, 1, 1, stage_name, text_color=stage_text_color, text_size=size.small)
+
+    // Action
+    action_color = switch
+        current_stage == 1.5 => color.lime
+        current_stage == 2.0 => color.green
+        current_stage == 3.0 => color.orange
+        current_stage == 4.0 => color.red
+        => color.yellow
+    table.cell(tbl, 0, 2, "Action", text_color=color.gray, text_size=size.small)
+    table.cell(tbl, 1, 2, stage_action, text_color=action_color, text_size=size.small)
+
+    // 30-Week MA value
+    table.cell(tbl, 0, 3, "30W MA", text_color=color.gray, text_size=size.small)
+    table.cell(tbl, 1, 3, str.tostring(ma_30w, format.mintick), text_color=color.white, text_size=size.small)
+
+    // Price distance from MA
+    dist_color = price_above_ma ? color.green : color.red
+    dist_sign = price_distance_pct >= 0 ? "+" : ""
+    table.cell(tbl, 0, 4, "Distance", text_color=color.gray, text_size=size.small)
+    table.cell(tbl, 1, 4, dist_sign + str.tostring(price_distance_pct, "#.##") + "%", text_color=dist_color, text_size=size.small)
+
+    // MA Slope direction
+    slope_dir_text = ma_rising ? "RISING" : ma_falling ? "FALLING" : "FLAT"
+    slope_dir_color = ma_rising ? color.green : ma_falling ? color.red : color.yellow
+    table.cell(tbl, 0, 5, "MA Trend", text_color=color.gray, text_size=size.small)
+    table.cell(tbl, 1, 5, slope_dir_text + " (" + str.tostring(slope_per_bar, "#.###") + "%/bar)", text_color=slope_dir_color, text_size=size.small)
+
+    // Volume ratio
+    vol_text_color = high_volume ? color.green : low_volume ? color.gray : color.white
+    table.cell(tbl, 0, 6, "Volume", text_color=color.gray, text_size=size.small)
+    table.cell(tbl, 1, 6, str.tostring(vol_ratio, "#.##") + "x avg", text_color=vol_text_color, text_size=size.small)
+
+    // Higher highs check — confirms Stage 2 uptrend health
+    hh_text = making_higher_highs ? "YES" : "NO"
+    hh_color = making_higher_highs ? color.green : color.red
+    table.cell(tbl, 0, 7, "Higher Highs", text_color=color.gray, text_size=size.small)
+    table.cell(tbl, 1, 7, hh_text, text_color=hh_color, text_size=size.small)
+
+    // Price
+    table.cell(tbl, 0, 8, "Close", text_color=color.gray, text_size=size.small)
+    table.cell(tbl, 1, 8, str.tostring(close, format.mintick), text_color=color.white, text_size=size.small)
+
+// ---------------------------------------------------------------------------
+// ALERT CONDITIONS
+// ---------------------------------------------------------------------------
+
+// Stage 1 Breakout — the highest-potential entry signal in Weinstein's framework.
+// Price is breaking out of a base on volume — early entry opportunity.
+alertcondition(current_stage == 1.5 and stage_changed,
+    title="Stage 1 Breakout",
+    message='{"symbol": "{{ticker}}", "alert_type": "STAGE_1_BREAKOUT", "price": {{close}}, "close": {{close}}, "volume": {{volume}}, "ma_value": ' + str.tostring(ma_30w, format.mintick) + ', "distance_pct": ' + str.tostring(price_distance_pct, "#.##") + '}')
+
+// Entered Stage 2 — confirmed uptrend. Safe to be long.
+alertcondition(current_stage == 2.0 and stage_changed,
+    title="Stage 2 Entry",
+    message='{"symbol": "{{ticker}}", "alert_type": "STAGE_2_ADVANCING", "price": {{close}}, "close": {{close}}, "ma_value": ' + str.tostring(ma_30w, format.mintick) + ', "distance_pct": ' + str.tostring(price_distance_pct, "#.##") + '}')
+
+// Stage 3 Warning — distribution phase. Time to exit longs and take profits.
+alertcondition(current_stage == 3.0 and stage_changed,
+    title="Stage 3 Warning",
+    message='{"symbol": "{{ticker}}", "alert_type": "STAGE_3_TOP", "price": {{close}}, "close": {{close}}, "ma_value": ' + str.tostring(ma_30w, format.mintick) + ', "distance_pct": ' + str.tostring(price_distance_pct, "#.##") + '}')
+
+// Stage 4 Decline — confirmed downtrend. Avoid or short.
+alertcondition(current_stage == 4.0 and stage_changed,
+    title="Stage 4 Decline",
+    message='{"symbol": "{{ticker}}", "alert_type": "STAGE_4_DECLINING", "price": {{close}}, "close": {{close}}, "ma_value": ' + str.tostring(ma_30w, format.mintick) + ', "distance_pct": ' + str.tostring(price_distance_pct, "#.##") + '}')
+
+// Any stage change — useful for general monitoring
+alertcondition(stage_changed,
+    title="Stage Change",
+    message='{"symbol": "{{ticker}}", "alert_type": "STAGE_CHANGE", "price": {{close}}, "close": {{close}}, "stage": "' + stage_short + '", "stage_name": "' + stage_name + '", "ma_value": ' + str.tostring(ma_30w, format.mintick) + ', "distance_pct": ' + str.tostring(price_distance_pct, "#.##") + '}')

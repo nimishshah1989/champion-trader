@@ -20,6 +20,7 @@ from backend.routers import (
     trades,
     watchlist,
 )
+from backend.routers.alerts_app import router as alerts_app_router
 
 
 @asynccontextmanager
@@ -56,6 +57,7 @@ app.include_router(trades.router)
 app.include_router(journal.router)
 app.include_router(market_stance.router)
 app.include_router(alerts.router)
+app.include_router(alerts_app_router)
 
 
 @app.get("/")

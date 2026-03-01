@@ -1,0 +1,308 @@
+// =============================================================================
+// CTS - Contraction Scanner
+// Champion Trader System by Jhaveri Securities
+// =============================================================================
+// Contractions are periods where volatility compresses — candle ranges get
+// progressively smaller, like a coiled spring. These tight ranges near
+// resistance levels often precede explosive breakout moves. This scanner
+// identifies contraction zones and marks the "trigger bar" — the last
+// narrow-range candle before a potential breakout. The trigger level (high
+// of the trigger bar) becomes the entry point: a close above this level
+// on expanding volume confirms the breakout.
+//
+// Detection criteria:
+//   1. ATR(14) slope is negative over last 5 bars (volatility declining)
+//   2. Last 5 candle ranges are progressively narrowing
+//   3. Price is within 3% of the highest high (near resistance)
+//   4. The trigger bar is the most recent narrow-range candle
+// =============================================================================
+
+//@version=5
+indicator("CTS - Contraction Scanner", overlay=true, max_labels_count=500, max_lines_count=500)
+
+// ---------------------------------------------------------------------------
+// INPUT PARAMETERS
+// ---------------------------------------------------------------------------
+
+// ATR period for measuring average volatility
+atr_period = input.int(14, "ATR Period", minval=5, maxval=50,
+    tooltip="Period for Average True Range calculation.")
+
+// Number of bars to check for progressive narrowing
+contraction_bars = input.int(5, "Contraction Lookback Bars", minval=3, maxval=10,
+    tooltip="Number of recent bars to check for progressive range narrowing.")
+
+// How close price must be to the recent high (as percentage)
+// 3% means the stock is within striking distance of its high — a breakout
+// from contraction near the high is much more significant than one in the middle
+resistance_pct = input.float(3.0, "Resistance Proximity (%)", minval=1.0, maxval=10.0, step=0.5,
+    tooltip="Price must be within this % of the highest high to qualify.")
+
+// Lookback for finding the highest high (resistance level)
+resistance_lookback = input.int(50, "Resistance Lookback Bars", minval=20, maxval=200,
+    tooltip="Number of bars to look back for highest high (resistance).")
+
+// TRP period — used to calculate TRP for the webhook alert message
+trp_period = input.int(20, "TRP Period (for alert)", minval=5, maxval=100,
+    tooltip="TRP average period for alert message context.")
+
+// How many bars to extend the trigger level line forward
+trigger_line_extend = input.int(10, "Trigger Line Extend (bars)", minval=3, maxval=30,
+    tooltip="How many bars forward to extend the trigger level line.")
+
+// Visual settings
+show_labels = input.bool(true, "Show Labels", tooltip="Display contraction and trigger labels.")
+show_zone = input.bool(true, "Show Contraction Zone", tooltip="Highlight the contraction zone background.")
+show_table = input.bool(true, "Show Info Table", tooltip="Display contraction metrics table.")
+table_position = input.string("top_right", "Table Position",
+    options=["top_right", "top_left", "bottom_right", "bottom_left"])
+
+// ---------------------------------------------------------------------------
+// CORE CALCULATIONS
+// ---------------------------------------------------------------------------
+
+// ATR — the standard measure of volatility over the specified period
+atr_value = ta.atr(atr_period)
+
+// TRP — included in webhook messages for consistency with other CTS scripts
+candle_range = high - low
+trp = candle_range / close * 100
+avg_trp = ta.sma(trp, trp_period)
+
+// Highest high over the resistance lookback — this is our "resistance" level.
+// We want contractions happening near this level because that's where
+// breakout entries have the highest probability.
+highest_high = ta.highest(high, resistance_lookback)
+
+// How far current price is from the resistance level (as percentage)
+distance_from_high = highest_high > 0 ? ((highest_high - close) / highest_high) * 100 : 100.0
+
+// ---------------------------------------------------------------------------
+// LINEAR REGRESSION SLOPE OF ATR
+// ---------------------------------------------------------------------------
+// A negative slope means ATR is declining — volatility is compressing.
+// We use a simple 5-bar linear regression slope on ATR values.
+// Slope = (n * sum(xy) - sum(x) * sum(y)) / (n * sum(x^2) - (sum(x))^2)
+
+slope_n = contraction_bars
+sum_x = 0.0
+sum_y = 0.0
+sum_xy = 0.0
+sum_x2 = 0.0
+
+for i = 0 to slope_n - 1
+    x_val = float(i)
+    y_val = atr_value[slope_n - 1 - i]  // oldest to newest
+    sum_x += x_val
+    sum_y += y_val
+    sum_xy += x_val * y_val
+    sum_x2 += x_val * x_val
+
+denominator = slope_n * sum_x2 - sum_x * sum_x
+atr_slope = denominator != 0 ? (slope_n * sum_xy - sum_x * sum_y) / denominator : 0.0
+
+// Normalize slope relative to current ATR for comparison across different stocks
+normalized_slope = atr_value > 0 ? atr_slope / atr_value : 0.0
+
+// ATR slope must be negative — volatility is declining
+condition_atr_declining = atr_slope < 0
+
+// ---------------------------------------------------------------------------
+// PROGRESSIVE RANGE NARROWING CHECK
+// ---------------------------------------------------------------------------
+// Check if each successive candle in the contraction window has a smaller
+// (or equal) range than the one before it. This is strict progressive
+// narrowing — each bar tighter than the last, like a compression pattern.
+
+ranges_narrowing = true
+for i = 0 to contraction_bars - 2
+    current_range = high[i] - low[i]
+    previous_range = high[i + 1] - low[i + 1]
+    // Current bar (more recent) should have smaller or equal range
+    // than the previous bar (older). We allow equal ranges to avoid
+    // being overly strict.
+    if current_range > previous_range * 1.05  // 5% tolerance for slight variations
+        ranges_narrowing := false
+
+// ---------------------------------------------------------------------------
+// RELAXED NARROWING — at least 3 out of 5 bars show narrowing trend
+// ---------------------------------------------------------------------------
+// Strict progressive narrowing is rare. This alternative counts how many
+// bar-to-bar transitions show narrowing. If most do, it's still a contraction.
+narrowing_count = 0
+for i = 0 to contraction_bars - 2
+    if (high[i] - low[i]) <= (high[i + 1] - low[i + 1]) * 1.05
+        narrowing_count += 1
+
+condition_mostly_narrowing = narrowing_count >= math.floor(contraction_bars * 0.6)
+
+// Final narrowing condition — use strict OR relaxed check
+condition_narrowing = ranges_narrowing or condition_mostly_narrowing
+
+// ---------------------------------------------------------------------------
+// RESISTANCE PROXIMITY CHECK
+// ---------------------------------------------------------------------------
+// Price must be within the specified percentage of the highest high.
+// Contractions far from highs are less interesting — they could just be
+// low-volatility drift in a base or decline.
+condition_near_resistance = distance_from_high <= resistance_pct
+
+// ---------------------------------------------------------------------------
+// CONTRACTION DETECTION
+// ---------------------------------------------------------------------------
+// All three conditions must be true:
+//   1. ATR slope is negative (volatility compressing)
+//   2. Ranges are narrowing (progressive or relaxed)
+//   3. Price is near resistance (within specified %)
+is_contraction = condition_atr_declining and condition_narrowing and condition_near_resistance
+
+// The trigger bar is the current bar when contraction is detected —
+// it's the last narrow-range bar before the potential breakout
+is_trigger_bar = is_contraction
+
+// Trigger level = high of the trigger bar. A close above this confirms breakout.
+trigger_level = is_trigger_bar ? high : na
+
+// ---------------------------------------------------------------------------
+// BREAKOUT CONFIRMATION (for reference, not entry signal)
+// ---------------------------------------------------------------------------
+// After a contraction is detected, if the next bar closes above the trigger
+// level on above-average volume, that's a confirmed breakout.
+// We track this for the info table and alerts.
+var float last_trigger_level = na
+var bool contraction_active = false
+var int bars_since_trigger = 0
+
+if is_trigger_bar
+    last_trigger_level := high
+    contraction_active := true
+    bars_since_trigger := 0
+else if contraction_active
+    bars_since_trigger += 1
+    // Expire the trigger after the extension period
+    if bars_since_trigger > trigger_line_extend
+        contraction_active := false
+        last_trigger_level := na
+
+avg_volume = ta.sma(volume, 20)
+is_breakout = contraction_active and not is_trigger_bar and close > last_trigger_level and volume > avg_volume
+
+// ---------------------------------------------------------------------------
+// VISUAL PLOTTING
+// ---------------------------------------------------------------------------
+
+// Background highlight for contraction zones — subtle yellow to show
+// the compression pattern without cluttering the chart
+bgcolor(show_zone and is_contraction ? color.new(color.yellow, 88) : na,
+    title="Contraction Zone")
+
+// Background highlight for breakout confirmation
+bgcolor(is_breakout ? color.new(color.lime, 88) : na,
+    title="Breakout Confirmation")
+
+// Trigger bar marker
+plotshape(is_trigger_bar, title="Trigger Bar", location=location.belowbar,
+    style=shape.arrowup, color=color.new(color.orange, 0), size=size.small)
+
+// Breakout marker
+plotshape(is_breakout, title="Breakout", location=location.belowbar,
+    style=shape.diamond, color=color.new(color.lime, 0), size=size.small)
+
+// Draw trigger level line extending forward from the trigger bar
+if show_labels and is_trigger_bar
+    // Trigger level horizontal line
+    trigger_line = line.new(bar_index, high, bar_index + trigger_line_extend, high,
+        color=color.new(color.orange, 20),
+        style=line.style_dashed,
+        width=2)
+
+    // Label marking the trigger bar
+    label.new(bar_index, low, "TRIGGER\n" + str.tostring(high, format.mintick),
+        style=label.style_label_up,
+        color=color.new(color.orange, 10),
+        textcolor=color.white,
+        size=size.small)
+
+// Label for breakout confirmation
+if show_labels and is_breakout
+    label.new(bar_index, high, "BREAKOUT!",
+        style=label.style_label_down,
+        color=color.new(color.lime, 10),
+        textcolor=color.black,
+        size=size.small)
+
+// ---------------------------------------------------------------------------
+// INFO TABLE
+// ---------------------------------------------------------------------------
+
+if show_table and barstate.islast
+    tbl_pos = switch table_position
+        "top_right"    => position.top_right
+        "top_left"     => position.top_left
+        "bottom_right" => position.bottom_right
+        "bottom_left"  => position.bottom_left
+        => position.top_right
+
+    var tbl = table.new(tbl_pos, 2, 8,
+        bgcolor=color.new(color.black, 10),
+        border_color=color.new(color.gray, 60),
+        border_width=1)
+
+    // Header
+    header_color = is_contraction ? color.new(color.orange, 20) : color.new(color.gray, 40)
+    table.cell(tbl, 0, 0, "Contraction", text_color=color.white, text_size=size.small, bgcolor=header_color)
+    table.cell(tbl, 1, 0, syminfo.tickerid, text_color=color.white, text_size=size.small, bgcolor=header_color)
+
+    // ATR value
+    table.cell(tbl, 0, 1, "ATR(" + str.tostring(atr_period) + ")", text_color=color.gray, text_size=size.small)
+    table.cell(tbl, 1, 1, str.tostring(atr_value, format.mintick), text_color=color.white, text_size=size.small)
+
+    // ATR Slope
+    slope_color = atr_slope < 0 ? color.green : color.red
+    slope_label = atr_slope < 0 ? "Declining" : "Expanding"
+    table.cell(tbl, 0, 2, "ATR Slope", text_color=color.gray, text_size=size.small)
+    table.cell(tbl, 1, 2, slope_label + " (" + str.tostring(normalized_slope, "#.###") + ")", text_color=slope_color, text_size=size.small)
+
+    // Narrowing count
+    narrow_color = condition_narrowing ? color.green : color.red
+    table.cell(tbl, 0, 3, "Narrowing", text_color=color.gray, text_size=size.small)
+    table.cell(tbl, 1, 3, str.tostring(narrowing_count) + "/" + str.tostring(contraction_bars - 1) + " bars", text_color=narrow_color, text_size=size.small)
+
+    // Distance from high
+    dist_color = distance_from_high <= resistance_pct ? color.green : color.orange
+    table.cell(tbl, 0, 4, "From High", text_color=color.gray, text_size=size.small)
+    table.cell(tbl, 1, 4, str.tostring(distance_from_high, "#.##") + "%", text_color=dist_color, text_size=size.small)
+
+    // Highest high (resistance)
+    table.cell(tbl, 0, 5, "Resistance", text_color=color.gray, text_size=size.small)
+    table.cell(tbl, 1, 5, str.tostring(highest_high, format.mintick), text_color=color.white, text_size=size.small)
+
+    // Trigger level
+    tl_text = not na(last_trigger_level) and contraction_active ? str.tostring(last_trigger_level, format.mintick) : "---"
+    tl_color = contraction_active ? color.orange : color.gray
+    table.cell(tbl, 0, 6, "Trigger Level", text_color=color.gray, text_size=size.small)
+    table.cell(tbl, 1, 6, tl_text, text_color=tl_color, text_size=size.small)
+
+    // Status
+    status_text = is_breakout ? "BREAKOUT!" : is_contraction ? "CONTRACTION" : contraction_active ? "WATCHING" : "---"
+    status_color = is_breakout ? color.lime : is_contraction ? color.orange : contraction_active ? color.yellow : color.gray
+    table.cell(tbl, 0, 7, "Status", text_color=color.gray, text_size=size.small)
+    table.cell(tbl, 1, 7, status_text, text_color=status_color, text_size=size.small)
+
+// ---------------------------------------------------------------------------
+// ALERT CONDITIONS
+// ---------------------------------------------------------------------------
+
+// Contraction detected — trigger bar identified, watch for breakout
+contraction_alert_message = '{"symbol": "{{ticker}}", "alert_type": "CONTRACTION", "price": {{close}}, "close": {{close}}, "trigger_level": ' + str.tostring(high, format.mintick) + ', "trp": ' + str.tostring(trp, "#.##") + ', "atr": ' + str.tostring(atr_value, format.mintick) + ', "distance_from_high_pct": ' + str.tostring(distance_from_high, "#.##") + '}'
+
+alertcondition(is_contraction,
+    title="Contraction Detected",
+    message=contraction_alert_message)
+
+// Breakout confirmed — price closed above trigger level on volume
+breakout_alert_message = '{"symbol": "{{ticker}}", "alert_type": "CONTRACTION_BREAKOUT", "price": {{close}}, "close": {{close}}, "volume": {{volume}}, "trigger_level": ' + str.tostring(last_trigger_level, format.mintick) + ', "trp": ' + str.tostring(trp, "#.##") + '}'
+
+alertcondition(is_breakout,
+    title="Contraction Breakout",
+    message=breakout_alert_message)
