@@ -13,6 +13,7 @@ import {
 } from "@/lib/api";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
+import { InfoBanner, Term } from "@/components/info-banner";
 
 // ---------------------------------------------------------------------------
 // Constants & Helpers
@@ -1251,6 +1252,14 @@ export default function TradesPage() {
           )}
         </div>
       </div>
+
+      <InfoBanner title="Quick Reference — Trade Terms" storageKey="trades">
+        <Term label="Entry Types">LIVE_BREAK (buy on breakout bar), CLOSE_ABOVE (buy after close confirms above trigger), NEXT_DAY_HIGH (buy next day above high of breakout bar).</Term>
+        <Term label="R-Multiple">P&L as multiples of initial risk. +2R = made 2x what you risked. -1R = full stop-loss hit.</Term>
+        <Term label="Exit Framework">2R = book 20%, NE (4x TRP) = book 20%, GE (8x TRP) = book 40%, EE (12x TRP) = book 80%. Remaining rides with trailing SL.</Term>
+        <Term label="ARR">Average Risk-Reward across all closed trades. Target &gt;2.0.</Term>
+        <Term label="Status">OPEN (active), PARTIAL (some exits taken), CLOSED (fully exited).</Term>
+      </InfoBanner>
 
       {/* New Trade Form (slide-down) */}
       {showNewTradeForm && (

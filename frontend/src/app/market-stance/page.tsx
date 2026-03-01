@@ -9,6 +9,7 @@ import {
   type MarketStance,
 } from "@/lib/api";
 import { Skeleton } from "@/components/ui/skeleton";
+import { InfoBanner, Term } from "@/components/info-banner";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -227,6 +228,14 @@ export default function MarketStancePage() {
           </button>
         )}
       </div>
+
+      <InfoBanner title="Quick Reference — Market Stance" storageKey="market-stance">
+        <Term label="Market Stance">Daily assessment of sector strength. Count sectors showing PPC dominance vs NPC dominance.</Term>
+        <Term label="STRONG (6+ strong sectors)">Aggressive: RPT 0.5-0.8%, up to 10 positions.</Term>
+        <Term label="MODERATE (3-5 strong)">Normal: RPT 0.3-0.5%, up to 6 positions.</Term>
+        <Term label="WEAK (0-2 strong)">Defensive: RPT 0.2%, max 4 positions.</Term>
+        <p className="text-slate-500 italic">Stance drives position sizing and exposure — trade smaller in weak markets, bigger in strong markets.</p>
+      </InfoBanner>
 
       {/* Summary cards */}
       <div className="grid gap-4 md:grid-cols-3">

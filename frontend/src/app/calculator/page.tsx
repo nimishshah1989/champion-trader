@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { calculatePosition as saveToBackend, type PositionCalcResponse } from "@/lib/api";
+import { InfoBanner, Term } from "@/components/info-banner";
 
 interface CalcResult {
   rpt_amount: number;
@@ -137,6 +138,16 @@ function CalculatorContent() {
         <h1 className="text-2xl font-bold tracking-tight">Position Calculator</h1>
         <p className="text-muted-foreground">Calculate position size, SL, and extension targets — results update in real-time</p>
       </div>
+
+      <InfoBanner title="Quick Reference — Calculator Terms" storageKey="calculator">
+        <Term label="Account Value (AV)">Your total trading capital.</Term>
+        <Term label="RPT">Risk Per Trade: % of AV risked per trade. Range 0.2%-1.0%, default 0.5%. On a 10L account at 0.5% = max loss per trade.</Term>
+        <Term label="TRP%">True Range Percentage: stock&apos;s avg daily range. This becomes your stop-loss distance. Min 2.0% for tradeable stocks.</Term>
+        <Term label="SL">Stop Loss = Entry Price - TRP value. Never move SL down.</Term>
+        <Term label="Position Size">RPT Amount / (Entry x TRP%), always split 50/50 into two entry tranches.</Term>
+        <Term label="Half Qty">Each tranche size. Entry 1 at trigger break, Entry 2 on confirmation.</Term>
+        <Term label="Exit targets">2R = 2x risk (book 20%), NE = 4x TRP (book 20%), GE = 8x TRP (book 40%), EE = 12x TRP (book 80%).</Term>
+      </InfoBanner>
 
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Input form */}

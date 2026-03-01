@@ -11,6 +11,7 @@ import {
 } from "@/lib/api";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
+import { InfoBanner, Term } from "@/components/info-banner";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -544,6 +545,17 @@ export default function WatchlistPage() {
           )}
         </div>
       </div>
+
+      <InfoBanner title="Quick Reference — Watchlist Terms" storageKey="watchlist">
+        <Term label="READY">Trigger bar formed, entry imminent. Set price alerts.</Term>
+        <Term label="NEAR">Base maturing, 1-2 weeks from potential entry. Watch daily.</Term>
+        <Term label="AWAY">Early-stage base forming. Monitor weekly.</Term>
+        <Term label="Stage">S1 = Basing, S1B = Late basing (ideal entry zone), S2 = Advancing.</Term>
+        <Term label="WUC">Wake-Up Call type: MBB (Moving out of Base Breakout), BA (Breakout Anticipated), EF (Early Flyer).</Term>
+        <Term label="TRP%">Stock&apos;s avg daily range as % of price. Used as stop-loss distance.</Term>
+        <Term label="Base Days">Consolidation length. Need 20+ bars for a valid base.</Term>
+        <Term label="Quality">Base smoothness: SMOOTH (tight, clean) &gt; MIXED &gt; CHOPPY (volatile, unreliable).</Term>
+      </InfoBanner>
 
       {/* Add form (inline, top) */}
       {showAddForm && (

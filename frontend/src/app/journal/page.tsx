@@ -14,6 +14,7 @@ import {
   type Journal,
   type JournalCreateRequest,
 } from "@/lib/api";
+import { InfoBanner, Term } from "@/components/info-banner";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -551,6 +552,14 @@ export default function JournalPage() {
           </Button>
         )}
       </div>
+
+      <InfoBanner title="Quick Reference — Champion Journal" storageKey="journal">
+        <Term label="Champion Journal">Weekly self-review covering 5 pillars: Grave Mistakes, Risk Management, Technical Analysis, Routine Adherence, Psychology.</Term>
+        <Term label="Grave Mistakes">The 5 deal-breakers: casual/random trades, SL violations, risk limits exceeded, averaging down on losers, re-buying recently stopped-out stocks.</Term>
+        <Term label="Win Rate">% of trades that were profitable. Target &gt;40%.</Term>
+        <Term label="ARR">Avg R per trade. Target &gt;2.0. You can win only 40% of the time and still be profitable if your winners are 2x bigger than losers.</Term>
+        <Term label="Expectancy">(Win Rate x Avg Win R) - (Loss Rate x Avg Loss R). Must be positive to have an edge.</Term>
+      </InfoBanner>
 
       {/* ---------------------------------------------------------------- */}
       {/* New Journal Form                                                 */}

@@ -1,4 +1,7 @@
+"use client";
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { InfoBanner, Term } from "@/components/info-banner";
 
 export default function PerformancePage() {
   return (
@@ -7,6 +10,14 @@ export default function PerformancePage() {
         <h1 className="text-2xl font-bold tracking-tight">Performance</h1>
         <p className="text-muted-foreground">Expectancy metrics, P&amp;L charts, and R-multiple analysis</p>
       </div>
+
+      <InfoBanner title="Quick Reference — Performance Metrics" storageKey="performance">
+        <Term label="Win Rate">Profitable trades / Total closed trades. Target &gt;40%. Being right only 4/10 times is fine if winners are big.</Term>
+        <Term label="ARR">Average Risk-Reward. Target &gt;2.0. Measures whether you let winners run and cut losers short.</Term>
+        <Term label="Expectancy">Expected R earned per trade. Positive = you have an edge. Formula: (WR x Avg Win) - (LR x Avg Loss).</Term>
+        <Term label="R-Multiple">Standard measure of trade performance. 1R = risked amount. A +3R trade returned 3x what was risked.</Term>
+        <Term label="Total P&L">Cumulative profit/loss across all closed trades.</Term>
+      </InfoBanner>
 
       <div className="grid gap-4 md:grid-cols-4">
         <Card>

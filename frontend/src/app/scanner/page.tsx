@@ -10,6 +10,7 @@ import {
 } from "@/lib/api";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
+import { InfoBanner, Term } from "@/components/info-banner";
 
 // ---------------------------------------------------------------------------
 // Types & Constants
@@ -166,7 +167,7 @@ function ScanControlBar({
       {isScanning && (
         <div className="mt-3 bg-teal-50 border border-teal-200 rounded-lg px-4 py-3">
           <p className="text-sm text-teal-700 font-medium">
-            Scanning ~200 NIFTY stocks... this takes 1-2 minutes
+            Scanning ~500 NIFTY stocks... this takes 1-2 minutes
           </p>
           <p className="text-xs text-teal-600 mt-1">
             Downloading price data in batches, then running PPC/NPC/Contraction detection.
@@ -486,9 +487,20 @@ export default function ScannerPage() {
       <div>
         <h1 className="text-xl font-semibold text-slate-800">Scanner</h1>
         <p className="text-sm text-slate-500 mt-0.5">
-          Run PPC, NPC, and Contraction scans on NIFTY 200 stocks — post-market daily
+          Run PPC, NPC, and Contraction scans on ~500 stocks — post-market daily
         </p>
       </div>
+
+      <InfoBanner title="Quick Reference — Scanner Terms" storageKey="scanner">
+        <Term label="PPC">Positive Pivotal Candle: range expands 1.5x+, close in upper 60%, volume spikes 1.5x+, green candle. Bullish accumulation signal.</Term>
+        <Term label="NPC">Negative Pivotal Candle: mirror of PPC — close in lower 40%, red candle. Bearish distribution signal.</Term>
+        <Term label="Contraction">Volatility squeeze: ATR declining, narrow candles near resistance. Coiling before potential breakout.</Term>
+        <Term label="TRP Ratio">Today&apos;s range / 20-day avg range. 1.5x+ = range expansion.</Term>
+        <Term label="Vol Ratio">Today&apos;s volume / 20-day avg. 1.5x+ = unusual participation.</Term>
+        <Term label="ADT">Average Daily Turnover (Vol x Price). Liquidity filter.</Term>
+        <Term label="Stage">S1 (basing), S1B (late basing, best zone), S2 (advancing), S3 (topping), S4 (declining).</Term>
+        <Term label="Trigger">Breakout price level. Stock becomes actionable above this.</Term>
+      </InfoBanner>
 
       {/* Scan controls */}
       <ScanControlBar
@@ -521,7 +533,7 @@ export default function ScannerPage() {
           <div className="text-4xl mb-3 text-slate-200">&#9906;</div>
           <h3 className="text-sm font-semibold text-slate-700 mb-1">No scan results yet</h3>
           <p className="text-xs text-slate-400 max-w-md mx-auto">
-            Run your first scan to detect PPC, NPC, and Contraction patterns across NIFTY 200
+            Run your first scan to detect PPC, NPC, and Contraction patterns across ~500
             stocks. Best run after market close (3:30 PM IST).
           </p>
         </div>
