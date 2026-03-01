@@ -26,6 +26,52 @@ async function apiFetch<T>(path: string, options: RequestOptions = {}): Promise<
   return response.json() as Promise<T>;
 }
 
+// --- Scanner ---
+
+export interface ScanResult {
+  id: number;
+  scan_date: string;
+  symbol: string;
+  scan_type: string;
+  close_price: number | null;
+  volume: number | null;
+  avg_volume_20d: number | null;
+  volume_ratio: number | null;
+  trp: number | null;
+  avg_trp: number | null;
+  trp_ratio: number | null;
+  candle_body_pct: number | null;
+  close_position: number | null;
+  stage: string | null;
+  above_30w_ma: boolean | null;
+  ma_trending_up: boolean | null;
+  base_days: number | null;
+  has_min_20_bar_base: boolean | null;
+  base_quality: string | null;
+  adt: number | null;
+  passes_liquidity_filter: boolean | null;
+  wuc_type: string | null;
+  watchlist_bucket: string | null;
+  trigger_level: number | null;
+  notes: string | null;
+}
+
+export function runScan(data: { scan_type: string; date?: string }): Promise<ScanResult[]> {
+  return apiFetch<ScanResult[]>("/scanner/run", { method: "POST", body: data });
+}
+
+export function getScanResults(scanDate?: string, scanType?: string): Promise<ScanResult[]> {
+  const params = new URLSearchParams();
+  if (scanDate) params.set("scan_date", scanDate);
+  if (scanType) params.set("scan_type", scanType);
+  const query = params.toString();
+  return apiFetch<ScanResult[]>(`/scanner/results${query ? `?${query}` : ""}`);
+}
+
+export function getLatestScanResults(): Promise<ScanResult[]> {
+  return apiFetch<ScanResult[]>("/scanner/results/latest");
+}
+
 // --- Position Calculator ---
 
 export interface PositionCalcRequest {

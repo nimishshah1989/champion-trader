@@ -1,0 +1,76 @@
+"""
+NIFTY 200 stock universe for scanning.
+Hardcoded list — no network dependency, fast and reliable.
+"""
+
+# NIFTY 200 constituents (as of Feb 2025)
+NIFTY_200_SYMBOLS: list[str] = [
+    # NIFTY 50 (large-cap core)
+    "RELIANCE", "TCS", "HDFCBANK", "INFY", "ICICIBANK",
+    "HINDUNILVR", "ITC", "SBIN", "BHARTIARTL", "KOTAKBANK",
+    "LT", "HCLTECH", "AXISBANK", "ASIANPAINT", "MARUTI",
+    "SUNPHARMA", "TITAN", "BAJFINANCE", "DMART", "NTPC",
+    "TATAMOTORS", "WIPRO", "ONGC", "ULTRACEMCO", "ADANIGREEN",
+    "ADANIENT", "POWERGRID", "M&M", "JSWSTEEL", "TATASTEEL",
+    "NESTLEIND", "TECHM", "HDFCLIFE", "BAJAJFINSV", "COALINDIA",
+    "GRASIM", "DIVISLAB", "BRITANNIA", "CIPLA", "APOLLOHOSP",
+    "SBILIFE", "EICHERMOT", "INDUSINDBK", "HINDALCO", "DRREDDY",
+    "BPCL", "TATACONSUM", "HEROMOTOCO", "BAJAJ-AUTO", "SHRIRAMFIN",
+
+    # NIFTY NEXT 50
+    "GODREJCP", "DABUR", "PIDILITIND", "HAVELLS", "SIEMENS",
+    "BERGEPAINT", "AMBUJACEM", "DLF", "BANKBARODA", "IOC",
+    "ICICIPRULI", "INDIGO", "TORNTPHARM", "NAUKRI", "COLPAL",
+    "ABB", "TRENT", "MARICO", "BOSCHLTD", "CANBK",
+    "SRF", "JINDALSTEL", "LUPIN", "GAIL", "PNB",
+    "TVSMOTOR", "PIIND", "PERSISTENT", "MUTHOOTFIN", "MPHASIS",
+    "HINDPETRO", "ACC", "AUROPHARMA", "SAIL", "MAXHEALTH",
+    "ZOMATO", "PAYTM", "POLICYBZR", "IRCTC", "LTIM",
+    "LICI", "VEDL", "ADANIPORTS", "ADANIPOWER", "ATGL",
+    "CHOLAFIN", "RECLTD", "PFC", "TATAPOWER", "HAL",
+
+    # NIFTY MIDCAP (remaining ~100)
+    "ASTRAL", "ATUL", "AUBANK", "BALKRISIND", "BEL",
+    "BHEL", "BIOCON", "CANFINHOME", "CGPOWER", "CHAMBLFERT",
+    "COFORGE", "CONCOR", "CROMPTON", "CUMMINSIND", "DEEPAKNTR",
+    "DELHIVERY", "DEVYANI", "DIXON", "ESCORTS", "EXIDEIND",
+    "FEDERALBNK", "FORTIS", "GLENMARK", "GMRINFRA", "GNFC",
+    "GODREJPROP", "GSPL", "GUJGASLTD", "IDFC", "IEX",
+    "IIFL", "INDHOTEL", "IPCALAB", "IRFC", "JKCEMENT",
+    "JUBLFOOD", "KANSAINER", "KEI", "LALPATHLAB", "LAURUSLABS",
+    "LICHSGFIN", "LTF", "M&MFIN", "MANAPPURAM", "MCX",
+    "METROPOLIS", "MGL", "MOTHERSON", "MFSL", "NAM-INDIA",
+    "NATIONALUM", "NAVINFLUOR", "NMDC", "OBEROIRLTY", "OFSS",
+    "OIL", "PAGEIND", "PATANJALI", "PETRONET", "PHOENIXLTD",
+    "POLYCAB", "PRESTIGE", "PVRINOX", "RAJESHEXPO", "RAMCOCEM",
+    "RATNAMANI", "SBICARD", "SCHAEFFLER", "SONACOMS", "STARHEALTH",
+    "SUMICHEM", "SUNTV", "SUPREMEIND", "SYNGENE", "TATACHEM",
+    "TATACOMM", "TATAELXSI", "TIINDIA", "TORNTPOWER", "TTML",
+    "UNIONBANK", "UPL", "VOLTAS", "WHIRLPOOL", "ZEEL",
+    "ZYDUSLIFE", "KALYANKJIL", "JSWENERGY", "ABCAPITAL", "CESC",
+    "IDEA", "IDFCFIRSTB", "INDIANB", "INDUSTOWER", "MRF",
+    "NHPC", "NIACL", "PGHH", "SJVN", "SOLARINDS",
+
+    # Additional high-liquidity midcaps
+    "AARTIIND", "ABFRL", "ASTERDM", "BATAINDIA", "CARBORUNIV",
+    "CENTURYTEX", "COROMANDEL", "EMAMILTD", "FACT", "FINEORG",
+    "FLUOROCHEM", "GLAXO", "GRINDWELL", "HDFCAMC", "ICICIGI",
+    "ISEC", "JBCHEPHARM", "JKLAKSHMI", "KPITTECH", "LATENTVIEW",
+    "LTTS", "NATCOPHARM", "NYKAA", "POONAWALLA", "RELINFRA",
+    "SWARAJENG", "THERMAX", "TIMKEN", "TRIDENT", "VINATIORGA",
+]
+
+
+def get_yfinance_symbols() -> list[str]:
+    """Return NIFTY 200 symbols with .NS suffix for yfinance download."""
+    return [f"{symbol}.NS" for symbol in NIFTY_200_SYMBOLS]
+
+
+def strip_ns_suffix(yf_symbol: str) -> str:
+    """Remove .NS suffix to get the clean NSE symbol."""
+    return yf_symbol.replace(".NS", "")
+
+
+def get_symbol_count() -> int:
+    """Return total number of symbols in the universe."""
+    return len(NIFTY_200_SYMBOLS)

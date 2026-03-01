@@ -1,31 +1,280 @@
 """
-Scanner engine — runs PPC, NPC, and Contraction scans.
-TODO: Implement in Phase 4 using yfinance data + TradingView webhooks.
+Scanner engine — runs PPC, NPC, and Contraction scans on NIFTY 200 stocks.
+Uses pre-downloaded OHLCV data (dict of symbol → DataFrame) to detect patterns.
 """
 
+from __future__ import annotations
 
-async def run_ppc_scan(scan_date: str) -> list:
-    """Run Positive Pivotal Candle scan for the given date."""
-    # TODO: Implement PPC detection logic
-    # 1. Fetch daily OHLCV data for NSE stocks
-    # 2. Calculate TRP for each candle
-    # 3. Filter: candle TRP >= 1.5x avg TRP, close in upper 60%, volume >= 1.5x avg
-    # 4. Check stage (must be S1B or S2)
-    # 5. Return matching stocks
-    return []
+import logging
+from datetime import date
+from typing import Dict, List, Optional
+
+import pandas as pd
+
+from backend.services.data_fetcher import fetch_all_stocks
+from backend.services.technical import (
+    calculate_atr_slope,
+    calculate_adt,
+    calculate_avg_trp,
+    calculate_avg_volume,
+    calculate_candle_body_pct,
+    calculate_close_position,
+    calculate_trp,
+    calculate_trp_ratio,
+    calculate_volume_ratio,
+    count_narrowing_candles,
+    determine_stage,
+    estimate_base_days,
+    is_above_30w_ma,
+    is_ma_trending_up,
+    price_near_resistance,
+)
+
+logger = logging.getLogger(__name__)
+
+# Minimum ADT filter: ₹1 crore daily turnover
+MIN_ADT = 1_00_00_000  # 1 crore in rupees
 
 
-async def run_npc_scan(scan_date: str) -> list:
-    """Run Negative Pivotal Candle scan for the given date."""
-    # TODO: Implement NPC detection logic (mirror of PPC for bearish candles)
-    return []
+def _build_common_metrics(symbol: str, df: pd.DataFrame, scan_date: str) -> dict:
+    """Compute metrics shared across all scan types for a single stock."""
+    trp = calculate_trp(df)
+    avg_trp = calculate_avg_trp(trp, period=20)
+    trp_ratio = calculate_trp_ratio(trp, avg_trp)
+    close_pos = calculate_close_position(df)
+    body_pct = calculate_candle_body_pct(df)
+    avg_vol = calculate_avg_volume(df, period=20)
+    vol_ratio = calculate_volume_ratio(df["Volume"], avg_vol)
+    adt = calculate_adt(df, period=20)
+    stage = determine_stage(df)
+    base_days, base_quality = estimate_base_days(df)
+    above_ma = is_above_30w_ma(df)
+    ma_up = is_ma_trending_up(df)
+
+    return {
+        "scan_date": scan_date,
+        "symbol": symbol,
+        "close_price": round(float(df["Close"].iloc[-1]), 2),
+        "volume": int(df["Volume"].iloc[-1]),
+        "avg_volume_20d": round(float(avg_vol.iloc[-1]), 0) if pd.notna(avg_vol.iloc[-1]) else None,
+        "volume_ratio": round(float(vol_ratio.iloc[-1]), 2) if pd.notna(vol_ratio.iloc[-1]) else None,
+        "trp": round(float(trp.iloc[-1]), 2) if pd.notna(trp.iloc[-1]) else None,
+        "avg_trp": round(float(avg_trp.iloc[-1]), 2) if pd.notna(avg_trp.iloc[-1]) else None,
+        "trp_ratio": round(float(trp_ratio.iloc[-1]), 2) if pd.notna(trp_ratio.iloc[-1]) else None,
+        "candle_body_pct": round(float(body_pct.iloc[-1]), 2) if pd.notna(body_pct.iloc[-1]) else None,
+        "close_position": round(float(close_pos.iloc[-1]), 2) if pd.notna(close_pos.iloc[-1]) else None,
+        "stage": stage,
+        "above_30w_ma": above_ma,
+        "ma_trending_up": ma_up,
+        "base_days": base_days,
+        "has_min_20_bar_base": base_days >= 20,
+        "base_quality": base_quality,
+        "adt": round(adt, 0),
+        "passes_liquidity_filter": adt >= MIN_ADT,
+    }
 
 
-async def run_contraction_scan(scan_date: str) -> list:
-    """Run base contraction scan for the given date."""
-    # TODO: Implement contraction detection
-    # 1. Calculate ATR(14) slope over last 5 bars (must be negative)
-    # 2. Check for 3+ consecutive narrowing-range candles
-    # 3. Price must be within 3% of resistance
-    # 4. Identify trigger bar and trigger level
-    return []
+def _determine_watchlist_bucket(stage: str, base_days: int, base_quality: str) -> str:
+    """Suggest a watchlist bucket based on stage and base analysis."""
+    if stage in ("S1B", "S2") and base_days >= 20 and base_quality in ("SMOOTH", "MIXED"):
+        return "READY"
+    if stage in ("S1B", "S2") and base_days >= 15:
+        return "NEAR"
+    return "AWAY"
+
+
+def _scan_ppc(all_data: dict[str, pd.DataFrame], scan_date: str) -> list[dict]:
+    """
+    Positive Pivotal Candle scan.
+    ALL 4 conditions must be met:
+    1. TRP ratio >= 1.5 (range expansion)
+    2. Close position >= 0.60 (bullish close in upper part)
+    3. Volume ratio >= 1.5 (participation spike)
+    4. Close > Open (green candle)
+    """
+    results = []
+
+    for symbol, df in all_data.items():
+        try:
+            if len(df) < 30:
+                continue
+
+            metrics = _build_common_metrics(symbol, df, scan_date)
+
+            # Skip illiquid stocks
+            if not metrics["passes_liquidity_filter"]:
+                continue
+
+            # Core PPC conditions
+            trp_ratio = metrics["trp_ratio"]
+            close_pos = metrics["close_position"]
+            vol_ratio = metrics["volume_ratio"]
+            is_green = df["Close"].iloc[-1] > df["Open"].iloc[-1]
+
+            if (
+                trp_ratio is not None
+                and close_pos is not None
+                and vol_ratio is not None
+                and trp_ratio >= 1.5
+                and close_pos >= 0.60
+                and vol_ratio >= 1.5
+                and is_green
+            ):
+                metrics["scan_type"] = "PPC"
+                metrics["wuc_type"] = "MBB"  # Most common WUC for PPC
+                metrics["trigger_level"] = round(float(df["High"].iloc[-1]), 2)
+                metrics["watchlist_bucket"] = _determine_watchlist_bucket(
+                    metrics["stage"], metrics["base_days"], metrics["base_quality"]
+                )
+                metrics["notes"] = (
+                    f"PPC detected: TRP ratio {trp_ratio}x, "
+                    f"Vol ratio {vol_ratio}x, Close pos {close_pos}"
+                )
+                results.append(metrics)
+
+        except Exception as exc:
+            logger.warning(f"PPC scan error for {symbol}: {exc}")
+
+    logger.info(f"PPC scan complete: {len(results)} stocks matched")
+    return results
+
+
+def _scan_npc(all_data: dict[str, pd.DataFrame], scan_date: str) -> list[dict]:
+    """
+    Negative Pivotal Candle scan.
+    ALL 4 conditions must be met:
+    1. TRP ratio >= 1.5 (range expansion)
+    2. Close position <= 0.40 (bearish close in lower part)
+    3. Volume ratio >= 1.5 (participation spike)
+    4. Close < Open (red candle)
+    """
+    results = []
+
+    for symbol, df in all_data.items():
+        try:
+            if len(df) < 30:
+                continue
+
+            metrics = _build_common_metrics(symbol, df, scan_date)
+
+            if not metrics["passes_liquidity_filter"]:
+                continue
+
+            trp_ratio = metrics["trp_ratio"]
+            close_pos = metrics["close_position"]
+            vol_ratio = metrics["volume_ratio"]
+            is_red = df["Close"].iloc[-1] < df["Open"].iloc[-1]
+
+            if (
+                trp_ratio is not None
+                and close_pos is not None
+                and vol_ratio is not None
+                and trp_ratio >= 1.5
+                and close_pos <= 0.40
+                and vol_ratio >= 1.5
+                and is_red
+            ):
+                metrics["scan_type"] = "NPC"
+                metrics["wuc_type"] = None
+                metrics["trigger_level"] = round(float(df["Low"].iloc[-1]), 2)
+                metrics["watchlist_bucket"] = _determine_watchlist_bucket(
+                    metrics["stage"], metrics["base_days"], metrics["base_quality"]
+                )
+                metrics["notes"] = (
+                    f"NPC detected: TRP ratio {trp_ratio}x, "
+                    f"Vol ratio {vol_ratio}x, Close pos {close_pos}"
+                )
+                results.append(metrics)
+
+        except Exception as exc:
+            logger.warning(f"NPC scan error for {symbol}: {exc}")
+
+    logger.info(f"NPC scan complete: {len(results)} stocks matched")
+    return results
+
+
+def _scan_contraction(all_data: dict[str, pd.DataFrame], scan_date: str) -> list[dict]:
+    """
+    Base contraction scan — volatility coiling before potential breakout.
+    ALL 3 conditions must be met:
+    1. ATR(14) slope negative over last 5 bars (declining volatility)
+    2. 3+ narrowing-range candles (with 5% tolerance)
+    3. Price within 3% of highest high over 60 bars (near resistance)
+    """
+    results = []
+
+    for symbol, df in all_data.items():
+        try:
+            if len(df) < 30:
+                continue
+
+            metrics = _build_common_metrics(symbol, df, scan_date)
+
+            if not metrics["passes_liquidity_filter"]:
+                continue
+
+            # Contraction conditions
+            atr_slope = calculate_atr_slope(df, atr_period=14, slope_bars=5)
+            narrowing_count = count_narrowing_candles(df, lookback=10, tolerance=0.05)
+            near_resistance = price_near_resistance(df, lookback=60, threshold_pct=3.0)
+
+            if atr_slope < 0 and narrowing_count >= 3 and near_resistance:
+                metrics["scan_type"] = "CONTRACTION"
+                metrics["wuc_type"] = "BA"  # Breakout Anticipated
+                # Trigger = highest high of the last 5 bars (breakout level)
+                metrics["trigger_level"] = round(float(df["High"].iloc[-5:].max()), 2)
+                metrics["watchlist_bucket"] = _determine_watchlist_bucket(
+                    metrics["stage"], metrics["base_days"], metrics["base_quality"]
+                )
+                metrics["notes"] = (
+                    f"Contraction detected: ATR slope {atr_slope:.3f}, "
+                    f"{narrowing_count} narrowing candles, near resistance"
+                )
+                results.append(metrics)
+
+        except Exception as exc:
+            logger.warning(f"Contraction scan error for {symbol}: {exc}")
+
+    logger.info(f"Contraction scan complete: {len(results)} stocks matched")
+    return results
+
+
+async def run_ppc_scan(scan_date: str, data: dict[str, pd.DataFrame] | None = None) -> list[dict]:
+    """Run PPC scan. Fetches data if not provided."""
+    if data is None:
+        data = await fetch_all_stocks(scan_date)
+    return _scan_ppc(data, scan_date)
+
+
+async def run_npc_scan(scan_date: str, data: dict[str, pd.DataFrame] | None = None) -> list[dict]:
+    """Run NPC scan. Fetches data if not provided."""
+    if data is None:
+        data = await fetch_all_stocks(scan_date)
+    return _scan_npc(data, scan_date)
+
+
+async def run_contraction_scan(scan_date: str, data: dict[str, pd.DataFrame] | None = None) -> list[dict]:
+    """Run Contraction scan. Fetches data if not provided."""
+    if data is None:
+        data = await fetch_all_stocks(scan_date)
+    return _scan_contraction(data, scan_date)
+
+
+async def run_all_scans(scan_date: str) -> list[dict]:
+    """
+    Run all three scans using a single shared data download.
+    This is much faster than running each scan independently.
+    """
+    data = await fetch_all_stocks(scan_date)
+    logger.info(f"Data fetched for {len(data)} symbols. Running all scans...")
+
+    ppc_results = _scan_ppc(data, scan_date)
+    npc_results = _scan_npc(data, scan_date)
+    contraction_results = _scan_contraction(data, scan_date)
+
+    all_results = ppc_results + npc_results + contraction_results
+    logger.info(
+        f"All scans complete: {len(ppc_results)} PPC, "
+        f"{len(npc_results)} NPC, {len(contraction_results)} Contraction"
+    )
+    return all_results

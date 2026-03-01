@@ -21,7 +21,11 @@ class ScanResultResponse(BaseModel):
     trp: Optional[float] = None
     avg_trp: Optional[float] = None
     trp_ratio: Optional[float] = None
+    candle_body_pct: Optional[float] = None
+    close_position: Optional[float] = None
     stage: Optional[str] = None
+    above_30w_ma: Optional[bool] = None
+    ma_trending_up: Optional[bool] = None
     base_days: Optional[int] = None
     has_min_20_bar_base: Optional[bool] = None
     base_quality: Optional[str] = None
