@@ -1,10 +1,14 @@
 "use client";
 
 import { useState } from "react";
+import { toast } from "sonner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
+import { calculatePosition as saveToBackend, type PositionCalcResponse } from "@/lib/api";
 
 interface CalcResult {
   rpt_amount: number;
@@ -20,7 +24,7 @@ interface CalcResult {
   target_ee: number;
 }
 
-function calculatePosition(
+function calculateLocally(
   accountValue: number,
   rptPct: number,
   entryPrice: number,
@@ -66,22 +70,63 @@ export default function CalculatorPage() {
   const [symbol, setSymbol] = useState<string>("");
   const [entryPrice, setEntryPrice] = useState<number>(0);
   const [trpPct, setTrpPct] = useState<number>(0);
+  const [saving, setSaving] = useState(false);
+  const [savedCalcs, setSavedCalcs] = useState<Array<{
+    symbol: string;
+    position_size: number;
+    sl_price: number;
+    half_qty: number;
+  }>>([]);
 
-  const result = calculatePosition(accountValue, rptPct, entryPrice, trpPct);
+  const result = calculateLocally(accountValue, rptPct, entryPrice, trpPct);
+
+  async function handleSave() {
+    if (!result || !symbol) {
+      toast.error("Enter a symbol and all values before saving");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const backendResult = await saveToBackend({
+        symbol,
+        account_value: accountValue,
+        rpt_pct: rptPct,
+        entry_price: entryPrice,
+        trp_pct: trpPct,
+      });
+
+      setSavedCalcs((prev) => [
+        {
+          symbol,
+          position_size: backendResult.position_size,
+          sl_price: backendResult.sl_price,
+          half_qty: backendResult.half_qty,
+        },
+        ...prev,
+      ]);
+
+      toast.success(`Saved: ${symbol} — ${backendResult.position_size} shares, SL at ${formatINR(backendResult.sl_price)}`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to save";
+      toast.error(message);
+    } finally {
+      setSaving(false);
+    }
+  }
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Position Calculator</h1>
-        <p className="text-muted-foreground">Calculate position size, SL, and extension targets</p>
+        <p className="text-muted-foreground">Calculate position size, SL, and extension targets — results update in real-time</p>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="grid gap-6 lg:grid-cols-2">
         {/* Input form */}
         <Card>
           <CardHeader>
             <CardTitle>Inputs</CardTitle>
-            <CardDescription>Results update in real-time as you type</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
@@ -93,54 +138,68 @@ export default function CalculatorPage() {
                 onChange={(e) => setSymbol(e.target.value.toUpperCase())}
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="account-value">Account Value</Label>
-              <Input
-                id="account-value"
-                type="number"
-                value={accountValue || ""}
-                onChange={(e) => setAccountValue(Number(e.target.value))}
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="account-value">Account Value (AV)</Label>
+                <Input
+                  id="account-value"
+                  type="number"
+                  value={accountValue || ""}
+                  onChange={(e) => setAccountValue(Number(e.target.value))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="rpt-pct">RPT %</Label>
+                <Input
+                  id="rpt-pct"
+                  type="number"
+                  step="0.1"
+                  min="0.2"
+                  max="1.0"
+                  value={rptPct || ""}
+                  onChange={(e) => setRptPct(Number(e.target.value))}
+                />
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="rpt-pct">RPT % (Risk Per Trade)</Label>
-              <Input
-                id="rpt-pct"
-                type="number"
-                step="0.1"
-                min="0.2"
-                max="1.0"
-                value={rptPct || ""}
-                onChange={(e) => setRptPct(Number(e.target.value))}
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="entry-price">Entry Price</Label>
+                <Input
+                  id="entry-price"
+                  type="number"
+                  step="0.05"
+                  value={entryPrice || ""}
+                  onChange={(e) => setEntryPrice(Number(e.target.value))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="trp-pct">TRP %</Label>
+                <Input
+                  id="trp-pct"
+                  type="number"
+                  step="0.01"
+                  value={trpPct || ""}
+                  onChange={(e) => setTrpPct(Number(e.target.value))}
+                />
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="entry-price">Entry Price</Label>
-              <Input
-                id="entry-price"
-                type="number"
-                step="0.05"
-                value={entryPrice || ""}
-                onChange={(e) => setEntryPrice(Number(e.target.value))}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="trp-pct">TRP % (True Range Percentage)</Label>
-              <Input
-                id="trp-pct"
-                type="number"
-                step="0.01"
-                value={trpPct || ""}
-                onChange={(e) => setTrpPct(Number(e.target.value))}
-              />
-            </div>
+
+            <Separator />
+
+            <Button
+              onClick={handleSave}
+              disabled={!result || !symbol || saving}
+              className="w-full"
+            >
+              {saving ? "Saving..." : "Save Calculation"}
+            </Button>
           </CardContent>
         </Card>
 
         {/* Output */}
         <div className="space-y-4">
           <Card>
-            <CardHeader>
+            <CardHeader className="pb-3">
               <CardTitle>Position Sizing</CardTitle>
             </CardHeader>
             <CardContent>
@@ -154,9 +213,10 @@ export default function CalculatorPage() {
                     <span className="text-muted-foreground">Position Value</span>
                     <span className="font-mono font-semibold">{formatINR(result.position_value)}</span>
                   </div>
-                  <div className="flex justify-between">
+                  <Separator />
+                  <div className="flex justify-between items-center">
                     <span className="text-muted-foreground">Position Size</span>
-                    <span className="font-mono text-xl font-bold">{result.position_size} shares</span>
+                    <span className="font-mono text-2xl font-bold">{result.position_size} shares</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Half Qty (50/50 entry)</span>
@@ -170,18 +230,18 @@ export default function CalculatorPage() {
           </Card>
 
           <Card>
-            <CardHeader>
-              <CardTitle>Stop Loss</CardTitle>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-red-600">Stop Loss</CardTitle>
             </CardHeader>
             <CardContent>
               {result ? (
                 <div className="space-y-3">
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">SL Price</span>
-                    <span className="font-mono font-semibold text-red-600">{formatINR(result.sl_price)}</span>
+                    <span className="font-mono text-lg font-bold text-red-600">{formatINR(result.sl_price)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">SL Amount</span>
+                    <span className="text-muted-foreground">SL Amount (per share)</span>
                     <span className="font-mono">{formatINR(result.sl_amount)}</span>
                   </div>
                   <div className="flex justify-between">
@@ -196,8 +256,8 @@ export default function CalculatorPage() {
           </Card>
 
           <Card>
-            <CardHeader>
-              <CardTitle>Extension Targets</CardTitle>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-green-600">Extension Targets</CardTitle>
             </CardHeader>
             <CardContent>
               {result ? (
@@ -210,21 +270,21 @@ export default function CalculatorPage() {
                     </div>
                   </div>
                   <div className="flex justify-between items-center">
-                    <span className="text-muted-foreground">Normal Extension (4x TRP)</span>
+                    <span className="text-muted-foreground">NE (4x TRP)</span>
                     <div className="flex items-center gap-2">
                       <Badge variant="secondary">Exit 20%</Badge>
                       <span className="font-mono font-semibold text-green-600">{formatINR(result.target_ne)}</span>
                     </div>
                   </div>
                   <div className="flex justify-between items-center">
-                    <span className="text-muted-foreground">Great Extension (8x TRP)</span>
+                    <span className="text-muted-foreground">GE (8x TRP)</span>
                     <div className="flex items-center gap-2">
                       <Badge variant="secondary">Exit 40%</Badge>
                       <span className="font-mono font-semibold text-green-600">{formatINR(result.target_ge)}</span>
                     </div>
                   </div>
                   <div className="flex justify-between items-center">
-                    <span className="text-muted-foreground">Extreme Extension (12x TRP)</span>
+                    <span className="text-muted-foreground">EE (12x TRP)</span>
                     <div className="flex items-center gap-2">
                       <Badge variant="secondary">Exit 80%</Badge>
                       <span className="font-mono font-semibold text-green-600">{formatINR(result.target_ee)}</span>
@@ -238,6 +298,37 @@ export default function CalculatorPage() {
           </Card>
         </div>
       </div>
+
+      {/* Saved calculations this session */}
+      {savedCalcs.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Saved This Session</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b text-left text-muted-foreground">
+                  <th className="py-2">Symbol</th>
+                  <th className="py-2">Position Size</th>
+                  <th className="py-2">Half Qty</th>
+                  <th className="py-2">SL Price</th>
+                </tr>
+              </thead>
+              <tbody>
+                {savedCalcs.map((calc, idx) => (
+                  <tr key={idx} className="border-b">
+                    <td className="py-2 font-medium">{calc.symbol}</td>
+                    <td className="py-2 font-mono">{calc.position_size} shares</td>
+                    <td className="py-2 font-mono">{calc.half_qty} shares</td>
+                    <td className="py-2 font-mono text-red-600">{formatINR(calc.sl_price)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
