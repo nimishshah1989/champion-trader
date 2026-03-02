@@ -35,6 +35,12 @@ BATCH_SIZE = 50
 # Liquidity filter: ₹1 crore ADT
 MIN_ADT = 1_00_00_000
 
+# 50 DMA exit only applies after this many trading days of holding
+MIN_HOLD_DAYS_FOR_DMA_EXIT = 10
+
+# Pending entries stay alive for this many trading days before being abandoned
+PENDING_ENTRY_MAX_DAYS = 3
+
 
 def run_backtest(
     db: Session,
@@ -389,11 +395,14 @@ def _execute_backtest(
     cash = starting_capital
     open_positions: list[SimulationTrade] = []
     closed_positions: list[SimulationTrade] = []
-    pending_entries: list[dict] = []
+    pending_entries: list[dict] = []  # each has symbol, trigger_level, signal_date, trp_pct, days_waiting
     equity_curve: list[dict] = []
     peak_equity = starting_capital
     max_drawdown_pct = 0.0
     max_drawdown_amount = 0.0
+
+    # Per-position tracking: trade_id -> {hold_days, was_above_dma50}
+    pos_meta: dict[int, dict] = {}
 
     # Step 3: Day loop
     for day_str in trading_days:
@@ -422,7 +431,15 @@ def _execute_backtest(
             total_qty = pos.total_qty or remaining
             trp_value = entry_price * (pos.trp_pct / 100) if pos.trp_pct else 0
 
-            # SL check
+            # Update position metadata (hold days, above 50 DMA tracker)
+            meta = pos_meta.get(pos.id, {"hold_days": 0, "was_above_dma50": False})
+            meta["hold_days"] += 1
+            dma50 = ind["dma50"].get(day_str)
+            if dma50 and day_close > dma50:
+                meta["was_above_dma50"] = True
+            pos_meta[pos.id] = meta
+
+            # SL check — always active from day 1
             if pos.sl_price and day_low <= pos.sl_price:
                 exit_price = pos.sl_price
                 pnl = (exit_price - entry_price) * remaining
@@ -438,46 +455,47 @@ def _execute_backtest(
                 closed_positions.append(pos)
                 continue
 
-            # Target checks
+            # Target checks — use max(1, round(...)) to ensure at least 1 share exits
             exited_this_day = 0
 
             if pos.target_2r and day_high >= pos.target_2r and (pos.qty_exited_2r or 0) == 0:
-                exit_qty = min(int(total_qty * TRADING_RULES["mathematical_exit_pct"]), remaining)
+                exit_qty = min(max(1, round(total_qty * TRADING_RULES["mathematical_exit_pct"])), remaining)
                 if exit_qty > 0:
                     cash += pos.target_2r * exit_qty
                     pos.qty_exited_2r = exit_qty
                     remaining -= exit_qty
                     exited_this_day += exit_qty
 
-            if pos.target_ne and day_high >= pos.target_ne and (pos.qty_exited_ne or 0) == 0:
-                exit_qty = min(int(total_qty * TRADING_RULES["ne_exit_pct"]), remaining)
+            if remaining > 0 and pos.target_ne and day_high >= pos.target_ne and (pos.qty_exited_ne or 0) == 0:
+                exit_qty = min(max(1, round(total_qty * TRADING_RULES["ne_exit_pct"])), remaining)
                 if exit_qty > 0:
                     cash += pos.target_ne * exit_qty
                     pos.qty_exited_ne = exit_qty
                     remaining -= exit_qty
                     exited_this_day += exit_qty
 
-            if pos.target_ge and day_high >= pos.target_ge and (pos.qty_exited_ge or 0) == 0:
-                exit_qty = min(int(total_qty * TRADING_RULES["ge_exit_pct"]), remaining)
+            if remaining > 0 and pos.target_ge and day_high >= pos.target_ge and (pos.qty_exited_ge or 0) == 0:
+                exit_qty = min(max(1, round(total_qty * TRADING_RULES["ge_exit_pct"])), remaining)
                 if exit_qty > 0:
                     cash += pos.target_ge * exit_qty
                     pos.qty_exited_ge = exit_qty
                     remaining -= exit_qty
                     exited_this_day += exit_qty
 
-            if pos.target_ee and day_high >= pos.target_ee and (pos.qty_exited_ee or 0) == 0:
-                exit_qty = min(int(total_qty * TRADING_RULES["ee_exit_pct"]), remaining)
+            if remaining > 0 and pos.target_ee and day_high >= pos.target_ee and (pos.qty_exited_ee or 0) == 0:
+                exit_qty = min(max(1, round(total_qty * TRADING_RULES["ee_exit_pct"])), remaining)
                 if exit_qty > 0:
                     cash += pos.target_ee * exit_qty
                     pos.qty_exited_ee = exit_qty
                     remaining -= exit_qty
                     exited_this_day += exit_qty
 
-            # 50 DMA final exit
-            if remaining > 0:
-                dma50 = ind["dma50"].get(day_str)
+            # 50 DMA final exit — only after minimum holding period AND stock was above 50 DMA at some point
+            if remaining > 0 and meta["hold_days"] >= MIN_HOLD_DAYS_FOR_DMA_EXIT and meta["was_above_dma50"]:
                 if dma50 and day_close < dma50:
-                    cash += day_close * remaining
+                    exit_price_final = day_close
+                    pnl_final = (exit_price_final - entry_price) * remaining
+                    cash += exit_price_final * remaining
                     pos.qty_exited_final = remaining
                     remaining = 0
 
@@ -486,6 +504,10 @@ def _execute_backtest(
                 pos.status = "CLOSED"
                 pos.exit_date = date.fromisoformat(day_str)
                 total_pnl = _compute_total_pnl(pos, entry_price)
+                # Include final exit PnL if position closed via 50 DMA
+                if pos.qty_exited_final and pos.qty_exited_final > 0:
+                    final_exit_price = day_close
+                    total_pnl += (final_exit_price - entry_price) * pos.qty_exited_final
                 pos.gross_pnl = round(total_pnl, 2)
                 if trp_value > 0 and total_qty > 0:
                     pos.r_multiple = round(total_pnl / (trp_value * total_qty), 2)
@@ -498,7 +520,8 @@ def _execute_backtest(
 
         open_positions = still_open
 
-        # --- Process pending entries (signals from yesterday) ---
+        # --- Process pending entries (signals from recent days, kept alive for PENDING_ENTRY_MAX_DAYS) ---
+        new_pending: list[dict] = []
         for entry in pending_entries:
             symbol = entry["symbol"]
             trigger = entry["trigger_level"]
@@ -508,6 +531,10 @@ def _execute_backtest(
 
             day_high = ind["high"].get(day_str)
             if day_high is None or day_high < trigger:
+                # Trigger not hit — keep alive if within max days
+                entry["days_waiting"] = entry.get("days_waiting", 0) + 1
+                if entry["days_waiting"] < PENDING_ENTRY_MAX_DAYS:
+                    new_pending.append(entry)
                 continue
 
             # Calculate current equity
@@ -552,13 +579,14 @@ def _execute_backtest(
             cash -= trigger * sizing["position_size"]
             open_positions.append(sim_trade)
 
-        pending_entries = []
+        pending_entries = new_pending
 
         # --- Run PPC scan on today's candles across the full universe ---
         open_symbols = {p.symbol for p in open_positions}
+        pending_symbols = {e["symbol"] for e in pending_entries}
 
         for symbol, ind in indicators.items():
-            if symbol in open_symbols:
+            if symbol in open_symbols or symbol in pending_symbols:
                 continue
 
             # Fast PPC check using pre-computed values
@@ -612,12 +640,13 @@ def _execute_backtest(
             if trigger_level is None:
                 continue
 
-            # Signal detected — queue for next-day entry
+            # Signal detected — queue for next-day entry (stays alive for up to 3 days)
             pending_entries.append({
                 "symbol": symbol,
                 "trigger_level": round(trigger_level, 2),
                 "signal_date": day_str,
                 "trp_pct": round(trp_pct, 2),
+                "days_waiting": 0,
             })
 
         # --- Record equity ---
