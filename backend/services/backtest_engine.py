@@ -203,6 +203,9 @@ def _precompute_indicators(ohlcv: dict[str, pd.DataFrame]) -> dict[str, dict]:
             # Is green candle
             is_green = df["Close"] > df["Open"]
 
+            # 20 DMA for tighter trailing (3+ month override)
+            dma20 = df["Close"].rolling(window=20, min_periods=20).mean()
+
             # 50 DMA for exit signals
             dma50 = df["Close"].rolling(window=50, min_periods=50).mean()
 
@@ -221,6 +224,7 @@ def _precompute_indicators(ohlcv: dict[str, pd.DataFrame]) -> dict[str, dict]:
                 "low": {},
                 "close": {},
                 "open": {},
+                "dma20": {},
                 "dma50": {},
                 "sma150": {},
                 "sma150_20ago": {},
@@ -245,6 +249,8 @@ def _precompute_indicators(ohlcv: dict[str, pd.DataFrame]) -> dict[str, dict]:
                 sym_data["low"][ds] = float(df["Low"].iloc[i])
                 sym_data["close"][ds] = float(df["Close"].iloc[i])
                 sym_data["open"][ds] = float(df["Open"].iloc[i])
+                if pd.notna(dma20.iloc[i]):
+                    sym_data["dma20"][ds] = float(dma20.iloc[i])
                 if pd.notna(dma50.iloc[i]):
                     sym_data["dma50"][ds] = float(dma50.iloc[i])
                 if pd.notna(sma150.iloc[i]):
@@ -441,6 +447,8 @@ def _execute_backtest(
                 "hold_days": 0,
                 "was_above_dma50": False,
                 "consec_below_dma": 0,
+                "consec_above_dma20": 0,
+                "is_extended": False,
             })
             meta["hold_days"] += 1
             dma50 = ind["dma50"].get(day_str)
@@ -471,7 +479,7 @@ def _execute_backtest(
                 closed_positions.append(pos)
                 continue
 
-            # Target checks — use max(1, round(...)) to ensure at least 1 share exits
+            # Target checks — 2R uses % of original; NE/GE/EE use % of REMAINING (per methodology)
             exited_this_day = 0
 
             if pos.target_2r and day_high >= pos.target_2r and (pos.qty_exited_2r or 0) == 0:
@@ -485,7 +493,7 @@ def _execute_backtest(
                     meta["effective_sl"] = entry_price
 
             if remaining > 0 and pos.target_ne and day_high >= pos.target_ne and (pos.qty_exited_ne or 0) == 0:
-                exit_qty = min(max(1, round(total_qty * TRADING_RULES["ne_exit_pct"])), remaining)
+                exit_qty = min(max(1, round(remaining * TRADING_RULES["ne_exit_pct"])), remaining)
                 if exit_qty > 0:
                     cash += pos.target_ne * exit_qty
                     pos.qty_exited_ne = exit_qty
@@ -495,17 +503,18 @@ def _execute_backtest(
                     meta["effective_sl"] = pos.target_2r
 
             if remaining > 0 and pos.target_ge and day_high >= pos.target_ge and (pos.qty_exited_ge or 0) == 0:
-                exit_qty = min(max(1, round(total_qty * TRADING_RULES["ge_exit_pct"])), remaining)
+                exit_qty = min(max(1, round(remaining * TRADING_RULES["ge_exit_pct"])), remaining)
                 if exit_qty > 0:
                     cash += pos.target_ge * exit_qty
                     pos.qty_exited_ge = exit_qty
                     remaining -= exit_qty
                     exited_this_day += exit_qty
-                    # Trail SL up to NE level
+                    # Trail SL up to NE level; mark position as extended for LOD trailing
                     meta["effective_sl"] = pos.target_ne
+                    meta["is_extended"] = True
 
             if remaining > 0 and pos.target_ee and day_high >= pos.target_ee and (pos.qty_exited_ee or 0) == 0:
-                exit_qty = min(max(1, round(total_qty * TRADING_RULES["ee_exit_pct"])), remaining)
+                exit_qty = min(max(1, round(remaining * TRADING_RULES["ee_exit_pct"])), remaining)
                 if exit_qty > 0:
                     cash += pos.target_ee * exit_qty
                     pos.qty_exited_ee = exit_qty
@@ -514,13 +523,28 @@ def _execute_backtest(
                     # Trail SL up to GE level
                     meta["effective_sl"] = pos.target_ge
 
-            # 50 DMA final exit — "CLOSES and UNDERCUTS" = 2 consecutive closes below 50 DMA
-            # Requires: 10+ days held, stock was above 50 DMA at some point, 2 consecutive closes below
+            # LOD trailing — after GE hit, trail SL using Low of the Day (README: "trail using LOD")
+            if remaining > 0 and meta.get("is_extended"):
+                meta["effective_sl"] = max(meta["effective_sl"], day_low)
+
+            # 50 DMA / 20 DMA final exit — "Stock CLOSES and UNDERCUTS below"
+            # After 3+ months above 20 DMA, use tighter 20 DMA; otherwise 50 DMA
+            dma20 = ind["dma20"].get(day_str)
+            if dma20 and day_close > dma20:
+                meta["consec_above_dma20"] = meta.get("consec_above_dma20", 0) + 1
+            else:
+                meta["consec_above_dma20"] = 0
+
+            # Choose which DMA to use for final exit
+            use_dma20 = meta.get("consec_above_dma20", 0) >= 60  # ~3 months
+            final_dma = dma20 if (use_dma20 and dma20) else dma50
+
             if (
                 remaining > 0
                 and meta["hold_days"] >= MIN_HOLD_DAYS_FOR_DMA_EXIT
                 and meta["was_above_dma50"]
-                and meta["consec_below_dma"] >= 2
+                and final_dma
+                and day_close < final_dma
             ):
                 exit_price_final = day_close
                 cash += exit_price_final * remaining
@@ -578,8 +602,8 @@ def _execute_backtest(
             trp_pct = entry["trp_pct"]
             sizing = calculate_position(equity, rpt_pct, trigger, trp_pct)
 
-            if sizing["position_size"] < 1:
-                continue  # Stock too expensive for current capital
+            if sizing["position_size"] < 2:
+                continue  # Need at least 2 shares for meaningful partial exits
             if current_risk + sizing["rpt_amount"] > max_risk:
                 continue
             if trigger * sizing["position_size"] > cash:
