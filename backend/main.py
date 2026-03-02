@@ -12,11 +12,13 @@ logging.basicConfig(
     format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
 )
 from backend.routers import (
+    actions,
     alerts,
     calculator,
     journal,
     market_stance,
     scanner,
+    simulation,
     trades,
     watchlist,
 )
@@ -55,6 +57,8 @@ app.include_router(journal.router)
 app.include_router(market_stance.router)
 app.include_router(alerts.router)
 app.include_router(alerts_app_router)
+app.include_router(actions.router)
+app.include_router(simulation.router)
 
 
 @app.get("/")

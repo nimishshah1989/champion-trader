@@ -2,6 +2,7 @@ from sqlalchemy import (
     Boolean,
     Column,
     Date,
+    DateTime,
     Float,
     ForeignKey,
     Integer,
@@ -329,6 +330,121 @@ class AppAlert(Base):
     severity = Column(String, default="info")  # info, warning, critical
     is_read = Column(Boolean, default=False)
     data = Column(Text)  # JSON string with extra data
+    created_at = Column(String, server_default=func.now())
+
+
+# --- Table 11: action_alerts ---
+class ActionAlert(Base):
+    __tablename__ = "action_alerts"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    alert_category = Column(String, nullable=False)  # BUY, SELL
+    alert_type = Column(String, nullable=False)  # TRIGGER_BREAK, SL_HIT, 2R_HIT, NE_HIT, GE_HIT, EE_HIT, FINAL_EXIT
+    symbol = Column(String, nullable=False)
+    current_price = Column(Float)
+    trigger_price = Column(Float)
+
+    # BUY-specific fields
+    suggested_qty = Column(Integer)
+    suggested_half_qty = Column(Integer)
+    suggested_sl_price = Column(Float)
+    suggested_entry_price = Column(Float)
+    account_value_used = Column(Float)
+    rpt_pct_used = Column(Float)
+    trp_pct = Column(Float)
+
+    # SELL-specific fields
+    trade_id = Column(Integer, ForeignKey("trades.id"))
+    exit_qty = Column(Integer)
+    exit_pct = Column(Float)
+    target_level = Column(Float)
+    remaining_qty_after = Column(Integer)
+
+    action_text = Column(Text)  # Human-readable instruction
+    status = Column(String, default="NEW")  # NEW, ACTED, DISMISSED, EXPIRED
+    acted_at = Column(DateTime)
+
+    resulting_trade_id = Column(Integer, ForeignKey("trades.id"))
+    resulting_partial_exit_id = Column(Integer, ForeignKey("partial_exits.id"))
+
+    source = Column(String, default="PRICE_CHECK")  # PRICE_CHECK, WEBHOOK
+    watchlist_id = Column(Integer, ForeignKey("watchlist.id"))
+    data = Column(Text)  # JSON string with extra data
+    created_at = Column(String, server_default=func.now())
+
+
+# --- Table 12: simulation_runs ---
+class SimulationRun(Base):
+    __tablename__ = "simulation_runs"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    run_type = Column(String, nullable=False)  # BACKTEST, PAPER
+    name = Column(String)
+    starting_capital = Column(Float, nullable=False)
+    rpt_pct = Column(Float, nullable=False)
+    start_date = Column(Date)
+    end_date = Column(Date)  # null for PAPER until stopped
+
+    # Status: PENDING/RUNNING/COMPLETED/FAILED for BACKTEST; ACTIVE/PAUSED/STOPPED for PAPER
+    status = Column(String, default="PENDING")
+
+    # Summary results
+    final_capital = Column(Float)
+    total_pnl = Column(Float)
+    total_return_pct = Column(Float)
+    total_trades = Column(Integer, default=0)
+    win_count = Column(Integer, default=0)
+    loss_count = Column(Integer, default=0)
+    win_rate = Column(Float)
+    avg_win_r = Column(Float)
+    avg_loss_r = Column(Float)
+    arr = Column(Float)
+    expectancy = Column(Float)
+    max_drawdown_pct = Column(Float)
+    max_drawdown_amount = Column(Float)
+
+    equity_curve = Column(Text)  # JSON text: [{date, equity}]
+    last_processed_date = Column(Date)  # for PAPER
+    error_message = Column(Text)
+    created_at = Column(String, server_default=func.now())
+    updated_at = Column(String, server_default=func.now())
+
+
+# --- Table 13: simulation_trades ---
+class SimulationTrade(Base):
+    __tablename__ = "simulation_trades"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    run_id = Column(Integer, ForeignKey("simulation_runs.id"), nullable=False)
+    symbol = Column(String, nullable=False)
+    signal_date = Column(Date)
+    entry_date = Column(Date)
+    entry_price = Column(Float)
+    total_qty = Column(Integer)
+    half_qty = Column(Integer)
+    trp_pct = Column(Float)
+    sl_price = Column(Float)
+    rpt_amount = Column(Float)
+    target_2r = Column(Float)
+    target_ne = Column(Float)
+    target_ge = Column(Float)
+    target_ee = Column(Float)
+
+    # Exit tracking — qty exited at each target level
+    qty_exited_2r = Column(Integer, default=0)
+    qty_exited_ne = Column(Integer, default=0)
+    qty_exited_ge = Column(Integer, default=0)
+    qty_exited_ee = Column(Integer, default=0)
+    qty_exited_sl = Column(Integer, default=0)
+    qty_exited_final = Column(Integer, default=0)
+    remaining_qty = Column(Integer)
+
+    status = Column(String, default="OPEN")  # OPEN, PARTIAL, CLOSED
+    exit_date = Column(Date)
+    gross_pnl = Column(Float)
+    r_multiple = Column(Float)
+    pnl_pct = Column(Float)
+    portfolio_value_at_entry = Column(Float)
     created_at = Column(String, server_default=func.now())
 
 

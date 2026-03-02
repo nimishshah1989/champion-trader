@@ -405,6 +405,187 @@ export function getUnreadAlertCount(): Promise<{ count: number }> {
   return apiFetch("/alerts/unread-count");
 }
 
+// --- Action Alerts ---
+
+export interface ActionAlert {
+  id: number;
+  alert_category: string;
+  alert_type: string;
+  symbol: string;
+  current_price: number | null;
+  trigger_price: number | null;
+  suggested_qty: number | null;
+  suggested_half_qty: number | null;
+  suggested_sl_price: number | null;
+  suggested_entry_price: number | null;
+  account_value_used: number | null;
+  rpt_pct_used: number | null;
+  trp_pct: number | null;
+  trade_id: number | null;
+  exit_qty: number | null;
+  exit_pct: number | null;
+  target_level: number | null;
+  remaining_qty_after: number | null;
+  action_text: string | null;
+  status: string;
+  acted_at: string | null;
+  resulting_trade_id: number | null;
+  resulting_partial_exit_id: number | null;
+  source: string | null;
+  watchlist_id: number | null;
+  data: string | null;
+  created_at: string | null;
+}
+
+export interface PriceCheckResponse {
+  buy_alerts: ActionAlert[];
+  sell_alerts: ActionAlert[];
+  last_checked: string;
+  prices_fetched: number;
+}
+
+export function checkPrices(accountValue?: number, rptPct?: number): Promise<PriceCheckResponse> {
+  const params = new URLSearchParams();
+  if (accountValue) params.set("account_value", String(accountValue));
+  if (rptPct) params.set("rpt_pct", String(rptPct));
+  const query = params.toString();
+  return apiFetch<PriceCheckResponse>(`/actions/check-prices${query ? `?${query}` : ""}`, { method: "POST" });
+}
+
+export function getActionAlerts(category?: string, status?: string): Promise<ActionAlert[]> {
+  const params = new URLSearchParams();
+  if (category) params.set("category", category);
+  if (status) params.set("status", status);
+  const query = params.toString();
+  return apiFetch<ActionAlert[]>(`/actions${query ? `?${query}` : ""}`);
+}
+
+export function actOnAlert(id: number, actualPrice?: number, notes?: string): Promise<ActionAlert> {
+  const body: Record<string, unknown> = {};
+  if (actualPrice !== undefined) body.actual_price = actualPrice;
+  if (notes) body.notes = notes;
+  return apiFetch<ActionAlert>(`/actions/${id}/act`, {
+    method: "PATCH",
+    body: Object.keys(body).length > 0 ? body : undefined,
+  });
+}
+
+export function dismissAlert(id: number): Promise<ActionAlert> {
+  return apiFetch<ActionAlert>(`/actions/${id}/dismiss`, { method: "PATCH" });
+}
+
+// --- Simulation ---
+
+export interface SimulationRun {
+  id: number;
+  run_type: string;
+  name: string | null;
+  starting_capital: number;
+  rpt_pct: number;
+  start_date: string | null;
+  end_date: string | null;
+  status: string;
+  final_capital: number | null;
+  total_pnl: number | null;
+  total_return_pct: number | null;
+  total_trades: number;
+  win_count: number;
+  loss_count: number;
+  win_rate: number | null;
+  avg_win_r: number | null;
+  avg_loss_r: number | null;
+  arr: number | null;
+  expectancy: number | null;
+  max_drawdown_pct: number | null;
+  max_drawdown_amount: number | null;
+  equity_curve: string | null;
+  last_processed_date: string | null;
+  error_message: string | null;
+  created_at: string | null;
+}
+
+export interface SimulationTrade {
+  id: number;
+  run_id: number;
+  symbol: string;
+  signal_date: string | null;
+  entry_date: string | null;
+  entry_price: number | null;
+  total_qty: number | null;
+  half_qty: number | null;
+  trp_pct: number | null;
+  sl_price: number | null;
+  rpt_amount: number | null;
+  target_2r: number | null;
+  target_ne: number | null;
+  target_ge: number | null;
+  target_ee: number | null;
+  qty_exited_2r: number;
+  qty_exited_ne: number;
+  qty_exited_ge: number;
+  qty_exited_ee: number;
+  qty_exited_sl: number;
+  qty_exited_final: number;
+  remaining_qty: number | null;
+  status: string;
+  exit_date: string | null;
+  gross_pnl: number | null;
+  r_multiple: number | null;
+  pnl_pct: number | null;
+  portfolio_value_at_entry: number | null;
+}
+
+export interface SimulationRunWithTrades extends SimulationRun {
+  trades: SimulationTrade[];
+}
+
+export function runBacktest(data: {
+  start_date: string;
+  end_date: string;
+  starting_capital: number;
+  rpt_pct: number;
+  name?: string;
+}): Promise<SimulationRun> {
+  return apiFetch<SimulationRun>("/simulation/backtest", { method: "POST", body: data });
+}
+
+export function getBacktestResult(runId: number): Promise<SimulationRunWithTrades> {
+  return apiFetch<SimulationRunWithTrades>(`/simulation/backtest/${runId}`);
+}
+
+export function startPaperTrading(data: {
+  starting_capital: number;
+  rpt_pct: number;
+  name?: string;
+}): Promise<SimulationRun> {
+  return apiFetch<SimulationRun>("/simulation/paper/start", { method: "POST", body: data });
+}
+
+export function processPaperDay(runId: number): Promise<{
+  date: string;
+  equity: number;
+  cash: number;
+  entries: string[];
+  exits: string[];
+  open_positions: number;
+  prices_fetched: number;
+}> {
+  return apiFetch(`/simulation/paper/${runId}/process`, { method: "POST" });
+}
+
+export function getPaperStatus(runId: number): Promise<SimulationRunWithTrades> {
+  return apiFetch<SimulationRunWithTrades>(`/simulation/paper/${runId}`);
+}
+
+export function stopPaperTrading(runId: number): Promise<SimulationRun> {
+  return apiFetch<SimulationRun>(`/simulation/paper/${runId}/stop`, { method: "POST" });
+}
+
+export function getSimulationRuns(runType?: string): Promise<SimulationRun[]> {
+  const params = runType ? `?run_type=${runType}` : "";
+  return apiFetch<SimulationRun[]>(`/simulation/runs${params}`);
+}
+
 // --- Health ---
 
 export function healthCheck(): Promise<{ status: string }> {

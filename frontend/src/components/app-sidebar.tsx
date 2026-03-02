@@ -18,11 +18,13 @@ const NAV_ITEMS = [
   { title: "Dashboard", href: "/", icon: "LayoutDashboard" },
   { title: "Scanner", href: "/scanner", icon: "Search" },
   { title: "Watchlist", href: "/watchlist", icon: "Eye" },
+  { title: "Actions", href: "/actions", icon: "Zap" },
   { title: "Calculator", href: "/calculator", icon: "Calculator" },
   { title: "Trades", href: "/trades", icon: "TrendingUp" },
   { title: "Journal", href: "/journal", icon: "BookOpen" },
   { title: "Market Stance", href: "/market-stance", icon: "BarChart3" },
   { title: "Performance", href: "/performance", icon: "LineChart" },
+  { title: "Simulation", href: "/simulation", icon: "FlaskConical" },
   { title: "Methodology", href: "/methodology", icon: "GraduationCap" },
 ] as const;
 
