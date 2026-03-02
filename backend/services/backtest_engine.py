@@ -401,7 +401,11 @@ def _execute_backtest(
     max_drawdown_pct = 0.0
     max_drawdown_amount = 0.0
 
-    # Per-position tracking: trade_id -> {hold_days, was_above_dma50}
+    # Per-position tracking:
+    #   effective_sl: trailing SL (starts at original, moves up after targets)
+    #   hold_days: trading days since entry
+    #   was_above_dma50: whether close was ever above 50 DMA
+    #   consec_below_dma: consecutive closes below 50 DMA (for "undercut" confirmation)
     pos_meta: dict[int, dict] = {}
 
     # Step 3: Day loop
@@ -431,27 +435,39 @@ def _execute_backtest(
             total_qty = pos.total_qty or remaining
             trp_value = entry_price * (pos.trp_pct / 100) if pos.trp_pct else 0
 
-            # Update position metadata (hold days, above 50 DMA tracker)
-            meta = pos_meta.get(pos.id, {"hold_days": 0, "was_above_dma50": False})
+            # Init/update position metadata
+            meta = pos_meta.get(pos.id, {
+                "effective_sl": pos.sl_price or 0,
+                "hold_days": 0,
+                "was_above_dma50": False,
+                "consec_below_dma": 0,
+            })
             meta["hold_days"] += 1
             dma50 = ind["dma50"].get(day_str)
             if dma50 and day_close > dma50:
                 meta["was_above_dma50"] = True
+                meta["consec_below_dma"] = 0
+            elif dma50 and day_close < dma50:
+                meta["consec_below_dma"] = meta.get("consec_below_dma", 0) + 1
+            effective_sl = meta["effective_sl"]
             pos_meta[pos.id] = meta
 
-            # SL check — always active from day 1
-            if pos.sl_price and day_low <= pos.sl_price:
-                exit_price = pos.sl_price
-                pnl = (exit_price - entry_price) * remaining
+            # SL check — uses trailed (effective) SL, not original
+            if effective_sl > 0 and day_low <= effective_sl:
+                exit_price = effective_sl
+                sl_pnl = (exit_price - entry_price) * remaining
                 cash += exit_price * remaining
                 pos.qty_exited_sl = remaining
                 pos.remaining_qty = 0
                 pos.status = "CLOSED"
                 pos.exit_date = date.fromisoformat(day_str)
-                pos.gross_pnl = round(pnl, 2)
-                if trp_value > 0:
-                    pos.r_multiple = round((exit_price - entry_price) / trp_value, 2)
-                pos.pnl_pct = round(((exit_price - entry_price) / entry_price) * 100, 2) if entry_price > 0 else 0
+                # Total PnL = prior partial exits + this SL exit
+                prior_pnl = _compute_total_pnl(pos, entry_price, sl_exit_price=exit_price)
+                # prior_pnl already includes the SL exit (qty_exited_sl was just set)
+                pos.gross_pnl = round(prior_pnl, 2)
+                if trp_value > 0 and total_qty > 0:
+                    pos.r_multiple = round(prior_pnl / (trp_value * total_qty), 2)
+                pos.pnl_pct = round((prior_pnl / (entry_price * total_qty)) * 100, 2) if (entry_price * total_qty) > 0 else 0
                 closed_positions.append(pos)
                 continue
 
@@ -465,6 +481,8 @@ def _execute_backtest(
                     pos.qty_exited_2r = exit_qty
                     remaining -= exit_qty
                     exited_this_day += exit_qty
+                    # Trail SL to breakeven (entry price)
+                    meta["effective_sl"] = entry_price
 
             if remaining > 0 and pos.target_ne and day_high >= pos.target_ne and (pos.qty_exited_ne or 0) == 0:
                 exit_qty = min(max(1, round(total_qty * TRADING_RULES["ne_exit_pct"])), remaining)
@@ -473,6 +491,8 @@ def _execute_backtest(
                     pos.qty_exited_ne = exit_qty
                     remaining -= exit_qty
                     exited_this_day += exit_qty
+                    # Trail SL up to 2R level
+                    meta["effective_sl"] = pos.target_2r
 
             if remaining > 0 and pos.target_ge and day_high >= pos.target_ge and (pos.qty_exited_ge or 0) == 0:
                 exit_qty = min(max(1, round(total_qty * TRADING_RULES["ge_exit_pct"])), remaining)
@@ -481,6 +501,8 @@ def _execute_backtest(
                     pos.qty_exited_ge = exit_qty
                     remaining -= exit_qty
                     exited_this_day += exit_qty
+                    # Trail SL up to NE level
+                    meta["effective_sl"] = pos.target_ne
 
             if remaining > 0 and pos.target_ee and day_high >= pos.target_ee and (pos.qty_exited_ee or 0) == 0:
                 exit_qty = min(max(1, round(total_qty * TRADING_RULES["ee_exit_pct"])), remaining)
@@ -489,15 +511,21 @@ def _execute_backtest(
                     pos.qty_exited_ee = exit_qty
                     remaining -= exit_qty
                     exited_this_day += exit_qty
+                    # Trail SL up to GE level
+                    meta["effective_sl"] = pos.target_ge
 
-            # 50 DMA final exit — only after minimum holding period AND stock was above 50 DMA at some point
-            if remaining > 0 and meta["hold_days"] >= MIN_HOLD_DAYS_FOR_DMA_EXIT and meta["was_above_dma50"]:
-                if dma50 and day_close < dma50:
-                    exit_price_final = day_close
-                    pnl_final = (exit_price_final - entry_price) * remaining
-                    cash += exit_price_final * remaining
-                    pos.qty_exited_final = remaining
-                    remaining = 0
+            # 50 DMA final exit — "CLOSES and UNDERCUTS" = 2 consecutive closes below 50 DMA
+            # Requires: 10+ days held, stock was above 50 DMA at some point, 2 consecutive closes below
+            if (
+                remaining > 0
+                and meta["hold_days"] >= MIN_HOLD_DAYS_FOR_DMA_EXIT
+                and meta["was_above_dma50"]
+                and meta["consec_below_dma"] >= 2
+            ):
+                exit_price_final = day_close
+                cash += exit_price_final * remaining
+                pos.qty_exited_final = remaining
+                remaining = 0
 
             pos.remaining_qty = remaining
             if remaining <= 0:
@@ -550,6 +578,8 @@ def _execute_backtest(
             trp_pct = entry["trp_pct"]
             sizing = calculate_position(equity, rpt_pct, trigger, trp_pct)
 
+            if sizing["position_size"] < 1:
+                continue  # Stock too expensive for current capital
             if current_risk + sizing["rpt_amount"] > max_risk:
                 continue
             if trigger * sizing["position_size"] > cash:
@@ -740,8 +770,12 @@ def _execute_backtest(
     )
 
 
-def _compute_total_pnl(pos: SimulationTrade, entry_price: float) -> float:
-    """Compute total P&L from all partial exits (excluding final exit)."""
+def _compute_total_pnl(pos: SimulationTrade, entry_price: float, sl_exit_price: float | None = None) -> float:
+    """Compute total P&L from all partial and SL exits (excluding final exit).
+
+    sl_exit_price: the actual SL price used for exit (may be trailed up from original).
+    If not provided, falls back to pos.sl_price (original SL).
+    """
     total = 0.0
     if pos.qty_exited_2r and pos.target_2r:
         total += (pos.target_2r - entry_price) * pos.qty_exited_2r
@@ -751,6 +785,7 @@ def _compute_total_pnl(pos: SimulationTrade, entry_price: float) -> float:
         total += (pos.target_ge - entry_price) * pos.qty_exited_ge
     if pos.qty_exited_ee and pos.target_ee:
         total += (pos.target_ee - entry_price) * pos.qty_exited_ee
-    if pos.qty_exited_sl and pos.sl_price:
-        total += (pos.sl_price - entry_price) * pos.qty_exited_sl
+    if pos.qty_exited_sl:
+        actual_sl = sl_exit_price if sl_exit_price is not None else (pos.sl_price or 0)
+        total += (actual_sl - entry_price) * pos.qty_exited_sl
     return total
