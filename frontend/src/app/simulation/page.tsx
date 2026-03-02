@@ -163,15 +163,16 @@ function StatCard({
 // ---------------------------------------------------------------------------
 
 function SimStatusBadge({ status }: { status: string }) {
+  const s = status.toUpperCase();
   let colorClasses = "bg-blue-50 text-blue-700 border-blue-200";
 
-  if (status === "completed") {
+  if (s === "COMPLETED") {
     colorClasses = "bg-emerald-50 text-emerald-700 border-emerald-200";
-  } else if (status === "running" || status === "active") {
+  } else if (s === "RUNNING" || s === "ACTIVE") {
     colorClasses = "bg-amber-50 text-amber-700 border-amber-200";
-  } else if (status === "failed" || status === "error") {
+  } else if (s === "FAILED" || s === "ERROR") {
     colorClasses = "bg-red-50 text-red-700 border-red-200";
-  } else if (status === "stopped") {
+  } else if (s === "STOPPED") {
     colorClasses = "bg-slate-50 text-slate-600 border-slate-200";
   }
 
@@ -505,7 +506,7 @@ function PreviousRunsList({
                 <span className="text-xs text-slate-400 font-mono">
                   {run.total_trades} trades
                 </span>
-                {run.status === "completed" && (
+                {run.status.toUpperCase() === "COMPLETED" && (
                   <button
                     onClick={() => onSelect(run.id)}
                     className="text-xs text-teal-600 hover:text-teal-700 font-medium"
@@ -553,24 +554,25 @@ function BacktestTab({
       setResultLoading(true);
       setError(null);
 
-      const maxAttempts = 120; // Poll for up to 10 minutes (120 * 5 seconds)
+      const maxAttempts = 360; // Poll for up to 30 minutes (360 * 5 seconds)
       let attempts = 0;
 
       const poll = async () => {
         try {
           const result = await getBacktestResult(runId);
+          const status = result.status.toUpperCase();
 
           if (
-            result.status === "completed" ||
-            result.status === "failed" ||
-            result.status === "error"
+            status === "COMPLETED" ||
+            status === "FAILED" ||
+            status === "ERROR"
           ) {
             setBacktestResult(result);
             setResultLoading(false);
             setIsRunning(false);
             onRunsUpdated();
 
-            if (result.status === "completed") {
+            if (status === "COMPLETED") {
               toast.success(
                 `Backtest complete: ${result.total_trades} trades, ${formatPct(result.total_return_pct)} return`
               );
@@ -590,8 +592,8 @@ function BacktestTab({
           } else {
             setResultLoading(false);
             setIsRunning(false);
-            setError("Backtest timed out. Check back later.");
-            toast.error("Backtest timed out after 10 minutes.");
+            setError("Backtest timed out. Check back later — it may still be running on the server.");
+            toast.error("Backtest polling timed out after 30 minutes.");
           }
         } catch (err) {
           // If result is not ready yet (404 or similar), keep polling
@@ -654,8 +656,9 @@ function BacktestTab({
         `Backtest started (Run #${run.id}). This may take a few minutes...`
       );
 
+      const runStatus = run.status.toUpperCase();
       // If the backtest returns immediately as completed
-      if (run.status === "completed") {
+      if (runStatus === "COMPLETED") {
         const fullResult = await getBacktestResult(run.id);
         setBacktestResult(fullResult);
         setIsRunning(false);
@@ -664,13 +667,13 @@ function BacktestTab({
         toast.success(
           `Backtest complete: ${fullResult.total_trades} trades, ${formatPct(fullResult.total_return_pct)} return`
         );
-      } else if (run.status === "failed" || run.status === "error") {
+      } else if (runStatus === "FAILED" || runStatus === "ERROR") {
         setIsRunning(false);
         setError(run.error_message || "Backtest failed");
         toast.error(run.error_message || "Backtest failed");
         onRunsUpdated();
       } else {
-        // Poll for completion
+        // Status is RUNNING — poll for completion
         pollForResult(run.id);
       }
     } catch (err) {
@@ -943,7 +946,7 @@ function PaperTradingTab({
     try {
       const runs = await getSimulationRuns("paper");
       const activeRun = runs.find(
-        (r) => r.status === "active" || r.status === "running"
+        (r) => r.status.toUpperCase() === "ACTIVE" || r.status.toUpperCase() === "RUNNING"
       );
 
       if (activeRun) {
