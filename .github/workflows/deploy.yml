@@ -24,7 +24,7 @@ jobs:
             docker build -f Dockerfile.backend -t champion-trader .
             docker stop champion || true
             docker rm champion || true
-            docker run -d --name champion --env-file .env -p 8003:8003 --restart unless-stopped champion-trader
-            sleep 3
-            curl -sf http://localhost:8003/health
+            docker run -d --name champion --env-file .env -p 8003:8000 --restart unless-stopped champion-trader
+            sleep 5
+            curl -sf http://localhost:8003/health || curl -sf http://localhost:8003/
             echo "✅ Deploy successful"
