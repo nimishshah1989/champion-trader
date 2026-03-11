@@ -33,6 +33,7 @@ const INTELLIGENCE_ITEMS = [
   { title: "Optimize", href: "/intelligence/optimize", icon: "FlaskConical" },
   { title: "Shadow", href: "/intelligence/shadow", icon: "Ghost" },
   { title: "Attribution", href: "/intelligence/attribution", icon: "Target" },
+  { title: "Guide", href: "/intelligence/guide", icon: "BookOpen" },
 ] as const;
 
 export function AppSidebar() {
