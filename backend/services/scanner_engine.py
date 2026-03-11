@@ -12,6 +12,7 @@ from typing import Dict, List, Optional
 import pandas as pd
 
 from backend.services.data_fetcher import fetch_all_stocks
+from backend.intelligence.strategy import PARAMETERS
 from backend.services.technical import (
     calculate_atr_slope,
     calculate_adt,
@@ -32,8 +33,8 @@ from backend.services.technical import (
 
 logger = logging.getLogger(__name__)
 
-# Minimum ADT filter: ₹1 crore daily turnover
-MIN_ADT = 1_00_00_000  # 1 crore in rupees
+# Minimum ADT filter: driven by strategy.py PARAMETERS
+MIN_ADT = int(PARAMETERS["min_adt_crore"] * 1_00_00_000)
 
 
 def _build_common_metrics(symbol: str, df: pd.DataFrame, scan_date: str) -> dict:
@@ -70,7 +71,7 @@ def _build_common_metrics(symbol: str, df: pd.DataFrame, scan_date: str) -> dict
         "above_30w_ma": above_ma,
         "ma_trending_up": ma_up,
         "base_days": base_days,
-        "has_min_20_bar_base": base_days >= 20,
+        "has_min_20_bar_base": base_days >= PARAMETERS["min_base_days"],
         "base_quality": base_quality,
         "adt": round(adt, 0),
         "passes_liquidity_filter": adt >= MIN_ADT,
@@ -79,7 +80,7 @@ def _build_common_metrics(symbol: str, df: pd.DataFrame, scan_date: str) -> dict
 
 def _determine_watchlist_bucket(stage: str, base_days: int, base_quality: str) -> str:
     """Suggest a watchlist bucket based on stage and base analysis."""
-    if stage in ("S1B", "S2") and base_days >= 20 and base_quality in ("SMOOTH", "MIXED"):
+    if stage in ("S1B", "S2") and base_days >= PARAMETERS["min_base_days"] and base_quality in ("SMOOTH", "MIXED"):
         return "READY"
     if stage in ("S1B", "S2") and base_days >= 15:
         return "NEAR"
@@ -118,9 +119,9 @@ def _scan_ppc(all_data: dict[str, pd.DataFrame], scan_date: str) -> list[dict]:
                 trp_ratio is not None
                 and close_pos is not None
                 and vol_ratio is not None
-                and trp_ratio >= 1.5
-                and close_pos >= 0.60
-                and vol_ratio >= 1.5
+                and trp_ratio >= PARAMETERS["ppc_trp_ratio_min"]
+                and close_pos >= PARAMETERS["ppc_close_position_min"]
+                and vol_ratio >= PARAMETERS["ppc_volume_ratio_min"]
                 and is_green
             ):
                 metrics["scan_type"] = "PPC"
@@ -172,9 +173,9 @@ def _scan_npc(all_data: dict[str, pd.DataFrame], scan_date: str) -> list[dict]:
                 trp_ratio is not None
                 and close_pos is not None
                 and vol_ratio is not None
-                and trp_ratio >= 1.5
-                and close_pos <= 0.40
-                and vol_ratio >= 1.5
+                and trp_ratio >= PARAMETERS["npc_trp_ratio_min"]
+                and close_pos <= PARAMETERS["npc_close_position_max"]
+                and vol_ratio >= PARAMETERS["npc_volume_ratio_min"]
                 and is_red
             ):
                 metrics["scan_type"] = "NPC"
@@ -219,9 +220,9 @@ def _scan_contraction(all_data: dict[str, pd.DataFrame], scan_date: str) -> list
             # Contraction conditions
             atr_slope = calculate_atr_slope(df, atr_period=14, slope_bars=5)
             narrowing_count = count_narrowing_candles(df, lookback=10, tolerance=0.05)
-            near_resistance = price_near_resistance(df, lookback=60, threshold_pct=3.0)
+            near_resistance = price_near_resistance(df, lookback=60, threshold_pct=PARAMETERS["contraction_resistance_pct"])
 
-            if atr_slope < 0 and narrowing_count >= 3 and near_resistance:
+            if atr_slope < 0 and narrowing_count >= PARAMETERS["contraction_narrowing_min"] and near_resistance:
                 metrics["scan_type"] = "CONTRACTION"
                 metrics["wuc_type"] = "BA"  # Breakout Anticipated
                 # Trigger = highest high of the last 5 bars (breakout level)

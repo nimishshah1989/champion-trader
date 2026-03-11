@@ -11,6 +11,8 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
 )
+logger = logging.getLogger(__name__)
+
 from backend.routers import (
     actions,
     alerts,
@@ -23,19 +25,135 @@ from backend.routers import (
     watchlist,
 )
 from backend.routers.alerts_app import router as alerts_app_router
+from backend.routers.intelligence import router as intelligence_router
+
+
+# ── APScheduler Setup ────────────────────────────────────────────────
+
+scheduler = None
+
+
+def _setup_scheduler():
+    """Configure APScheduler with all intelligence jobs."""
+    global scheduler
+    try:
+        from apscheduler.schedulers.asyncio import AsyncIOScheduler
+        from apscheduler.triggers.cron import CronTrigger
+
+        scheduler = AsyncIOScheduler(timezone="Asia/Kolkata")
+
+        # Risk Guardian — every 10 minutes during market hours
+        from backend.intelligence.risk_guardian import monitor_positions
+
+        scheduler.add_job(
+            monitor_positions,
+            CronTrigger(day_of_week="mon-fri", hour="9-15", minute="*/10"),
+            id="risk_guardian",
+            name="Risk Guardian: Position Monitor",
+        )
+
+        # Learning Agent — check for closed trades every 30 minutes
+        from backend.intelligence.learning_agent import process_closed_trades
+
+        scheduler.add_job(
+            process_closed_trades,
+            CronTrigger(day_of_week="mon-fri", hour="9-16", minute="0,30"),
+            id="learning_agent",
+            name="Learning Agent: Post-Mortem Generator",
+        )
+
+        # Regime Classifier — daily at 16:45 IST
+        from backend.intelligence.regime_classifier import classify_regime
+
+        scheduler.add_job(
+            classify_regime,
+            CronTrigger(day_of_week="mon-fri", hour=16, minute=45),
+            id="regime_classifier",
+            name="Regime Classifier: Daily Classification",
+        )
+
+        # CIO Agent — daily at 17:00 IST
+        from backend.intelligence.cio_agent import generate_brief
+
+        scheduler.add_job(
+            generate_brief,
+            CronTrigger(day_of_week="mon-fri", hour=17, minute=0),
+            id="cio_agent",
+            name="CIO Agent: Daily Brief",
+        )
+
+        # Corpus Updater — daily at 17:30 IST
+        from backend.intelligence.corpus_updater import ingest_daily
+
+        scheduler.add_job(
+            ingest_daily,
+            CronTrigger(day_of_week="mon-fri", hour=17, minute=30),
+            id="corpus_updater",
+            name="Corpus Updater: Market Data Ingestion",
+        )
+
+        # AutoOptimize — start at 18:00 IST (halts internally at 08:00)
+        if settings.autooptimize_enabled:
+            from backend.intelligence.autooptimize import start_loop
+
+            scheduler.add_job(
+                start_loop,
+                CronTrigger(
+                    day_of_week="mon-fri",
+                    hour=settings.autooptimize_start_hour,
+                    minute=0,
+                ),
+                id="autooptimize",
+                name="AutoOptimize: Overnight Research Loop",
+            )
+
+        # Shadow Portfolio — update exits every 30 min during market hours
+        from backend.intelligence.shadow_portfolio import update_shadow_exits
+
+        scheduler.add_job(
+            update_shadow_exits,
+            CronTrigger(day_of_week="mon-fri", hour="9-16", minute="15,45"),
+            id="shadow_portfolio",
+            name="Shadow Portfolio: Exit Tracker",
+        )
+
+        logger.info(f"APScheduler configured with {len(scheduler.get_jobs())} jobs")
+        return scheduler
+
+    except ImportError as e:
+        logger.warning(f"APScheduler not available — intelligence jobs disabled: {e}")
+        return None
+
+
+# ── Lifespan ─────────────────────────────────────────────────────────
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Create database tables on startup."""
+    """Create database tables on startup, start scheduler."""
     init_db()
+    logger.info("Database initialized")
+
+    # Start scheduler
+    sched = _setup_scheduler()
+    if sched:
+        sched.start()
+        logger.info("APScheduler started — intelligence jobs active")
+
     yield
 
+    # Shutdown
+    if sched and sched.running:
+        sched.shutdown(wait=False)
+        logger.info("APScheduler shut down")
+
+
+# ── App ──────────────────────────────────────────────────────────────
 
 app = FastAPI(
     title="Champion Trader System",
     description="Swing trading intelligence platform based on Afzal Lokhandwala's Champion Trader methodology",
-    version="0.1.0",
+    version="2.0.0",
     lifespan=lifespan,
 )
 
@@ -48,7 +166,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Register all routers
+# Register all routers — v1
 app.include_router(scanner.router)
 app.include_router(watchlist.router)
 app.include_router(calculator.router)
@@ -60,16 +178,31 @@ app.include_router(alerts_app_router)
 app.include_router(actions.router)
 app.include_router(simulation.router)
 
+# Register intelligence router — v2
+app.include_router(intelligence_router)
+
 
 @app.get("/")
 def root():
     return {
         "name": "Champion Trader System",
-        "version": "0.1.0",
+        "version": "2.0.0",
         "environment": settings.environment,
+        "intelligence": True,
     }
 
 
 @app.get("/health")
 def health_check():
-    return {"status": "ok"}
+    jobs = []
+    if scheduler and scheduler.running:
+        jobs = [
+            {"id": j.id, "name": j.name, "next_run": str(j.next_run_time)}
+            for j in scheduler.get_jobs()
+        ]
+    return {
+        "status": "ok",
+        "scheduler": "running" if scheduler and scheduler.running else "stopped",
+        "scheduled_jobs": len(jobs),
+        "jobs": jobs,
+    }

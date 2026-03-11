@@ -28,6 +28,13 @@ const NAV_ITEMS = [
   { title: "Methodology", href: "/methodology", icon: "GraduationCap" },
 ] as const;
 
+const INTELLIGENCE_ITEMS = [
+  { title: "Intelligence", href: "/intelligence", icon: "Brain" },
+  { title: "Optimize", href: "/intelligence/optimize", icon: "FlaskConical" },
+  { title: "Shadow", href: "/intelligence/shadow", icon: "Ghost" },
+  { title: "Attribution", href: "/intelligence/attribution", icon: "Target" },
+] as const;
+
 export function AppSidebar() {
   const pathname = usePathname();
 
@@ -46,6 +53,29 @@ export function AppSidebar() {
                 const isActive =
                   item.href === "/"
                     ? pathname === "/"
+                    : pathname.startsWith(item.href);
+                return (
+                  <SidebarMenuItem key={item.href}>
+                    <SidebarMenuButton asChild isActive={isActive}>
+                      <Link href={item.href}>
+                        <span>{item.title}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
+          <SidebarGroupLabel>Intelligence</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {INTELLIGENCE_ITEMS.map((item) => {
+                const isActive =
+                  item.href === "/intelligence"
+                    ? pathname === "/intelligence"
                     : pathname.startsWith(item.href);
                 return (
                   <SidebarMenuItem key={item.href}>

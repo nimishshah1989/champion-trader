@@ -30,6 +30,23 @@ class Settings(BaseSettings):
     default_rpt_pct: float = 0.50
     default_exchange: str = "NSE"
 
+    # Anthropic (CIO Agent + AutoOptimize)
+    anthropic_api_key: str = ""
+
+    # AutoOptimize
+    autooptimize_enabled: bool = True
+    autooptimize_start_hour: int = 18
+    autooptimize_halt_hour: int = 8
+    autooptimize_model: str = "claude-sonnet-4-5"
+
+    # RAG
+    rag_persist_dir: str = "./rag/chromadb"
+    corpus_b_retention_days: int = 90
+
+    # Broker
+    broker_live_trading: bool = False
+    broker_type: str = "paper"  # paper | jhaveri
+
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 
 

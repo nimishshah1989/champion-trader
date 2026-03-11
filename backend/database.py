@@ -448,13 +448,90 @@ class SimulationTrade(Base):
     created_at = Column(String, server_default=func.now())
 
 
+# --- Intelligence Layer Tables ---
+
+
+# --- Table 14: regime_log ---
+class RegimeLog(Base):
+    __tablename__ = "regime_log"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    regime_date = Column(Date, nullable=False, unique=True)
+    regime = Column(String(20), nullable=False)  # TRENDING_BULL, RANGING_QUIET, HIGH_VOLATILITY, WEAKENING_BEAR
+    nifty_adx = Column(Float)
+    india_vix = Column(Float)
+    fii_net_crore = Column(Float)
+    hurst_exponent = Column(Float)
+    nifty_close = Column(Float)
+    nifty_sma150 = Column(Float)
+    param_bank_version = Column(String(50))
+    created_at = Column(DateTime, server_default=func.now())
+
+
+# --- Table 15: optimize_experiments ---
+class OptimizeExperiment(Base):
+    __tablename__ = "optimize_experiments"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    run_date = Column(Date, nullable=False)
+    parameter_name = Column(String(100), nullable=False)
+    old_value = Column(Float, nullable=False)
+    new_value = Column(Float, nullable=False)
+    hypothesis = Column(Text)
+    old_score = Column(Float)
+    new_score = Column(Float)
+    outcome = Column(String(10))  # KEEP or REVERT
+    trade_count = Column(Integer)
+    expectancy = Column(Float)
+    max_drawdown_pct = Column(Float)
+    created_at = Column(DateTime, server_default=func.now())
+
+
+# --- Table 16: signal_attribution ---
+class SignalAttribution(Base):
+    __tablename__ = "signal_attribution"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    signal_type = Column(String(20), nullable=False)
+    regime = Column(String(20), nullable=False)
+    param_bank_version = Column(String(50))
+    trade_count = Column(Integer, default=0)
+    win_count = Column(Integer, default=0)
+    total_r = Column(Float, default=0.0)
+    avg_r = Column(Float)
+    win_rate = Column(Float)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+
+# --- Table 17: shadow_trades ---
+class ShadowTrade(Base):
+    __tablename__ = "shadow_trades"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    signal_date = Column(Date, nullable=False)
+    symbol = Column(String(20), nullable=False)
+    signal_type = Column(String(20), nullable=False)
+    composite_score = Column(Float)
+    entry_price = Column(Float)
+    stop_price = Column(Float)
+    target_price = Column(Float)
+    rr_ratio = Column(Float)
+    regime = Column(String(20))
+    was_approved = Column(Boolean, default=False)
+    paper_exit_price = Column(Float)
+    paper_exit_date = Column(Date)
+    paper_pnl = Column(Float)
+    paper_r_multiple = Column(Float)
+    created_at = Column(DateTime, server_default=func.now())
+
+
 def init_db() -> None:
     """Create all tables in the database."""
     Base.metadata.create_all(bind=engine)
 
 
 def get_db():
-    """Dependency for FastAPI routes — yields a database session."""
+    """Dependency for FastAPI routes -- yields a database session."""
     db = SessionLocal()
     try:
         yield db
