@@ -4,7 +4,9 @@ import "./globals.css";
 import { AppSidebar } from "@/components/app-sidebar";
 import { AlertBell } from "@/components/alert-bell";
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
+import { SettingsProvider } from "@/contexts/settings-context";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -24,16 +26,20 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${inter.variable} font-sans antialiased`}>
-        <SidebarProvider>
-          <AppSidebar />
-          <SidebarInset>
-            <header className="flex h-14 items-center justify-between border-b px-4">
-              <SidebarTrigger />
-              <AlertBell />
-            </header>
-            <main className="flex-1 p-6">{children}</main>
-          </SidebarInset>
-        </SidebarProvider>
+        <SettingsProvider>
+          <TooltipProvider>
+            <SidebarProvider>
+              <AppSidebar />
+              <SidebarInset>
+                <header className="flex h-14 items-center justify-between border-b px-4">
+                  <SidebarTrigger />
+                  <AlertBell />
+                </header>
+                <main className="flex-1 p-6">{children}</main>
+              </SidebarInset>
+            </SidebarProvider>
+          </TooltipProvider>
+        </SettingsProvider>
         <Toaster />
       </body>
     </html>
