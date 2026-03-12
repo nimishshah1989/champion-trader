@@ -85,7 +85,8 @@ function RegimeCard({ regime, loading }: { regime: RegimeData | null; loading: b
     );
   }
 
-  const config = REGIME_CONFIG[regime.regime];
+  const FALLBACK_CONFIG = { label: regime.regime ?? "Unknown", color: "text-slate-700", bg: "bg-slate-50", border: "border-slate-200" };
+  const config = REGIME_CONFIG[regime.regime] ?? FALLBACK_CONFIG;
 
   return (
     <div className={`bg-white rounded-xl border ${config.border} p-5 col-span-2`}>
