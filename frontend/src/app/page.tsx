@@ -6,7 +6,6 @@ import {
   getTrades,
   getLatestStance,
   getWatchlist,
-  getWatchlistAlerts,
   getTradeStats,
   type Trade,
   type MarketStance,
@@ -40,23 +39,20 @@ export default function DashboardPage() {
   const [stats, setStats] = useState<TradeStats | null>(null);
   const [stance, setStance] = useState<MarketStance | null>(null);
   const [watchlist, setWatchlist] = useState<WatchlistItem[]>([]);
-  const [alerts, setAlerts] = useState<{ symbol: string; trigger_level: number; planned_sl_pct: number | null }[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchAll = useCallback(async () => {
     try {
-      const [tradesData, stanceData, watchlistData, alertsData, statsData] = await Promise.allSettled([
+      const [tradesData, stanceData, watchlistData, statsData] = await Promise.allSettled([
         getTrades("OPEN"),
         getLatestStance(),
         getWatchlist(),
-        getWatchlistAlerts(),
         getTradeStats(),
       ]);
 
       if (tradesData.status === "fulfilled") setOpenTrades(tradesData.value);
       if (stanceData.status === "fulfilled") setStance(stanceData.value);
       if (watchlistData.status === "fulfilled") setWatchlist(watchlistData.value);
-      if (alertsData.status === "fulfilled") setAlerts(alertsData.value);
       if (statsData.status === "fulfilled") setStats(statsData.value);
     } catch {
       // Individual failures handled by allSettled
@@ -213,13 +209,14 @@ export default function DashboardPage() {
           <span className="text-[10px] text-slate-400 bg-slate-100 rounded-full px-2 py-0.5 font-medium">30 min</span>
         </div>
 
+        {/* READY stocks overview */}
         <div className="bg-white rounded-xl border border-slate-200">
           <div className="px-5 py-3 border-b border-slate-100 flex items-center justify-between">
             <h3 className="text-xs font-semibold text-slate-600 uppercase tracking-wider">
-              READY Stocks — Enter in Last 30 Minutes
+              READY Stocks — Watching for Entry
             </h3>
-            <Link href="/watchlist" className="text-[11px] text-teal-600 hover:text-teal-700 font-medium">
-              Open Watchlist &rarr;
+            <Link href="/pipeline" className="text-[11px] text-teal-600 hover:text-teal-700 font-medium">
+              Open Pipeline &rarr;
             </Link>
           </div>
           {loading ? (
@@ -229,9 +226,9 @@ export default function DashboardPage() {
             </div>
           ) : readyStocks.length === 0 ? (
             <div className="p-8 text-center">
-              <p className="text-sm text-slate-400">No READY stocks in watchlist.</p>
-              <Link href="/watchlist" className="text-xs text-teal-600 hover:text-teal-700 mt-1 inline-block">
-                Add stocks to watchlist &rarr;
+              <p className="text-sm text-slate-400">No READY stocks yet. Run a scan first.</p>
+              <Link href="/pipeline" className="text-xs text-teal-600 hover:text-teal-700 mt-1 inline-block">
+                Go to Pipeline to scan &rarr;
               </Link>
             </div>
           ) : (
@@ -241,8 +238,7 @@ export default function DashboardPage() {
                   <th className="px-5 py-2 font-medium">Symbol</th>
                   <th className="px-5 py-2 font-medium">Stage</th>
                   <th className="px-5 py-2 font-medium">Trigger Level</th>
-                  <th className="px-5 py-2 font-medium">TRP%</th>
-                  <th className="px-5 py-2 font-medium">Action</th>
+                  <th className="px-5 py-2 font-medium">SL%</th>
                 </tr>
               </thead>
               <tbody>
@@ -262,14 +258,6 @@ export default function DashboardPage() {
                     <td className="px-5 py-2.5 font-mono text-xs text-red-600">
                       {stock.planned_sl_pct != null ? `${stock.planned_sl_pct}%` : "—"}
                     </td>
-                    <td className="px-5 py-2.5">
-                      <Link
-                        href={`/calculator?symbol=${encodeURIComponent(stock.symbol)}`}
-                        className="text-[11px] font-medium px-2.5 py-1 rounded border border-teal-200 bg-teal-50 text-teal-700 hover:bg-teal-100 transition-colors"
-                      >
-                        Calculate Position
-                      </Link>
-                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -277,25 +265,26 @@ export default function DashboardPage() {
           )}
         </div>
 
-        {/* Alerts for TradingView — quick copy list */}
-        {alerts.length > 0 && (
-          <div className="bg-white rounded-xl border border-slate-200 p-5">
-            <h3 className="text-xs font-semibold text-slate-600 uppercase tracking-wider mb-3">
-              Set These Alerts on TradingView
-            </h3>
-            <div className="space-y-1.5">
-              {alerts.map((a) => (
-                <div key={a.symbol} className="flex items-center gap-3 text-sm">
-                  <span className="font-bold text-slate-800 w-28">{a.symbol}</span>
-                  <span className="text-slate-400">crosses above</span>
-                  <span className="font-mono font-semibold text-emerald-600">
-                    {formatINR.format(a.trigger_level)}
-                  </span>
-                  {a.planned_sl_pct != null && (
-                    <span className="text-[10px] text-slate-400">(SL: {a.planned_sl_pct}%)</span>
-                  )}
-                </div>
-              ))}
+        {/* Actions CTA — the actual entry flow */}
+        {readyStocks.length > 0 && (
+          <div className="bg-teal-50 border border-teal-200 rounded-xl p-5">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h3 className="text-sm font-semibold text-teal-800 mb-1">
+                  Ready to enter? Use the Actions page.
+                </h3>
+                <p className="text-xs text-teal-700 leading-relaxed">
+                  In the last 30 minutes of market (3:00–3:30 PM), go to <strong>Actions</strong> and click{" "}
+                  <strong>Refresh Prices</strong>. If any READY stock has crossed its trigger, a buy signal
+                  will appear — with position size already calculated. Click Act to open the trade.
+                </p>
+              </div>
+              <Link
+                href="/actions"
+                className="shrink-0 text-[11px] font-semibold px-3 py-2 rounded-lg border border-teal-400 bg-white text-teal-700 hover:bg-teal-100 transition-colors whitespace-nowrap"
+              >
+                Go to Actions &rarr;
+              </Link>
             </div>
           </div>
         )}
@@ -311,25 +300,25 @@ export default function DashboardPage() {
         </div>
 
         <div className="grid gap-4 md:grid-cols-3">
-          <Link href="/scanner" className="block">
+          <Link href="/pipeline" className="block">
             <div className="bg-white rounded-xl border border-slate-200 p-5 hover:border-teal-300 transition-colors">
               <h3 className="text-sm font-semibold text-slate-800 mb-1">Run Scans</h3>
-              <p className="text-xs text-slate-400">PPC, NPC, Contraction scans post-market</p>
-            </div>
-          </Link>
-          <Link href="/watchlist" className="block">
-            <div className="bg-white rounded-xl border border-slate-200 p-5 hover:border-teal-300 transition-colors">
-              <h3 className="text-sm font-semibold text-slate-800 mb-1">Update Watchlist</h3>
               <p className="text-xs text-slate-400">
-                Move stocks between buckets ({nearStocks.length} NEAR, {readyStocks.length} READY)
+                PPC, NPC, Contraction — results auto-fill your pipeline ({nearStocks.length} NEAR, {readyStocks.length} READY)
               </p>
             </div>
           </Link>
-          <Link href="/market-stance" className="block">
+          <Link href="/actions" className="block">
             <div className="bg-white rounded-xl border border-slate-200 p-5 hover:border-teal-300 transition-colors">
-              <h3 className="text-sm font-semibold text-slate-800 mb-1">Log Market Stance</h3>
+              <h3 className="text-sm font-semibold text-slate-800 mb-1">Check Signals</h3>
+              <p className="text-xs text-slate-400">Refresh prices to see BUY/SELL alerts with position sizing</p>
+            </div>
+          </Link>
+          <Link href="/review" className="block">
+            <div className="bg-white rounded-xl border border-slate-200 p-5 hover:border-teal-300 transition-colors">
+              <h3 className="text-sm font-semibold text-slate-800 mb-1">Weekly Review</h3>
               <p className="text-xs text-slate-400">
-                {stance ? `Current: ${stance.stance}` : "Not logged today"}
+                {stance ? `Stance: ${stance.stance}` : "Log stance + journal"}
               </p>
             </div>
           </Link>
