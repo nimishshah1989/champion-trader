@@ -8,12 +8,7 @@ import {
   type ShadowTrade,
 } from "@/lib/intelligence-api";
 import { Skeleton } from "@/components/ui/skeleton";
-
-const formatINR = new Intl.NumberFormat("en-IN", {
-  style: "currency",
-  currency: "INR",
-  maximumFractionDigits: 2,
-});
+import { formatINR, safeFixed, safeFormatINR } from "@/lib/format";
 
 const LAKH = 1_00_000;
 const CRORE = 1_00_00_000;
@@ -63,23 +58,23 @@ function SummaryCards({ data, loading }: { data: ShadowComparison | null; loadin
       <div className="bg-white rounded-xl border border-slate-200 p-5">
         <p className="text-xs text-slate-400 font-medium uppercase tracking-wide mb-1">Shadow Win Rate</p>
         <span className={`text-3xl font-bold font-mono ${winRateColor(data.shadow_win_rate)}`}>
-          {data.shadow_win_rate.toFixed(1)}%
+          {safeFixed(data.shadow_win_rate, 1)}%
         </span>
-        <p className="text-[10px] text-slate-400 mt-1">Avg R: {data.shadow_avg_r >= 0 ? "+" : ""}{data.shadow_avg_r.toFixed(2)}R</p>
+        <p className="text-[10px] text-slate-400 mt-1">Avg R: {(data.shadow_avg_r ?? 0) >= 0 ? "+" : ""}{safeFixed(data.shadow_avg_r, 2)}R</p>
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 p-5">
         <p className="text-xs text-slate-400 font-medium uppercase tracking-wide mb-1">Live Win Rate</p>
         <span className={`text-3xl font-bold font-mono ${winRateColor(data.live_win_rate)}`}>
-          {data.live_win_rate.toFixed(1)}%
+          {safeFixed(data.live_win_rate, 1)}%
         </span>
-        <p className="text-[10px] text-slate-400 mt-1">Avg R: {data.live_avg_r >= 0 ? "+" : ""}{data.live_avg_r.toFixed(2)}R</p>
+        <p className="text-[10px] text-slate-400 mt-1">Avg R: {(data.live_avg_r ?? 0) >= 0 ? "+" : ""}{safeFixed(data.live_avg_r, 2)}R</p>
       </div>
 
       <div className={`rounded-xl border p-5 ${alphaPositive ? "bg-emerald-50 border-emerald-200" : "bg-red-50 border-red-200"}`}>
         <p className="text-xs text-slate-500 font-medium uppercase tracking-wide mb-1">Human Alpha</p>
         <span className={`text-3xl font-bold font-mono ${alphaPositive ? "text-emerald-600" : "text-red-600"}`}>
-          {alphaPositive ? "+" : ""}{data.human_alpha.toFixed(2)}R
+          {alphaPositive ? "+" : ""}{safeFixed(data.human_alpha, 2)}R
         </span>
         <p className="text-[10px] text-slate-500 mt-1">Live vs shadow difference</p>
       </div>
@@ -113,14 +108,14 @@ function BreakdownCards({ data, loading }: { data: ShadowComparison | null; load
       <div className="bg-white rounded-xl border border-slate-200 p-5">
         <p className="text-xs text-slate-400 font-medium uppercase tracking-wide mb-1">Approved Setups Win Rate</p>
         <span className={`text-3xl font-bold font-mono ${winRateColor(data.approved_win_rate)}`}>
-          {data.approved_win_rate.toFixed(1)}%
+          {safeFixed(data.approved_win_rate, 1)}%
         </span>
         <p className="text-[10px] text-slate-400 mt-1">Signals you chose to trade</p>
       </div>
       <div className="bg-white rounded-xl border border-slate-200 p-5">
         <p className="text-xs text-slate-400 font-medium uppercase tracking-wide mb-1">Skipped Setups Win Rate</p>
         <span className={`text-3xl font-bold font-mono ${data.skipped_win_rate >= 50 ? "text-emerald-600" : "text-amber-600"}`}>
-          {data.skipped_win_rate.toFixed(1)}%
+          {safeFixed(data.skipped_win_rate, 1)}%
         </span>
         <p className="text-[10px] text-slate-400 mt-1">Signals you passed on</p>
       </div>
@@ -186,10 +181,10 @@ function ShadowTradesTable({ trades, loading }: { trades: ShadowTrade[]; loading
                     {trade.signal_type}
                   </span>
                 </td>
-                <td className="px-5 py-2.5 font-mono text-xs font-semibold text-teal-600">{trade.score.toFixed(1)}</td>
-                <td className="px-5 py-2.5 font-mono text-xs">{formatINR.format(trade.entry)}</td>
-                <td className="px-5 py-2.5 font-mono text-xs text-red-600">{formatINR.format(trade.stop)}</td>
-                <td className="px-5 py-2.5 font-mono text-xs text-emerald-600">{formatINR.format(trade.target)}</td>
+                <td className="px-5 py-2.5 font-mono text-xs font-semibold text-teal-600">{safeFixed(trade.score, 1)}</td>
+                <td className="px-5 py-2.5 font-mono text-xs">{safeFormatINR(trade.entry)}</td>
+                <td className="px-5 py-2.5 font-mono text-xs text-red-600">{safeFormatINR(trade.stop)}</td>
+                <td className="px-5 py-2.5 font-mono text-xs text-emerald-600">{safeFormatINR(trade.target)}</td>
                 <td className="px-5 py-2.5">
                   {trade.was_approved ? (
                     <span className="bg-emerald-50 text-emerald-700 rounded-full px-2 py-0.5 text-[10px] font-semibold">Approved</span>

@@ -15,6 +15,7 @@ import {
 } from "@/lib/intelligence-api";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
+import { safeFixed } from "@/lib/format";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -86,13 +87,13 @@ function SummaryCards({
       <div className="bg-white rounded-xl border border-slate-200 p-5">
         <p className="text-xs text-slate-400 font-medium uppercase tracking-wide mb-1">Keep Rate</p>
         <span className={`text-3xl font-bold font-mono ${keepRate >= 50 ? "text-emerald-600" : "text-amber-600"}`}>
-          {keepRate.toFixed(0)}%
+          {safeFixed(keepRate, 0)}%
         </span>
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 p-5">
         <p className="text-xs text-slate-400 font-medium uppercase tracking-wide mb-1">Best Score</p>
-        <span className="text-3xl font-bold font-mono text-teal-600">{bestScore.toFixed(2)}</span>
+        <span className="text-3xl font-bold font-mono text-teal-600">{safeFixed(bestScore, 2)}</span>
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 p-5">
@@ -192,20 +193,20 @@ function ExperimentTable({
                     {exp.parameter}
                   </td>
                   <td className="px-5 py-2.5 font-mono text-xs">
-                    <span className="text-slate-500">{exp.old_value.toFixed(3)}</span>
+                    <span className="text-slate-500">{safeFixed(exp.old_value, 3)}</span>
                     <span className="text-slate-300 mx-1">&rarr;</span>
-                    <span className="text-slate-800 font-semibold">{exp.new_value.toFixed(3)}</span>
+                    <span className="text-slate-800 font-semibold">{safeFixed(exp.new_value, 3)}</span>
                   </td>
                   <td className="px-5 py-2.5 text-xs text-slate-600 max-w-xs truncate">
                     {exp.hypothesis}
                   </td>
                   <td className="px-5 py-2.5 font-mono text-xs text-slate-600">
-                    {exp.old_score.toFixed(2)}
+                    {safeFixed(exp.old_score, 2)}
                   </td>
                   <td className="px-5 py-2.5 font-mono text-xs">
-                    <span className="text-slate-800 font-semibold">{exp.new_score.toFixed(2)}</span>
+                    <span className="text-slate-800 font-semibold">{safeFixed(exp.new_score, 2)}</span>
                     <span className={`ml-1 text-[10px] ${deltaColor}`}>
-                      ({scoreDelta >= 0 ? "+" : ""}{scoreDelta.toFixed(2)})
+                      ({scoreDelta >= 0 ? "+" : ""}{safeFixed(scoreDelta, 2)})
                     </span>
                   </td>
                   <td className="px-5 py-2.5">
@@ -279,7 +280,7 @@ function ParameterTable({
                 </td>
                 <td className="px-5 py-2.5">
                   <span className="font-mono text-xs font-bold text-teal-600">
-                    {param.value.toFixed(3)}
+                    {safeFixed(param.value, 3)}
                   </span>
                   {/* Visual position indicator */}
                   <div className="mt-1 h-1 bg-slate-100 rounded-full w-20 overflow-hidden">
@@ -289,8 +290,8 @@ function ParameterTable({
                     />
                   </div>
                 </td>
-                <td className="px-5 py-2.5 font-mono text-xs text-slate-500">{param.min_bound.toFixed(3)}</td>
-                <td className="px-5 py-2.5 font-mono text-xs text-slate-500">{param.max_bound.toFixed(3)}</td>
+                <td className="px-5 py-2.5 font-mono text-xs text-slate-500">{safeFixed(param.min_bound, 3)}</td>
+                <td className="px-5 py-2.5 font-mono text-xs text-slate-500">{safeFixed(param.max_bound, 3)}</td>
                 <td className="px-5 py-2.5 text-xs text-slate-600 max-w-xs">{param.description}</td>
               </tr>
             );

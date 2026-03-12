@@ -50,11 +50,7 @@ const REGIME_CONFIG: Record<
   },
 };
 
-const formatINR = new Intl.NumberFormat("en-IN", {
-  style: "currency",
-  currency: "INR",
-  maximumFractionDigits: 2,
-});
+import { formatINR, safeFixed, safeFormatINR } from "@/lib/format";
 
 // ---------------------------------------------------------------------------
 // Sub-components
@@ -99,15 +95,15 @@ function RegimeCard({ regime, loading }: { regime: RegimeData | null; loading: b
       <div className="flex gap-6 mt-3 text-xs">
         <div>
           <span className="text-slate-400">ADX</span>
-          <span className="ml-1 font-mono font-semibold text-slate-700">{regime.adx.toFixed(1)}</span>
+          <span className="ml-1 font-mono font-semibold text-slate-700">{safeFixed(regime.adx, 1)}</span>
         </div>
         <div>
           <span className="text-slate-400">VIX</span>
-          <span className="ml-1 font-mono font-semibold text-slate-700">{regime.vix.toFixed(2)}</span>
+          <span className="ml-1 font-mono font-semibold text-slate-700">{safeFixed(regime.vix, 2)}</span>
         </div>
         <div>
           <span className="text-slate-400">Hurst</span>
-          <span className="ml-1 font-mono font-semibold text-slate-700">{regime.hurst.toFixed(3)}</span>
+          <span className="ml-1 font-mono font-semibold text-slate-700">{safeFixed(regime.hurst, 3)}</span>
         </div>
       </div>
       {regime.timestamp && (
@@ -151,9 +147,9 @@ function OptimizeCard({ status, loading }: { status: OptimizeStatus | null; load
           {status.running ? "Running" : "Stopped"}
         </span>
       </div>
-      {status.current_best_score !== null && (
+      {status.current_best_score != null && (
         <p className="text-[10px] text-slate-400 mt-1">
-          Best score: <span className="font-mono font-semibold text-teal-600">{status.current_best_score.toFixed(2)}</span>
+          Best score: <span className="font-mono font-semibold text-teal-600">{safeFixed(status.current_best_score, 2)}</span>
         </p>
       )}
       <p className="text-[10px] text-slate-400 mt-0.5">
@@ -190,16 +186,17 @@ function RiskCard({ risk, loading }: { risk: RiskStatus | null; loading: boolean
     );
   }
 
-  const riskColor = risk.total_risk_pct > 8 ? "text-red-600" : risk.total_risk_pct > 5 ? "text-amber-600" : "text-emerald-600";
+  const totalRisk = risk.total_risk_pct ?? 0;
+  const riskColor = totalRisk > 8 ? "text-red-600" : totalRisk > 5 ? "text-amber-600" : "text-emerald-600";
 
   return (
     <div className={`bg-white rounded-xl border ${risk.frozen ? "border-red-200" : "border-slate-200"} p-5`}>
       <p className="text-xs text-slate-400 font-medium uppercase tracking-wide mb-1">Risk Status</p>
       <div className="flex items-baseline gap-2">
         <span className={`text-3xl font-bold font-mono ${riskColor}`}>
-          {risk.total_risk_pct.toFixed(1)}%
+          {safeFixed(risk.total_risk_pct, 1)}%
         </span>
-        <span className="text-xs text-slate-400">/ {risk.max_risk_pct}% max</span>
+        <span className="text-xs text-slate-400">/ {risk.max_risk_pct ?? 10}% max</span>
       </div>
       <p className="text-[10px] text-slate-400 mt-1">
         {risk.open_positions} open position{risk.open_positions !== 1 ? "s" : ""}
@@ -236,19 +233,19 @@ function SetupCardComponent({
       <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs mb-2">
         <div>
           <span className="text-slate-400">Score</span>
-          <span className="ml-1 font-mono font-semibold text-teal-600">{setup.score.toFixed(1)}</span>
+          <span className="ml-1 font-mono font-semibold text-teal-600">{safeFixed(setup.score, 1)}</span>
         </div>
         <div>
           <span className="text-slate-400">Entry</span>
-          <span className="ml-1 font-mono font-semibold text-slate-700">{formatINR.format(setup.entry_price)}</span>
+          <span className="ml-1 font-mono font-semibold text-slate-700">{safeFormatINR(setup.entry_price)}</span>
         </div>
         <div>
           <span className="text-slate-400">SL</span>
-          <span className="ml-1 font-mono font-semibold text-red-600">{formatINR.format(setup.stop_loss)}</span>
+          <span className="ml-1 font-mono font-semibold text-red-600">{safeFormatINR(setup.stop_loss)}</span>
         </div>
         <div>
           <span className="text-slate-400">Target</span>
-          <span className="ml-1 font-mono font-semibold text-emerald-600">{formatINR.format(setup.target)}</span>
+          <span className="ml-1 font-mono font-semibold text-emerald-600">{safeFormatINR(setup.target)}</span>
         </div>
       </div>
       {setup.rationale && (

@@ -57,3 +57,13 @@ export function formatDateShort(dateStr: string): string {
 export function todayISO(): string {
   return new Date().toISOString().split("T")[0];
 }
+
+/** Safe number formatting — returns fallback for null/undefined values */
+export function safeFixed(val: number | null | undefined, digits: number, fallback = "--"): string {
+  return val != null ? val.toFixed(digits) : fallback;
+}
+
+/** Safe INR formatting — returns fallback for null/undefined values */
+export function safeFormatINR(val: number | null | undefined, fallback = "--"): string {
+  return val != null ? formatINR.format(val) : fallback;
+}

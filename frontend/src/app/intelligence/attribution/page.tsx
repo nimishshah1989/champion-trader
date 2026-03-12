@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { getAttribution, type AttributionRow } from "@/lib/intelligence-api";
 import { Skeleton } from "@/components/ui/skeleton";
+import { safeFixed } from "@/lib/format";
 
 // ---------------------------------------------------------------------------
 // Constants & Helpers
@@ -25,7 +26,7 @@ function wrColor(r: number) { return r >= 60 ? "text-emerald-600" : r >= 40 ? "t
 function wrBg(r: number) { return r >= 60 ? "bg-emerald-50" : r >= 40 ? "bg-amber-50" : "bg-red-50"; }
 function wrBorder(r: number) { return r >= 60 ? "border-emerald-200" : r >= 40 ? "border-amber-200" : "border-red-200"; }
 function rCfg(regime: string) { return REGIME_CFG[regime] ?? { bg: "bg-slate-100", color: "text-slate-600" }; }
-function signR(v: number) { return v >= 0 ? `+${v.toFixed(2)}R` : `${v.toFixed(2)}R`; }
+function signR(v: number | null | undefined) { if (v == null) return "--"; return v >= 0 ? `+${v.toFixed(2)}R` : `${v.toFixed(2)}R`; }
 
 // ---------------------------------------------------------------------------
 // Summary Cards
@@ -78,20 +79,20 @@ function SummaryCards({ rows, loading }: { rows: AttributionRow[]; loading: bool
       </div>
       <div className="bg-white rounded-xl border border-slate-200 p-5">
         <p className="text-xs text-slate-400 font-medium uppercase tracking-wide mb-1">Overall Win Rate</p>
-        <span className={`text-3xl font-bold font-mono ${wrColor(wr)}`}>{wr.toFixed(1)}%</span>
+        <span className={`text-3xl font-bold font-mono ${wrColor(wr)}`}>{safeFixed(wr, 1)}%</span>
         <p className="text-[10px] text-slate-400 mt-1">{totalWins} wins / {totalTrades} trades</p>
       </div>
       <div className="bg-white rounded-xl border border-slate-200 p-5">
         <p className="text-xs text-slate-400 font-medium uppercase tracking-wide mb-1">Best Signal Type</p>
         <span className="text-lg font-bold text-teal-600">{bestSig}</span>
         <p className="text-[10px] text-slate-400 mt-1">
-          <span className={`font-mono font-semibold ${wrColor(bestWr)}`}>{bestWr.toFixed(1)}%</span> win rate
+          <span className={`font-mono font-semibold ${wrColor(bestWr)}`}>{safeFixed(bestWr, 1)}%</span> win rate
         </p>
       </div>
       <div className="bg-white rounded-xl border border-slate-200 p-5">
         <p className="text-xs text-slate-400 font-medium uppercase tracking-wide mb-1">Cumulative R</p>
         <span className={`text-3xl font-bold font-mono ${totalR >= 0 ? "text-emerald-600" : "text-red-600"}`}>
-          {totalR >= 0 ? "+" : ""}{totalR.toFixed(1)}R
+          {totalR >= 0 ? "+" : ""}{safeFixed(totalR, 1)}R
         </span>
       </div>
     </div>
@@ -171,7 +172,7 @@ function AttributionMatrix({ rows, loading }: { rows: AttributionRow[]; loading:
                     <td key={reg} className="px-3 py-3 text-center">
                       <div className={`${wrBg(cell.win_rate)} rounded-lg px-3 py-2 border ${wrBorder(cell.win_rate)}`}>
                         <span className={`text-base font-bold font-mono ${wrColor(cell.win_rate)}`}>
-                          {cell.win_rate.toFixed(0)}%
+                          {safeFixed(cell.win_rate, 0)}%
                         </span>
                         <div className="flex items-center justify-center gap-2 mt-1">
                           <span className="text-[10px] text-slate-500">{cell.trade_count} trades</span>
@@ -257,14 +258,14 @@ function DetailedTable({ rows, loading, sortField, sortDir, onSort }: {
                   <td className="px-5 py-2.5 font-mono text-xs text-slate-700">{row.win_count}</td>
                   <td className="px-5 py-2.5">
                     <span className={`${wrBg(row.win_rate)} ${wrColor(row.win_rate)} rounded px-2 py-0.5 font-mono text-xs font-bold`}>
-                      {row.win_rate.toFixed(1)}%
+                      {safeFixed(row.win_rate, 1)}%
                     </span>
                   </td>
                   <td className={`px-5 py-2.5 font-mono text-xs font-semibold ${row.avg_r >= 0 ? "text-emerald-600" : "text-red-600"}`}>
                     {signR(row.avg_r)}
                   </td>
                   <td className={`px-5 py-2.5 font-mono text-xs font-semibold ${row.total_r >= 0 ? "text-emerald-600" : "text-red-600"}`}>
-                    {row.total_r >= 0 ? "+" : ""}{row.total_r.toFixed(1)}R
+                    {(row.total_r ?? 0) >= 0 ? "+" : ""}{safeFixed(row.total_r, 1)}R
                   </td>
                 </tr>
               );
