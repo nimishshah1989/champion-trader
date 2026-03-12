@@ -5,6 +5,7 @@ import Link from "next/link";
 import { getAttribution, type AttributionRow } from "@/lib/intelligence-api";
 import { Skeleton } from "@/components/ui/skeleton";
 import { safeFixed } from "@/lib/format";
+import { ErrorBoundary } from "@/components/error-boundary";
 
 // ---------------------------------------------------------------------------
 // Constants & Helpers
@@ -261,10 +262,10 @@ function DetailedTable({ rows, loading, sortField, sortDir, onSort }: {
                       {safeFixed(row.win_rate, 1)}%
                     </span>
                   </td>
-                  <td className={`px-5 py-2.5 font-mono text-xs font-semibold ${row.avg_r >= 0 ? "text-emerald-600" : "text-red-600"}`}>
+                  <td className={`px-5 py-2.5 font-mono text-xs font-semibold ${(row.avg_r ?? 0) >= 0 ? "text-emerald-600" : "text-red-600"}`}>
                     {signR(row.avg_r)}
                   </td>
-                  <td className={`px-5 py-2.5 font-mono text-xs font-semibold ${row.total_r >= 0 ? "text-emerald-600" : "text-red-600"}`}>
+                  <td className={`px-5 py-2.5 font-mono text-xs font-semibold ${(row.total_r ?? 0) >= 0 ? "text-emerald-600" : "text-red-600"}`}>
                     {(row.total_r ?? 0) >= 0 ? "+" : ""}{safeFixed(row.total_r, 1)}R
                   </td>
                 </tr>
@@ -336,9 +337,15 @@ export default function AttributionPage() {
         </p>
       </div>
 
-      <SummaryCards rows={rows} loading={loading} />
-      <AttributionMatrix rows={rows} loading={loading} />
-      <DetailedTable rows={sorted} loading={loading} sortField={sortField} sortDir={sortDir} onSort={handleSort} />
+      <ErrorBoundary>
+        <SummaryCards rows={rows} loading={loading} />
+      </ErrorBoundary>
+      <ErrorBoundary>
+        <AttributionMatrix rows={rows} loading={loading} />
+      </ErrorBoundary>
+      <ErrorBoundary>
+        <DetailedTable rows={sorted} loading={loading} sortField={sortField} sortDir={sortDir} onSort={handleSort} />
+      </ErrorBoundary>
     </div>
   );
 }

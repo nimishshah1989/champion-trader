@@ -16,6 +16,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { safeFixed } from "@/lib/format";
+import { ErrorBoundary } from "@/components/error-boundary";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -176,7 +177,7 @@ function ExperimentTable({
           <tbody>
             {experiments.map((exp) => {
               const outcomeStyle = OUTCOME_STYLES[exp.outcome] ?? { color: "text-slate-600", bg: "bg-slate-50" };
-              const scoreDelta = exp.new_score - exp.old_score;
+              const scoreDelta = (exp.new_score ?? 0) - (exp.old_score ?? 0);
               const deltaColor = scoreDelta > 0 ? "text-emerald-600" : scoreDelta < 0 ? "text-red-600" : "text-slate-500";
 
               return (
@@ -270,8 +271,8 @@ function ParameterTable({
         </thead>
         <tbody>
           {parameters.map((param) => {
-            const range = param.max_bound - param.min_bound;
-            const position = range > 0 ? ((param.value - param.min_bound) / range) * 100 : 50;
+            const range = (param.max_bound ?? 0) - (param.min_bound ?? 0);
+            const position = range > 0 ? (((param.value ?? 0) - (param.min_bound ?? 0)) / range) * 100 : 50;
 
             return (
               <tr key={param.name} className="border-b border-slate-50 hover:bg-slate-50/50">
@@ -429,19 +430,25 @@ export default function OptimizePage() {
       </div>
 
       {/* Summary stats */}
-      <SummaryCards status={status} history={history} loading={loading} />
+      <ErrorBoundary>
+        <SummaryCards status={status} history={history} loading={loading} />
+      </ErrorBoundary>
 
       {/* Experiment history table */}
-      <ExperimentTable
-        experiments={sortedExperiments}
-        loading={loading}
-        sortField={sortField}
-        sortDirection={sortDirection}
-        onSort={handleSort}
-      />
+      <ErrorBoundary>
+        <ExperimentTable
+          experiments={sortedExperiments}
+          loading={loading}
+          sortField={sortField}
+          sortDirection={sortDirection}
+          onSort={handleSort}
+        />
+      </ErrorBoundary>
 
       {/* Parameter evolution */}
-      <ParameterTable parameters={parameters} loading={loading} />
+      <ErrorBoundary>
+        <ParameterTable parameters={parameters} loading={loading} />
+      </ErrorBoundary>
     </div>
   );
 }

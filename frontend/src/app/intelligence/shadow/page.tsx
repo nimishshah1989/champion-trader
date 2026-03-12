@@ -9,11 +9,13 @@ import {
 } from "@/lib/intelligence-api";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatINR, safeFixed, safeFormatINR } from "@/lib/format";
+import { ErrorBoundary } from "@/components/error-boundary";
 
 const LAKH = 1_00_000;
 const CRORE = 1_00_00_000;
 
-function formatPnl(value: number): string {
+function formatPnl(value: number | null | undefined): string {
+  if (value == null) return "--";
   if (Math.abs(value) >= CRORE) return `${(value / CRORE).toFixed(2)} Cr`;
   if (Math.abs(value) >= LAKH) return `${(value / LAKH).toFixed(2)} L`;
   return formatINR.format(value);
@@ -51,7 +53,7 @@ function SummaryCards({ data, loading }: { data: ShadowComparison | null; loadin
     );
   }
 
-  const alphaPositive = data.human_alpha >= 0;
+  const alphaPositive = (data.human_alpha ?? 0) >= 0;
 
   return (
     <div className="grid gap-4 md:grid-cols-4">
@@ -114,7 +116,7 @@ function BreakdownCards({ data, loading }: { data: ShadowComparison | null; load
       </div>
       <div className="bg-white rounded-xl border border-slate-200 p-5">
         <p className="text-xs text-slate-400 font-medium uppercase tracking-wide mb-1">Skipped Setups Win Rate</p>
-        <span className={`text-3xl font-bold font-mono ${data.skipped_win_rate >= 50 ? "text-emerald-600" : "text-amber-600"}`}>
+        <span className={`text-3xl font-bold font-mono ${(data.skipped_win_rate ?? 0) >= 50 ? "text-emerald-600" : "text-amber-600"}`}>
           {safeFixed(data.skipped_win_rate, 1)}%
         </span>
         <p className="text-[10px] text-slate-400 mt-1">Signals you passed on</p>
@@ -193,15 +195,15 @@ function ShadowTradesTable({ trades, loading }: { trades: ShadowTrade[]; loading
                   )}
                 </td>
                 <td className="px-5 py-2.5 font-mono text-xs">
-                  {trade.paper_exit === null
+                  {trade.paper_exit == null
                     ? <span className="text-amber-600 font-medium">Pending</span>
-                    : formatINR.format(trade.paper_exit)}
+                    : safeFormatINR(trade.paper_exit)}
                 </td>
                 <td className={`px-5 py-2.5 font-mono text-xs font-semibold ${rColor(trade.paper_r)}`}>
-                  {trade.paper_r !== null ? `${trade.paper_r >= 0 ? "+" : ""}${trade.paper_r.toFixed(2)}R` : "Pending"}
+                  {trade.paper_r != null ? `${trade.paper_r >= 0 ? "+" : ""}${safeFixed(trade.paper_r, 2)}R` : "Pending"}
                 </td>
                 <td className={`px-5 py-2.5 font-mono text-xs font-semibold ${rColor(trade.paper_pnl)}`}>
-                  {trade.paper_pnl !== null ? formatPnl(trade.paper_pnl) : "Pending"}
+                  {trade.paper_pnl != null ? formatPnl(trade.paper_pnl) : "Pending"}
                 </td>
               </tr>
             ))}
@@ -261,16 +263,22 @@ export default function ShadowPage() {
       )}
 
       {/* Summary comparison cards: Shadow WR, Live WR, Human Alpha, Verdict */}
-      <SummaryCards data={data} loading={loading} />
+      <ErrorBoundary>
+        <SummaryCards data={data} loading={loading} />
+      </ErrorBoundary>
 
       {/* Approved vs Skipped breakdown */}
-      <div className="space-y-3">
-        <h2 className="text-sm font-semibold text-slate-800 uppercase tracking-wider">Approval Breakdown</h2>
-        <BreakdownCards data={data} loading={loading} />
-      </div>
+      <ErrorBoundary>
+        <div className="space-y-3">
+          <h2 className="text-sm font-semibold text-slate-800 uppercase tracking-wider">Approval Breakdown</h2>
+          <BreakdownCards data={data} loading={loading} />
+        </div>
+      </ErrorBoundary>
 
       {/* Shadow trades table */}
-      <ShadowTradesTable trades={data?.trades ?? []} loading={loading} />
+      <ErrorBoundary>
+        <ShadowTradesTable trades={data?.trades ?? []} loading={loading} />
+      </ErrorBoundary>
     </div>
   );
 }
