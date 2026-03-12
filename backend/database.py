@@ -525,6 +525,24 @@ class ShadowTrade(Base):
     created_at = Column(DateTime, server_default=func.now())
 
 
+# --- Table 18: auto_check_log ---
+class AutoCheckLog(Base):
+    """Audit trail for every automated and manual price check."""
+
+    __tablename__ = "auto_check_log"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    source = Column(String(20), nullable=False, default="MANUAL")  # MANUAL | SCHEDULER
+    check_type = Column(String(20), nullable=False, default="FULL")  # FULL | EXITS | ENTRIES
+    symbols_checked = Column(Integer, default=0)
+    prices_fetched = Column(Integer, default=0)
+    buy_alerts_new = Column(Integer, default=0)   # net-new alerts created this run
+    sell_alerts_new = Column(Integer, default=0)
+    duration_ms = Column(Integer, nullable=True)
+    error_message = Column(Text, nullable=True)
+    created_at = Column(DateTime, server_default=func.now())
+
+
 def init_db() -> None:
     """Create all tables in the database."""
     Base.metadata.create_all(bind=engine)

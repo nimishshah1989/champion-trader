@@ -117,6 +117,51 @@ def _setup_scheduler():
             name="Shadow Portfolio: Exit Tracker",
         )
 
+        # ── Live Market Monitor ───────────────────────────────────────────
+        # Two jobs replace manual "Refresh Prices":
+        #   1. exit_monitor  — every 2 min, full market hours → SL/target checks only
+        #   2. entry_monitor — every 1 min, 15:00–15:30 IST  → trigger-break entries
+        # Both write to AutoCheckLog for a full audit trail.
+
+        from backend.database import SessionLocal
+        from backend.services.price_monitor import run_price_check
+
+        def _auto_check_exits() -> None:
+            """Auto check open trades for SL hits and profit targets."""
+            db = SessionLocal()
+            try:
+                run_price_check(db, check_entries=False, check_exits=True, source="SCHEDULER")
+            except Exception as exc:
+                logger.error(f"exit_monitor job failed: {exc}")
+            finally:
+                db.close()
+
+        def _auto_check_entries() -> None:
+            """Auto check READY watchlist for trigger breaks (entry window only)."""
+            db = SessionLocal()
+            try:
+                run_price_check(db, check_entries=True, check_exits=False, source="SCHEDULER")
+            except Exception as exc:
+                logger.error(f"entry_monitor job failed: {exc}")
+            finally:
+                db.close()
+
+        # Exit monitor: every 2 min throughout market hours (9:00–15:58 IST)
+        scheduler.add_job(
+            _auto_check_exits,
+            CronTrigger(day_of_week="mon-fri", hour="9-15", minute="*/2"),
+            id="exit_monitor",
+            name="Live Monitor: Exit/SL Checker (every 2 min)",
+        )
+
+        # Entry monitor: every 1 min during the last 30-min entry window (15:00–15:30 IST)
+        scheduler.add_job(
+            _auto_check_entries,
+            CronTrigger(day_of_week="mon-fri", hour="15", minute="0-30"),
+            id="entry_monitor",
+            name="Live Monitor: Entry Window Checker (every 1 min, 15:00–15:30)",
+        )
+
         logger.info(f"APScheduler configured with {len(scheduler.get_jobs())} jobs")
         return scheduler
 
