@@ -553,6 +553,27 @@ export function getBacktestResult(runId: number): Promise<SimulationRunWithTrade
   return apiFetch<SimulationRunWithTrades>(`/simulation/backtest/${runId}`);
 }
 
+export interface BacktestProgress {
+  run_id: number;
+  status: string;
+  phase: string;
+  progress_pct: number;
+  days_total?: number;
+  days_done?: number;
+  current_date?: string;
+  open_positions?: number;
+  stocks?: number;
+  error_message?: string | null;
+}
+
+export function getBacktestProgress(runId: number): Promise<BacktestProgress> {
+  return apiFetch<BacktestProgress>(`/simulation/backtest/${runId}/progress`);
+}
+
+export function cleanupStuckBacktests(): Promise<{ cleaned: number; run_ids: number[]; message: string }> {
+  return apiFetch(`/simulation/cleanup-stuck`, { method: "POST" });
+}
+
 export function startPaperTrading(data: {
   starting_capital: number;
   rpt_pct: number;

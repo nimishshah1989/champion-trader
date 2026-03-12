@@ -11,7 +11,7 @@ from backend.models.simulation import (
     SimulationRunWithTrades,
     SimulationTradeResponse,
 )
-from backend.services.backtest_engine import run_backtest
+from backend.services.backtest_engine import cleanup_stuck_backtests, run_backtest
 from backend.services.paper_trading import (
     get_paper_status,
     process_paper_day,
@@ -129,3 +129,57 @@ def list_runs(
         query = query.filter(SimulationRun.run_type == run_type.upper())
     runs = query.order_by(SimulationRun.created_at.desc()).all()
     return runs
+
+
+@router.get("/backtest/{run_id}/progress")
+def get_backtest_progress(run_id: int, db: Session = Depends(get_db)):
+    """Get live progress for a running backtest.
+
+    Returns phase (fetching/computing/scanning), progress percentage,
+    and current date being processed.
+    """
+    import json as _json
+
+    run = db.query(SimulationRun).filter(SimulationRun.id == run_id).first()
+    if not run:
+        raise HTTPException(status_code=404, detail="Simulation run not found")
+
+    status = run.status.upper() if run.status else "UNKNOWN"
+
+    # If completed or failed, return final state
+    if status in ("COMPLETED", "FAILED", "ERROR"):
+        return {
+            "run_id": run_id,
+            "status": status,
+            "phase": "done" if status == "COMPLETED" else "failed",
+            "progress_pct": 100 if status == "COMPLETED" else 0,
+            "error_message": run.error_message if status != "COMPLETED" else None,
+        }
+
+    # Try to parse progress from error_message (used as progress storage during RUNNING)
+    progress = {"phase": "initializing", "progress_pct": 0}
+    if run.error_message:
+        try:
+            progress = _json.loads(run.error_message)
+        except (_json.JSONDecodeError, TypeError):
+            pass
+
+    return {
+        "run_id": run_id,
+        "status": status,
+        **progress,
+    }
+
+
+@router.post("/cleanup-stuck")
+def cleanup_stuck(db: Session = Depends(get_db)):
+    """Mark stuck RUNNING backtests as FAILED.
+
+    Useful after server restarts when background threads were killed.
+    """
+    cleaned_ids = cleanup_stuck_backtests()
+    return {
+        "cleaned": len(cleaned_ids),
+        "run_ids": cleaned_ids,
+        "message": f"Cleaned up {len(cleaned_ids)} stuck backtests" if cleaned_ids else "No stuck backtests found",
+    }

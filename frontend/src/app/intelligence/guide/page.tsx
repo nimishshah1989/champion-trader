@@ -3,293 +3,585 @@
 import Link from "next/link";
 
 // ---------------------------------------------------------------------------
-// Section Components
+// Reusable Section Components
 // ---------------------------------------------------------------------------
 
-function SystemOverviewCard() {
+function SectionHeading({ children }: { children: React.ReactNode }) {
   return (
-    <div className="bg-white rounded-xl border border-slate-200 p-6">
-      <p className="text-xs text-slate-400 font-medium uppercase tracking-wide mb-3">
-        System Overview
-      </p>
-      <p className="text-sm text-slate-700 leading-relaxed">
-        The intelligence layer transforms CTS from a manual scanning tool into a
-        self-improving trading system. It has{" "}
-        <span className="font-semibold text-slate-800">7 autonomous agents</span>{" "}
-        that run on schedule, plus a human-in-the-loop approval flow for entries.
-        You remain the final decision-maker on every trade.
-      </p>
-      <div className="mt-5 bg-slate-50 rounded-lg border border-slate-100 p-4 overflow-x-auto">
-        <pre className="text-xs font-mono text-slate-600 leading-relaxed whitespace-pre">
-{`Scanner --> Signal Agent --> Setup Cards --> You (Approve/Skip) --> Trade Execution
-               ^                                                         |
-       AutoOptimize <-- Backtest <-- Learning Agent <-- Post-Mortem <-- Closed Trade`}
-        </pre>
-      </div>
-      <p className="text-[10px] text-slate-400 mt-2">
-        The loop runs continuously: scans generate signals, you approve trades,
-        closed trades feed back into the learning engine, and AutoOptimize tunes
-        parameters overnight.
-      </p>
+    <h2 className="text-base font-semibold text-slate-800">{children}</h2>
+  );
+}
+
+function SimpleCard({
+  children,
+  className = "",
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div
+      className={`bg-white rounded-xl border border-slate-200 p-6 ${className}`}
+    >
+      {children}
     </div>
   );
 }
 
-function PageCard({
+// ---------------------------------------------------------------------------
+// 1. The Big Picture — What is this tool?
+// ---------------------------------------------------------------------------
+
+function WhatIsThisTool() {
+  return (
+    <SimpleCard>
+      <h3 className="text-lg font-semibold text-slate-800 mb-3">
+        What does this tool do?
+      </h3>
+      <p className="text-sm text-slate-700 leading-relaxed mb-4">
+        Think of this as your{" "}
+        <span className="font-semibold text-teal-600">
+          personal stock market assistant
+        </span>
+        . Every day, it scans hundreds of stocks on the Indian stock market
+        (NSE), finds the ones that look promising, and presents them to you
+        as simple &ldquo;cards&rdquo; — like a waiter bringing you a menu.
+      </p>
+      <p className="text-sm text-slate-700 leading-relaxed mb-4">
+        <span className="font-semibold">You make every decision.</span> The
+        tool finds opportunities. You decide whether to act on them or skip
+        them. It never buys or sells anything without you clicking a button.
+      </p>
+      <p className="text-sm text-slate-700 leading-relaxed">
+        Over time, it also learns what worked and what didn&rsquo;t, and
+        adjusts its scanning criteria to get better — like a chef who tweaks
+        a recipe based on customer feedback.
+      </p>
+    </SimpleCard>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// 2. Your Daily Routine — Step by Step
+// ---------------------------------------------------------------------------
+
+function DailyRoutine() {
+  const steps = [
+    {
+      emoji: "☀️",
+      time: "Morning (before 9:15 AM)",
+      title: "Open the Intelligence Dashboard",
+      detail:
+        "You'll see a quick snapshot: what kind of market day to expect, your current risk level, and a short daily summary written by the system overnight. Think of it like reading a one-paragraph newspaper before you start your day.",
+      page: "Intelligence",
+      href: "/intelligence",
+    },
+    {
+      emoji: "📋",
+      time: "Morning",
+      title: "Review the Stock Suggestions",
+      detail:
+        "The system shows you up to 3 stock \"setup cards\" — each one is a stock that passed all the filters. Each card shows the stock name, a confidence score (0–100), the suggested buy price, and where to place your safety net (stop-loss). Read the one-line reason, then click Approve or Skip.",
+      page: "Intelligence",
+      href: "/intelligence",
+    },
+    {
+      emoji: "✅",
+      time: "During market hours",
+      title: "Track Your Trades",
+      detail:
+        "If you approved a stock and it triggered your buy price, it shows up in your Trades page. The system watches your positions and automatically alerts you if a stop-loss level is hit. You handle the actual buying and selling through your broker (Zerodha, Dhan, etc.).",
+      page: "Trades",
+      href: "/trades",
+    },
+    {
+      emoji: "🌙",
+      time: "After market closes (automatic)",
+      title: "The System Learns Overnight",
+      detail:
+        "After the market closes, the system runs a series of background tasks — it checks what kind of market we had today, writes a brief summary, and runs experiments to improve its stock-picking criteria. You don't need to do anything. Just check the results next morning.",
+      page: "Optimize",
+      href: "/intelligence/optimize",
+    },
+    {
+      emoji: "📊",
+      time: "Once a week",
+      title: "Check How You're Doing",
+      detail:
+        "The Shadow Portfolio page answers one question: \"Am I picking better stocks than the machine would on its own?\" It tracks every suggestion — both the ones you approved AND the ones you skipped — so you can compare. If you're adding value, great. If not, you might want to trust the system more.",
+      page: "Shadow",
+      href: "/intelligence/shadow",
+    },
+  ];
+
+  return (
+    <SimpleCard>
+      <h3 className="text-lg font-semibold text-slate-800 mb-1">
+        Your Daily Routine
+      </h3>
+      <p className="text-xs text-slate-400 mb-5">
+        Here&rsquo;s what a typical day looks like using this tool
+      </p>
+      <div className="space-y-6">
+        {steps.map((step, i) => (
+          <div key={i} className="flex gap-4">
+            <div className="flex-shrink-0 w-10 h-10 rounded-full bg-teal-50 border border-teal-200 flex items-center justify-center text-lg">
+              {step.emoji}
+            </div>
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-1">
+                <p className="text-sm font-semibold text-slate-800">
+                  {step.title}
+                </p>
+                <span className="text-[10px] text-slate-400 font-medium">
+                  {step.time}
+                </span>
+              </div>
+              <p className="text-sm text-slate-600 leading-relaxed">
+                {step.detail}
+              </p>
+              <Link
+                href={step.href}
+                className="text-xs text-teal-600 hover:text-teal-700 font-medium mt-1 inline-block"
+              >
+                Go to {step.page} →
+              </Link>
+            </div>
+          </div>
+        ))}
+      </div>
+    </SimpleCard>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// 3. Each Page Explained — In Plain Language
+// ---------------------------------------------------------------------------
+
+function PageExplainedCard({
   title,
   href,
-  what,
-  howToUse,
-  whenUpdates,
+  oneLiner,
+  children,
 }: {
   title: string;
   href: string;
-  what: string;
-  howToUse: string;
-  whenUpdates: string;
+  oneLiner: string;
+  children: React.ReactNode;
 }) {
   return (
     <div className="bg-white rounded-xl border border-slate-200 p-5 hover:border-teal-200 transition-colors">
-      <div className="flex items-center justify-between mb-2">
-        <Link
-          href={href}
-          className="text-base font-semibold text-teal-600 hover:text-teal-700"
-        >
-          {title} &rarr;
-        </Link>
-      </div>
-      <div className="space-y-3 text-sm text-slate-700">
-        <div>
-          <p className="text-[10px] text-slate-400 font-medium uppercase tracking-wide mb-0.5">
-            What
-          </p>
-          <p className="leading-relaxed">{what}</p>
-        </div>
-        <div>
-          <p className="text-[10px] text-slate-400 font-medium uppercase tracking-wide mb-0.5">
-            How to use
-          </p>
-          <p className="leading-relaxed">{howToUse}</p>
-        </div>
-        <div>
-          <p className="text-[10px] text-slate-400 font-medium uppercase tracking-wide mb-0.5">
-            When it updates
-          </p>
-          <p className="leading-relaxed">{whenUpdates}</p>
-        </div>
+      <Link
+        href={href}
+        className="text-base font-semibold text-teal-600 hover:text-teal-700"
+      >
+        {title} →
+      </Link>
+      <p className="text-sm text-slate-500 mt-1 mb-3">{oneLiner}</p>
+      <div className="text-sm text-slate-700 leading-relaxed space-y-2">
+        {children}
       </div>
     </div>
   );
 }
 
-function ScheduledAgentsTable() {
-  const agents = [
+function PagesExplained() {
+  return (
+    <div className="grid gap-4 md:grid-cols-2">
+      <PageExplainedCard
+        title="Intelligence Dashboard"
+        href="/intelligence"
+        oneLiner="Your morning briefing — check this first"
+      >
+        <p>
+          This is your home base. It shows 4 things at a glance:
+        </p>
+        <ul className="list-disc list-inside text-sm text-slate-600 space-y-1 ml-1">
+          <li>
+            <strong>Market Mood</strong> — Is the overall market trending up,
+            going sideways, volatile, or falling? This affects which stocks
+            the system recommends.
+          </li>
+          <li>
+            <strong>Risk Level</strong> — How much of your money is currently
+            at risk in open trades. Shown as a percentage.
+          </li>
+          <li>
+            <strong>Daily Summary</strong> — A short paragraph written by the
+            system summarizing what happened and what to watch for.
+          </li>
+          <li>
+            <strong>Stock Picks</strong> — Up to 3 stocks the system thinks
+            are worth buying today. You approve or skip each one.
+          </li>
+        </ul>
+      </PageExplainedCard>
+
+      <PageExplainedCard
+        title="Optimize"
+        href="/intelligence/optimize"
+        oneLiner="How the system improves itself over time"
+      >
+        <p>
+          Imagine you have a recipe for making chai. This page shows you a
+          kitchen assistant who experiments with the recipe every night —
+          trying slightly more ginger, a bit less sugar — and tests each
+          version to see if it tastes better.
+        </p>
+        <p>
+          That&rsquo;s what AutoOptimize does with stock-picking rules. It
+          tweaks one thing at a time, runs it against past market data, and
+          keeps changes that improve results.
+        </p>
+        <p className="text-xs text-slate-400 mt-1">
+          You can start it manually or let it run automatically at 6 PM on
+          weekdays. Check results the next morning.
+        </p>
+      </PageExplainedCard>
+
+      <PageExplainedCard
+        title="Shadow Portfolio"
+        href="/intelligence/shadow"
+        oneLiner="Are you picking better stocks than the machine?"
+      >
+        <p>
+          Every time the system suggests a stock, it secretly tracks what
+          would have happened if you had bought it — regardless of whether
+          you actually approved it or skipped it.
+        </p>
+        <p>
+          This page shows a simple comparison:
+        </p>
+        <ul className="list-disc list-inside text-sm text-slate-600 space-y-1 ml-1">
+          <li>
+            <strong>Machine&rsquo;s results</strong> (all suggestions,
+            no filtering)
+          </li>
+          <li>
+            <strong>Your results</strong> (only the ones you approved)
+          </li>
+          <li>
+            <strong>Human Alpha</strong> — Are you adding value? A positive
+            number means yes.
+          </li>
+        </ul>
+      </PageExplainedCard>
+
+      <PageExplainedCard
+        title="Attribution"
+        href="/intelligence/attribution"
+        oneLiner="Which types of signals work best in which market conditions?"
+      >
+        <p>
+          This is a scorecard. The system generates different types of stock
+          signals (strong momentum, breakouts, quiet accumulation). This
+          page shows you which signal types are winning and which are losing
+          — broken down by market conditions.
+        </p>
+        <p>
+          <strong>Example:</strong> You might discover that breakout signals
+          do well in trending markets but poorly in sideways markets. This
+          helps you decide which suggestions to trust.
+        </p>
+        <p className="text-xs text-slate-400 mt-1">
+          Check this once a month — it needs enough data to show meaningful
+          patterns.
+        </p>
+      </PageExplainedCard>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// 4. Behind the Scenes — The 7 Timers (demystified)
+// ---------------------------------------------------------------------------
+
+function BehindTheScenes() {
+  const timers = [
     {
-      name: "Risk Guardian",
-      schedule: "Every 10 min (market hours)",
-      description:
-        "Monitors open positions, executes stop losses, tracks portfolio risk. Only agent with autonomous SELL permission.",
+      name: "Safety Monitor",
+      simple: "Checks if any of your stocks have fallen to the safety-net (stop-loss) level",
+      when: "Every 10 minutes during market hours",
+      icon: "🛡️",
     },
     {
-      name: "Learning Agent",
-      schedule: "Every 30 min (market hours)",
-      description:
-        "Analyzes closed trades, generates post-mortems, updates signal attribution table.",
+      name: "Trade Reviewer",
+      simple: "Looks at recently closed trades and records whether they were wins or losses",
+      when: "Every 30 minutes during market hours",
+      icon: "📝",
     },
     {
-      name: "Regime Classifier",
-      schedule: "4:45 PM IST (weekdays)",
-      description:
-        "Classifies market regime using ADX, VIX, Hurst exponent. Activates regime-specific parameter bank.",
+      name: "Market Mood Check",
+      simple: "Determines if the overall market is trending up, sideways, volatile, or falling",
+      when: "4:45 PM on weekdays",
+      icon: "🌡️",
     },
     {
-      name: "CIO Agent",
-      schedule: "5:00 PM IST (weekdays)",
-      description:
-        "Generates daily brief using regime data, recent experiments, open positions, and RAG memory. Sends to Telegram.",
+      name: "Daily Summary Writer",
+      simple: "Writes a brief paragraph summarizing the day and what to watch for tomorrow",
+      when: "5:00 PM on weekdays",
+      icon: "📰",
     },
     {
-      name: "Corpus Updater",
-      schedule: "5:30 PM IST (weekdays)",
-      description:
-        "Ingests daily market data (VIX, Nifty levels, top movers) into the RAG memory engine.",
+      name: "Market Data Saver",
+      simple: "Saves today's market data (index levels, big movers) so the system remembers it",
+      when: "5:30 PM on weekdays",
+      icon: "💾",
     },
     {
-      name: "AutoOptimize",
-      schedule: "6:00 PM IST (weekdays)",
-      description:
-        "Starts overnight parameter research loop. Runs until 8:00 AM next day.",
+      name: "Recipe Improver",
+      simple: "Runs overnight experiments to improve the stock-picking rules (tests one change at a time)",
+      when: "6:00 PM on weekdays (runs overnight)",
+      icon: "🔬",
     },
     {
-      name: "Shadow Portfolio",
-      schedule: "Every 30 min (market hours)",
-      description:
-        "Updates paper trade exits, tracks shadow portfolio performance.",
+      name: "Shadow Tracker",
+      simple: "Updates the paper-trade portfolio that tracks ALL suggestions (approved + skipped)",
+      when: "Every 30 minutes during market hours",
+      icon: "👤",
     },
   ];
 
   return (
-    <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-      <div className="px-5 py-3 border-b border-slate-100">
-        <h3 className="text-xs font-semibold text-slate-600 uppercase tracking-wider">
-          The 7 Scheduled Agents
-        </h3>
-        <p className="text-[10px] text-slate-400 mt-0.5">
-          Autonomous processes that run on a fixed schedule
-        </p>
+    <SimpleCard>
+      <h3 className="text-lg font-semibold text-slate-800 mb-1">
+        Behind the Scenes — 7 Automated Timers
+      </h3>
+      <p className="text-sm text-slate-500 mb-2">
+        These are <strong>not</strong> AI robots making decisions. They are
+        simple scheduled tasks — like alarm clocks that run a specific job
+        when the time comes. If the server is off, they don&rsquo;t run.
+      </p>
+      <p className="text-xs text-slate-400 mb-5">
+        Technical detail: They use a Python library called APScheduler — the
+        same thing that makes cron jobs work on a server. Each &ldquo;agent&rdquo; is just
+        a Python function that runs on a timer.
+      </p>
+
+      <div className="space-y-3">
+        {timers.map((t) => (
+          <div
+            key={t.name}
+            className="flex items-start gap-3 border-b border-slate-100 pb-3 last:border-0 last:pb-0"
+          >
+            <span className="text-xl flex-shrink-0 mt-0.5">{t.icon}</span>
+            <div className="flex-1">
+              <div className="flex items-center gap-2">
+                <p className="text-sm font-semibold text-slate-800">
+                  {t.name}
+                </p>
+                <span className="text-[10px] font-mono text-teal-600 bg-teal-50 border border-teal-200 rounded-full px-2 py-0.5">
+                  {t.when}
+                </span>
+              </div>
+              <p className="text-sm text-slate-600 mt-0.5">{t.simple}</p>
+            </div>
+          </div>
+        ))}
       </div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left text-[11px] text-slate-400 uppercase tracking-wider border-b border-slate-100">
-              <th className="px-5 py-2 font-medium">Agent</th>
-              <th className="px-5 py-2 font-medium">Schedule</th>
-              <th className="px-5 py-2 font-medium">What It Does</th>
-            </tr>
-          </thead>
-          <tbody>
-            {agents.map((agent) => (
-              <tr
-                key={agent.name}
-                className="border-b border-slate-50 hover:bg-slate-50/50"
-              >
-                <td className="px-5 py-2.5 font-semibold text-slate-800 whitespace-nowrap">
-                  {agent.name}
-                </td>
-                <td className="px-5 py-2.5 font-mono text-xs text-teal-600 whitespace-nowrap">
-                  {agent.schedule}
-                </td>
-                <td className="px-5 py-2.5 text-xs text-slate-600">
-                  {agent.description}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
+    </SimpleCard>
   );
 }
 
-function GettingStartedChecklist() {
+// ---------------------------------------------------------------------------
+// 5. Jargon Buster — Key Terms in Plain Language
+// ---------------------------------------------------------------------------
+
+function JargonBuster() {
+  const terms = [
+    {
+      term: "Stop-Loss (SL)",
+      simple:
+        "A safety net. If a stock falls to this price, you sell it to limit your loss. Like a seatbelt — you hope you never need it, but it protects you when things go wrong.",
+    },
+    {
+      term: "Market Regime / Market Mood",
+      simple:
+        "Is the market happy (trending up), moody (volatile), bored (sideways), or sad (falling)? The system detects this automatically and adjusts its behavior — just like you'd carry an umbrella on a cloudy day.",
+    },
+    {
+      term: "R-Multiple",
+      simple:
+        "A simple way to measure profit relative to risk. If you risked ₹100 and made ₹200, that's a 2R trade. If you risked ₹100 and lost ₹100, that's -1R. Higher R = better trade.",
+    },
+    {
+      term: "Win Rate",
+      simple:
+        "Out of all your trades, what percentage were winners? If you made 10 trades and 6 were profitable, your win rate is 60%.",
+    },
+    {
+      term: "RPT (Risk Per Trade)",
+      simple:
+        "How much of your total money you're willing to risk on a single trade. Default is 0.5% — so if you have ₹10,00,000, you'd risk ₹5,000 per trade. Small enough that one bad trade won't hurt you.",
+    },
+    {
+      term: "Human Alpha",
+      simple:
+        "Are YOUR decisions adding value? If the machine suggests 10 stocks and you pick the 5 best ones, you have positive alpha. If you consistently skip the winners, your alpha is negative.",
+    },
+    {
+      term: "Composite Score",
+      simple:
+        "A single number (like a school exam score) that measures how well the stock-picking rules are performing. The overnight optimizer tries to make this number go up.",
+    },
+    {
+      term: "PPC / NPC / Contraction",
+      simple:
+        "Three types of stock patterns the system looks for. PPC (Positive Price Candle) means a strong green day with high volume. NPC is the opposite. Contraction means the stock is getting very quiet — often a sign it's about to make a big move.",
+    },
+    {
+      term: "Parameter Banks",
+      simple:
+        "Different sets of rules for different market moods. Like how you'd drive differently on a highway vs a village road — the system has different settings for trending vs volatile vs quiet markets.",
+    },
+    {
+      term: "Expectancy",
+      simple:
+        "If you repeat this strategy many times, how much profit can you expect per trade on average? A positive expectancy means the system has an edge. Like a casino — they have positive expectancy on every game.",
+    },
+  ];
+
+  return (
+    <SimpleCard>
+      <h3 className="text-lg font-semibold text-slate-800 mb-1">
+        Jargon Buster
+      </h3>
+      <p className="text-xs text-slate-400 mb-5">
+        Every technical term explained in everyday language
+      </p>
+      <div className="space-y-4">
+        {terms.map((t) => (
+          <div
+            key={t.term}
+            className="border-b border-slate-100 pb-4 last:border-0 last:pb-0"
+          >
+            <p className="text-sm font-semibold text-slate-800">{t.term}</p>
+            <p className="text-sm text-slate-600 mt-1 leading-relaxed">
+              {t.simple}
+            </p>
+          </div>
+        ))}
+      </div>
+    </SimpleCard>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// 6. FAQ — Common Questions
+// ---------------------------------------------------------------------------
+
+function FAQ() {
+  const questions = [
+    {
+      q: "Will this tool buy or sell stocks on my behalf?",
+      a: "No. The tool ONLY suggests stocks. You make every buy/sell decision yourself through your own broker (Zerodha, Dhan, Groww, etc.). The only exception is the Safety Monitor which will alert you if a stop-loss is hit — but even then, you execute the trade.",
+    },
+    {
+      q: "What if I don't check it every day?",
+      a: "Nothing bad happens. The system runs in the background, but it doesn't take action without you. If you skip a day, you just miss that day's suggestions. Your existing positions are still monitored by the Safety Monitor.",
+    },
+    {
+      q: "How much money do I need to start?",
+      a: "The tool works with any amount — the default is ₹1,00,000 but you can set it to whatever your actual trading capital is. It automatically calculates position sizes based on your capital so you never risk too much on one trade.",
+    },
+    {
+      q: "What are these 'agents' I keep hearing about?",
+      a: "They're just automated timers — like setting an alarm. At specific times during the day, the system runs a task (check risk, classify market, write summary). They're NOT AI robots making decisions. Think of them as scheduled chores the system does automatically.",
+    },
+    {
+      q: "How does the system 'learn'?",
+      a: "After each trade closes (win or loss), the system records what happened. Over time, it can see patterns — like 'breakout signals in volatile markets tend to fail'. The overnight optimizer then adjusts the stock-picking criteria based on these patterns, running hundreds of experiments against past data.",
+    },
+    {
+      q: "Is my money safe?",
+      a: "This tool has NO access to your bank account or broker account. It cannot move money, buy stocks, or sell stocks. It is a suggestion and tracking tool only. Your money stays with your broker.",
+    },
+  ];
+
+  return (
+    <SimpleCard>
+      <h3 className="text-lg font-semibold text-slate-800 mb-5">
+        Frequently Asked Questions
+      </h3>
+      <div className="space-y-5">
+        {questions.map((faq, i) => (
+          <div
+            key={i}
+            className="border-b border-slate-100 pb-4 last:border-0 last:pb-0"
+          >
+            <p className="text-sm font-semibold text-slate-800">{faq.q}</p>
+            <p className="text-sm text-slate-600 mt-1 leading-relaxed">
+              {faq.a}
+            </p>
+          </div>
+        ))}
+      </div>
+    </SimpleCard>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// 7. Getting Started — Simplified Checklist
+// ---------------------------------------------------------------------------
+
+function GettingStarted() {
   const steps = [
     {
-      label: "Configure .env",
+      label: "Open the Intelligence Dashboard",
       detail:
-        "Set ANTHROPIC_API_KEY, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID",
+        "This is your starting point. Check the market mood, read the daily summary, and review the stock suggestions.",
     },
     {
-      label: "Seed the knowledge base",
+      label: "Review each stock suggestion",
       detail:
-        "Run python scripts/populate_corpus_a.py to load methodology docs into RAG",
+        "Look at the confidence score, the suggested price, and the stop-loss level. Read the one-line reason. If it makes sense to you, click Approve. If not, click Skip.",
     },
     {
-      label: "Run your first scan",
-      detail: "Go to Scanner, run All Scans for today's date",
-    },
-    {
-      label: "Check Intelligence Dashboard",
-      detail: "Review regime, brief, and setup cards",
-    },
-    {
-      label: "Approve/Skip setups",
+      label: "Place your trades through your broker",
       detail:
-        "The shadow portfolio tracks everything regardless of your decision",
+        "If you approved a stock, go to your broker app (Zerodha, Dhan, etc.) and place the actual order at the suggested price. The tool does not execute trades for you.",
     },
     {
-      label: "Let AutoOptimize run overnight",
+      label: "Check your Trades page to track positions",
       detail:
-        "Start it from the Optimize page or let the scheduler handle it at 6 PM",
+        "Open positions, partial exits, and closed trades all show up here. The Safety Monitor runs in the background and alerts you if a stop-loss is hit.",
     },
     {
-      label: "Review results next morning",
+      label: "Let the system work overnight",
       detail:
-        "Check experiment history, updated parameters, and daily brief",
+        "After market hours, the system automatically updates market mood, writes a summary, and runs improvement experiments. You don't need to do anything.",
     },
     {
-      label: "Check Shadow Portfolio weekly",
-      detail: "Compare your picks vs the machine's picks",
-    },
-    {
-      label: "Review Attribution monthly",
-      detail: "Identify which signals work in which regimes",
+      label: "Next morning, repeat from Step 1",
+      detail:
+        "Check the new daily summary, review fresh stock picks, and manage your existing positions.",
     },
   ];
 
   return (
-    <div className="bg-white rounded-xl border border-slate-200 p-6">
-      <p className="text-xs text-slate-400 font-medium uppercase tracking-wide mb-4">
-        Getting Started Checklist
+    <SimpleCard>
+      <h3 className="text-lg font-semibold text-slate-800 mb-1">
+        Getting Started — 6 Simple Steps
+      </h3>
+      <p className="text-xs text-slate-400 mb-5">
+        You can be up and running in under 5 minutes
       </p>
-      <div className="space-y-3">
+      <div className="space-y-4">
         {steps.map((step, idx) => (
           <div key={idx} className="flex items-start gap-3">
-            <span className="flex-shrink-0 w-5 h-5 rounded bg-teal-50 border border-teal-200 flex items-center justify-center mt-0.5">
-              <span className="text-teal-600 text-xs font-bold">
-                {idx + 1}
-              </span>
+            <span className="flex-shrink-0 w-7 h-7 rounded-full bg-teal-600 text-white flex items-center justify-center mt-0.5">
+              <span className="text-xs font-bold">{idx + 1}</span>
             </span>
             <div>
               <p className="text-sm font-semibold text-slate-800">
                 {step.label}
               </p>
-              <p className="text-xs text-slate-500 mt-0.5">{step.detail}</p>
+              <p className="text-sm text-slate-500 mt-0.5">{step.detail}</p>
             </div>
           </div>
         ))}
       </div>
-    </div>
-  );
-}
-
-function KeyConceptsSection() {
-  const concepts = [
-    {
-      term: "Composite Score",
-      definition:
-        "expectancy x sqrt(trade_count) x (1 - max_drawdown_pct). Halved if drawdown exceeds 15%, zeroed if fewer than 8 trades. This is the single metric AutoOptimize maximizes.",
-    },
-    {
-      term: "Regime",
-      definition:
-        "4 market states detected from ADX trend strength, VIX volatility, Hurst persistence, and price vs 150-SMA. Each regime activates different parameter thresholds so the system adapts to market conditions.",
-    },
-    {
-      term: "Parameter Banks",
-      definition:
-        "Pre-set parameter adjustments per regime. E.g., Trending Bull tightens entry criteria, High Volatility widens stop tolerances. AutoOptimize tunes these independently per regime.",
-    },
-    {
-      term: "RAG Memory",
-      definition:
-        "3 knowledge corpora -- A (methodology, static), B (market data, rolling 90 days), C (trade post-mortems, perpetual). Used by the CIO Agent for context-aware daily briefs.",
-    },
-    {
-      term: "Sacred Files",
-      definition:
-        "backtest_engine.py and trading_rules.py are NEVER modified by any agent. They are the ground truth for evaluating every experiment. Tampering would invalidate all results.",
-    },
-  ];
-
-  return (
-    <div className="bg-white rounded-xl border border-slate-200 p-6">
-      <p className="text-xs text-slate-400 font-medium uppercase tracking-wide mb-4">
-        Key Concepts
-      </p>
-      <div className="space-y-4">
-        {concepts.map((c) => (
-          <div
-            key={c.term}
-            className="border-b border-slate-100 pb-4 last:border-0 last:pb-0"
-          >
-            <p className="text-sm font-semibold text-slate-800">{c.term}</p>
-            <p className="text-sm text-slate-600 mt-1 leading-relaxed">
-              {c.definition}
-            </p>
-          </div>
-        ))}
-      </div>
-    </div>
+    </SimpleCard>
   );
 }
 
@@ -299,7 +591,7 @@ function KeyConceptsSection() {
 
 export default function IntelligenceGuidePage() {
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {/* Breadcrumb + Header */}
       <div>
         <div className="flex items-center gap-2 mb-0.5">
@@ -310,65 +602,42 @@ export default function IntelligenceGuidePage() {
             Intelligence
           </Link>
           <span className="text-xs text-slate-300">/</span>
-          <span className="text-xs text-slate-500">Guide</span>
+          <span className="text-xs text-slate-500">How It Works</span>
         </div>
         <h1 className="text-xl font-semibold text-slate-800">
-          Intelligence Guide
+          How This Tool Works
         </h1>
         <p className="text-sm text-slate-500 mt-0.5">
-          How the CTS Intelligence Engine works -- from scanning to autonomous
-          optimization
+          Everything you need to know — explained in plain language, no jargon
         </p>
       </div>
 
-      {/* System Overview */}
-      <SystemOverviewCard />
+      {/* 1. The Big Picture */}
+      <WhatIsThisTool />
 
-      {/* Pages Explained */}
+      {/* 2. Your Daily Routine */}
+      <DailyRoutine />
+
+      {/* 3. Each Page Explained */}
       <div className="space-y-3">
-        <h2 className="text-sm font-semibold text-slate-800 uppercase tracking-wider">
-          Pages Explained
-        </h2>
-        <div className="grid gap-4 md:grid-cols-2">
-          <PageCard
-            title="Intelligence Dashboard"
-            href="/intelligence"
-            what="Your daily command center. Shows market regime, optimization status, risk exposure, the CIO daily brief, and top 3 setup cards."
-            howToUse="Check every morning before market open. Review the regime (it affects which parameter set is active). Read the daily brief for overnight insights. Review and Approve/Skip the top setup cards."
-            whenUpdates="Regime classifies at 4:45 PM IST. Daily brief generates at 5:00 PM IST."
-          />
-          <PageCard
-            title="AutoOptimize"
-            href="/intelligence/optimize"
-            what="An overnight research loop that tunes the 16 scanning parameters. It picks one parameter, hypothesizes a change using Claude, runs a backtest, and keeps improvements / reverts failures. A tireless research analyst working overnight."
-            howToUse="Click Start before you leave for the day (it auto-starts at 6 PM if enabled). Check results next morning. The Keep Rate tells you how productive the research was. Review the experiment history table to see what changed and why."
-            whenUpdates="Runs from 6:00 PM to 8:00 AM IST on weekdays. Composite Score = expectancy x sqrt(trade_count) x (1 - max_drawdown). Parameters have hard bounds (BOUNDS dict) -- the system cannot make dangerous changes. Every change is git-committed so you can always revert."
-          />
-          <PageCard
-            title="Shadow Portfolio"
-            href="/intelligence/shadow"
-            what="Paper-trades EVERY setup card the system generates, regardless of whether you approved or skipped it. After trades close, it compares shadow (machine) vs live (your picks) performance."
-            howToUse="Check weekly. The Human Alpha metric tells you if your filtering adds value. If shadow consistently beats live, you may be too conservative. If live beats shadow, your judgment is adding alpha."
-            whenUpdates="Shadow Portfolio agent runs every 30 min during market hours. Key metrics: Shadow Win Rate vs Live Win Rate, Human Alpha (positive = your picks are better)."
-          />
-          <PageCard
-            title="Signal Attribution"
-            href="/intelligence/attribution"
-            what="Tracks win rates broken down by signal type (PPC, NPC, Contraction) AND market regime (Trending Bull, Ranging Quiet, etc.). Tells you which signals work best in which conditions."
-            howToUse="Check monthly. The heatmap shows which signal x regime combos are profitable (green) vs unprofitable (red). Use this to adjust your approval decisions -- e.g., if NPC signals in Ranging Quiet markets have a 20% win rate, skip those setups."
-            whenUpdates="Updated by the Learning Agent every 30 min during market hours as trades close."
-          />
-        </div>
+        <SectionHeading>What Each Page Does</SectionHeading>
+        <PagesExplained />
       </div>
 
-      {/* Scheduled Agents Table */}
-      <ScheduledAgentsTable />
+      {/* 4. Behind the Scenes */}
+      <div className="space-y-3">
+        <SectionHeading>Behind the Scenes</SectionHeading>
+        <BehindTheScenes />
+      </div>
 
-      {/* Getting Started */}
-      <GettingStartedChecklist />
+      {/* 5. Jargon Buster */}
+      <JargonBuster />
 
-      {/* Key Concepts */}
-      <KeyConceptsSection />
+      {/* 6. FAQ */}
+      <FAQ />
+
+      {/* 7. Getting Started */}
+      <GettingStarted />
 
       {/* Footer link back to dashboard */}
       <div className="flex justify-center pb-4">
@@ -376,7 +645,7 @@ export default function IntelligenceGuidePage() {
           href="/intelligence"
           className="text-sm text-teal-600 hover:text-teal-700 font-medium"
         >
-          &larr; Back to Intelligence Dashboard
+          ← Back to Intelligence Dashboard
         </Link>
       </div>
     </div>

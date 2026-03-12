@@ -39,7 +39,7 @@ const INTELLIGENCE_NAV = [
   { title: "Optimize", href: "/intelligence/optimize" },
   { title: "Shadow", href: "/intelligence/shadow" },
   { title: "Attribution", href: "/intelligence/attribution" },
-  { title: "Guide", href: "/intelligence/guide" },
+  { title: "How It Works", href: "/intelligence/guide" },
 ] as const;
 
 function isActive(href: string, pathname: string): boolean {

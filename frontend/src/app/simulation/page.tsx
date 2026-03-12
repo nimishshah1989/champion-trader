@@ -4,6 +4,8 @@ import { useEffect, useState, useCallback } from "react";
 import {
   runBacktest,
   getBacktestResult,
+  getBacktestProgress,
+  cleanupStuckBacktests,
   startPaperTrading,
   processPaperDay,
   getPaperStatus,
@@ -12,6 +14,7 @@ import {
   type SimulationRun,
   type SimulationRunWithTrades,
   type SimulationTrade,
+  type BacktestProgress,
 } from "@/lib/api";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -527,6 +530,68 @@ function PreviousRunsList({
 // Backtest Tab
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Progress Indicator
+// ---------------------------------------------------------------------------
+
+const PHASE_LABELS: Record<string, string> = {
+  initializing: "Initializing backtest...",
+  fetching: "Downloading market data (~464 stocks)...",
+  computing: "Pre-computing technical indicators...",
+  scanning: "Simulating trading days...",
+  done: "Completed",
+  failed: "Failed",
+};
+
+function BacktestProgressBar({ progress }: { progress: BacktestProgress }) {
+  const phase = progress.phase ?? "initializing";
+  const pct = progress.progress_pct ?? 0;
+  const phaseLabel = PHASE_LABELS[phase] ?? `${phase}...`;
+
+  return (
+    <div className="bg-white rounded-xl border border-slate-200 p-6">
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-3">
+          <svg className="animate-spin h-5 w-5 text-teal-600" viewBox="0 0 24 24" fill="none">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+          </svg>
+          <span className="text-sm font-semibold text-slate-700">{phaseLabel}</span>
+        </div>
+        <span className="text-xs font-mono text-slate-400">
+          {phase === "scanning" && progress.days_done != null && progress.days_total
+            ? `${progress.days_done}/${progress.days_total} days`
+            : `${pct.toFixed(0)}%`}
+        </span>
+      </div>
+
+      {/* Progress bar */}
+      <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+        <div
+          className="h-full bg-teal-500 rounded-full transition-all duration-500 ease-out"
+          style={{ width: `${Math.min(pct, 100)}%` }}
+        />
+      </div>
+
+      {/* Detail line */}
+      <div className="flex items-center justify-between mt-2">
+        <p className="text-[10px] text-slate-400">
+          {phase === "scanning" && progress.current_date
+            ? `Processing ${progress.current_date}`
+            : phase === "computing" && progress.stocks
+              ? `${progress.stocks} stocks loaded`
+              : phase === "fetching"
+                ? "This may take 2-5 minutes on first run"
+                : "Please wait..."}
+        </p>
+        {phase === "scanning" && progress.open_positions != null && (
+          <p className="text-[10px] text-slate-400">{progress.open_positions} open positions</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function BacktestTab({
   allRuns,
   onRunsUpdated,
@@ -543,70 +608,75 @@ function BacktestTab({
 
   // Run state
   const [isRunning, setIsRunning] = useState(false);
+  const [progress, setProgress] = useState<BacktestProgress | null>(null);
   const [backtestResult, setBacktestResult] =
     useState<SimulationRunWithTrades | null>(null);
   const [resultLoading, setResultLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Poll for backtest completion
+  // Poll for backtest progress + completion
   const pollForResult = useCallback(
     async (runId: number) => {
       setResultLoading(true);
       setError(null);
 
-      const maxAttempts = 360; // Poll for up to 30 minutes (360 * 5 seconds)
-      let attempts = 0;
+      const MAX_POLL_MS = 45 * 60 * 1000; // 45 minutes
+      const POLL_INTERVAL_MS = 3000; // 3 seconds (faster for progress updates)
+      const startTime = Date.now();
 
       const poll = async () => {
         try {
-          const result = await getBacktestResult(runId);
-          const status = result.status.toUpperCase();
+          // First check progress (lightweight endpoint)
+          const prog = await getBacktestProgress(runId);
+          setProgress(prog);
 
-          if (
-            status === "COMPLETED" ||
-            status === "FAILED" ||
-            status === "ERROR"
-          ) {
+          const status = prog.status.toUpperCase();
+
+          if (status === "COMPLETED") {
+            // Fetch full result with trades
+            const result = await getBacktestResult(runId);
             setBacktestResult(result);
             setResultLoading(false);
             setIsRunning(false);
+            setProgress(null);
             onRunsUpdated();
-
-            if (status === "COMPLETED") {
-              toast.success(
-                `Backtest complete: ${result.total_trades} trades, ${formatPct(result.total_return_pct)} return`
-              );
-            } else {
-              toast.error(
-                `Backtest failed: ${result.error_message || "Unknown error"}`
-              );
-              setError(result.error_message || "Backtest failed");
-            }
+            toast.success(
+              `Backtest complete: ${result.total_trades} trades, ${formatPct(result.total_return_pct)} return`
+            );
             return;
           }
 
-          // Still running, poll again
-          attempts++;
-          if (attempts < maxAttempts) {
-            setTimeout(poll, 5000);
-          } else {
+          if (status === "FAILED" || status === "ERROR") {
             setResultLoading(false);
             setIsRunning(false);
-            setError("Backtest timed out. Check back later — it may still be running on the server.");
-            toast.error("Backtest polling timed out after 30 minutes.");
+            setProgress(null);
+            onRunsUpdated();
+            const errMsg = prog.error_message ?? "Backtest failed";
+            setError(errMsg);
+            toast.error(`Backtest failed: ${errMsg}`);
+            return;
           }
-        } catch (err) {
-          // If result is not ready yet (404 or similar), keep polling
-          attempts++;
-          if (attempts < maxAttempts) {
-            setTimeout(poll, 5000);
+
+          // Still running — schedule next poll
+          if (Date.now() - startTime < MAX_POLL_MS) {
+            setTimeout(poll, POLL_INTERVAL_MS);
           } else {
             setResultLoading(false);
             setIsRunning(false);
-            const message =
-              err instanceof Error ? err.message : "Failed to fetch result";
-            setError(message);
-            toast.error(message);
+            setProgress(null);
+            setError("Backtest polling timed out after 45 minutes. It may still be running on the server.");
+            toast.error("Backtest polling timed out.");
+          }
+        } catch {
+          // Network error — keep trying if within time limit
+          if (Date.now() - startTime < MAX_POLL_MS) {
+            setTimeout(poll, POLL_INTERVAL_MS * 2);
+          } else {
+            setResultLoading(false);
+            setIsRunning(false);
+            setProgress(null);
+            setError("Lost connection while waiting for backtest results.");
+            toast.error("Lost connection to server.");
           }
         }
       };
@@ -830,11 +900,17 @@ function BacktestTab({
       {/* Running / Loading State */}
       {(isRunning || resultLoading) && !backtestResult && (
         <div className="space-y-6">
-          <StatsSkeletons count={8} />
-          <div className="bg-white rounded-xl border border-slate-200 p-6">
-            <Skeleton className="h-4 w-32 bg-slate-100 mb-4" />
-            <Skeleton className="h-64 w-full bg-slate-100 rounded-lg" />
-          </div>
+          {progress ? (
+            <BacktestProgressBar progress={progress} />
+          ) : (
+            <>
+              <StatsSkeletons count={8} />
+              <div className="bg-white rounded-xl border border-slate-200 p-6">
+                <Skeleton className="h-4 w-32 bg-slate-100 mb-4" />
+                <Skeleton className="h-64 w-full bg-slate-100 rounded-lg" />
+              </div>
+            </>
+          )}
         </div>
       )}
 
@@ -1553,17 +1629,37 @@ export default function SimulationPage() {
   const [activeTab, setActiveTab] = useState<TabType>("BACKTEST");
   const [allRuns, setAllRuns] = useState<SimulationRun[]>([]);
   const [runsLoading, setRunsLoading] = useState(true);
+  const [stuckCleanedUp, setStuckCleanedUp] = useState(false);
 
   const fetchRuns = useCallback(async () => {
     try {
       const runs = await getSimulationRuns();
       setAllRuns(runs);
+
+      // Auto-cleanup stuck RUNNING backtests on page load (once)
+      if (!stuckCleanedUp) {
+        const stuckRuns = runs.filter((r) => r.status.toUpperCase() === "RUNNING");
+        if (stuckRuns.length > 0) {
+          try {
+            const cleanup = await cleanupStuckBacktests();
+            if (cleanup.cleaned > 0) {
+              toast.info(`Cleaned up ${cleanup.cleaned} stuck backtest(s) from a previous session.`);
+              // Re-fetch runs after cleanup
+              const updatedRuns = await getSimulationRuns();
+              setAllRuns(updatedRuns);
+            }
+          } catch {
+            // Cleanup is best-effort
+          }
+        }
+        setStuckCleanedUp(true);
+      }
     } catch (err) {
       console.error("Failed to fetch simulation runs:", err);
     } finally {
       setRunsLoading(false);
     }
-  }, []);
+  }, [stuckCleanedUp]);
 
   useEffect(() => {
     fetchRuns();

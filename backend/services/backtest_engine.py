@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from datetime import date, datetime, timedelta
 
 import numpy as np
@@ -40,6 +41,18 @@ MIN_HOLD_DAYS_FOR_DMA_EXIT = 10
 
 # Pending entries stay alive for this many trading days before being abandoned
 PENDING_ENTRY_MAX_DAYS = 3
+
+# yfinance download timeout per batch (seconds)
+YFINANCE_BATCH_TIMEOUT_SECS = 120
+
+# How often to flush progress to DB (every N trading days)
+PROGRESS_FLUSH_INTERVAL = 10
+
+# Max backtest runtime before auto-marking as failed (seconds)
+MAX_BACKTEST_RUNTIME_SECS = 45 * 60  # 45 minutes
+
+# Stuck detection: if a RUNNING backtest has not updated in this many seconds, treat as stuck
+STUCK_THRESHOLD_SECS = 30 * 60  # 30 minutes
 
 
 def run_backtest(
@@ -88,6 +101,7 @@ def _run_backtest_background(
 ) -> None:
     """Background thread: runs the full backtest with its own DB session."""
     db = SessionLocal()
+    run = None
     try:
         run = db.query(SimulationRun).filter(SimulationRun.id == run_id).first()
         if not run:
@@ -110,6 +124,56 @@ def _run_backtest_background(
             run.updated_at = datetime.now().isoformat()
             db.commit()
         db.close()
+
+
+def cleanup_stuck_backtests() -> list[int]:
+    """Mark any RUNNING backtests that haven't updated recently as FAILED.
+
+    Returns list of run IDs that were cleaned up.
+    """
+    db = SessionLocal()
+    cleaned: list[int] = []
+    try:
+        running = (
+            db.query(SimulationRun)
+            .filter(SimulationRun.status == "RUNNING")
+            .all()
+        )
+        now = datetime.now()
+        for run in running:
+            updated = None
+            if run.updated_at:
+                try:
+                    updated = datetime.fromisoformat(str(run.updated_at))
+                except (ValueError, TypeError):
+                    pass
+            if updated is None and run.created_at:
+                try:
+                    updated = datetime.fromisoformat(str(run.created_at))
+                except (ValueError, TypeError):
+                    pass
+
+            if updated is None:
+                # Can't determine age — mark as stuck
+                run.status = "FAILED"
+                run.error_message = "Marked as failed: unable to determine last update time"
+                run.updated_at = now.isoformat()
+                cleaned.append(run.id)
+                continue
+
+            elapsed = (now - updated).total_seconds()
+            if elapsed > STUCK_THRESHOLD_SECS:
+                run.status = "FAILED"
+                run.error_message = f"Marked as failed: no update for {int(elapsed // 60)} minutes (likely server restart or hang)"
+                run.updated_at = now.isoformat()
+                cleaned.append(run.id)
+
+        if cleaned:
+            db.commit()
+            logger.info(f"Cleaned up {len(cleaned)} stuck backtests: {cleaned}")
+    finally:
+        db.close()
+    return cleaned
 
 
 # ---------------------------------------------------------------------------
@@ -138,6 +202,7 @@ def _fetch_universe_ohlcv(start_date: str, end_date: str) -> dict[str, pd.DataFr
                 auto_adjust=True,
                 threads=True,
                 progress=False,
+                timeout=YFINANCE_BATCH_TIMEOUT_SECS,
             )
 
             if data.empty:
@@ -360,6 +425,12 @@ def _execute_backtest(
     fetch_end = (end_date + timedelta(days=5)).strftime("%Y-%m-%d")
 
     logger.info(f"Backtest {run.id}: fetching OHLCV for full universe ({fetch_start} to {fetch_end})")
+
+    # Report "fetching" phase to frontend
+    run.error_message = json.dumps({"phase": "fetching", "progress_pct": 0})
+    run.updated_at = datetime.now().isoformat()
+    db.commit()
+
     ohlcv_data = _fetch_universe_ohlcv(fetch_start, fetch_end)
 
     if not ohlcv_data:
@@ -369,6 +440,10 @@ def _execute_backtest(
 
     # Step 2: Pre-compute all indicators
     logger.info(f"Backtest {run.id}: pre-computing indicators for {len(ohlcv_data)} stocks")
+
+    run.error_message = json.dumps({"phase": "computing", "progress_pct": 0, "stocks": len(ohlcv_data)})
+    run.updated_at = datetime.now().isoformat()
+    db.commit()
     indicators = _precompute_indicators(ohlcv_data)
 
     # Build sorted list of trading days
@@ -385,7 +460,18 @@ def _execute_backtest(
         run.status = "FAILED"
         return
 
-    logger.info(f"Backtest {run.id}: replaying {len(trading_days)} trading days across {len(indicators)} stocks")
+    total_days = len(trading_days)
+    logger.info(f"Backtest {run.id}: replaying {total_days} trading days across {len(indicators)} stocks")
+
+    # Store phase + total for progress tracking
+    run.error_message = json.dumps({
+        "phase": "scanning",
+        "progress_pct": 0,
+        "days_total": total_days,
+        "days_done": 0,
+    })
+    run.updated_at = datetime.now().isoformat()
+    db.commit()
 
     # Map date_str to DataFrame index for base_days computation
     df_date_indices: dict[str, dict[str, int]] = {}
@@ -414,8 +500,32 @@ def _execute_backtest(
     #   consec_below_dma: consecutive closes below 50 DMA (for "undercut" confirmation)
     pos_meta: dict[int, dict] = {}
 
+    backtest_start_time = time.monotonic()
+
     # Step 3: Day loop
-    for day_str in trading_days:
+    for day_idx_loop, day_str in enumerate(trading_days):
+
+        # --- Progress reporting (every N days) ---
+        if day_idx_loop % PROGRESS_FLUSH_INTERVAL == 0 or day_idx_loop == total_days - 1:
+            progress_pct = round((day_idx_loop / max(total_days, 1)) * 100, 1)
+            run.last_processed_date = date.fromisoformat(day_str)
+            run.error_message = json.dumps({
+                "phase": "scanning",
+                "progress_pct": progress_pct,
+                "days_total": total_days,
+                "days_done": day_idx_loop,
+                "current_date": day_str,
+                "open_positions": len(open_positions),
+            })
+            run.updated_at = datetime.now().isoformat()
+            db.commit()
+
+        # --- Runtime guard ---
+        elapsed = time.monotonic() - backtest_start_time
+        if elapsed > MAX_BACKTEST_RUNTIME_SECS:
+            run.status = "FAILED"
+            run.error_message = f"Backtest timed out after {int(elapsed // 60)} minutes ({day_idx_loop}/{total_days} days processed)"
+            return
 
         # --- Check exits on open positions ---
         still_open: list[SimulationTrade] = []
@@ -786,6 +896,9 @@ def _execute_backtest(
     run.max_drawdown_pct = round(max_drawdown_pct, 2)
     run.max_drawdown_amount = round(max_drawdown_amount, 2)
     run.equity_curve = json.dumps(equity_curve)
+
+    # Clear progress data from error_message (only used during running)
+    run.error_message = None
 
     db.commit()
     logger.info(
