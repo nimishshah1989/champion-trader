@@ -609,6 +609,19 @@ export function getSimulationRuns(runType?: string): Promise<SimulationRun[]> {
 
 // --- Health ---
 
-export function healthCheck(): Promise<{ status: string }> {
-  return apiFetch<{ status: string }>("/health");
+export interface ScheduledJob {
+  id: string;
+  name: string;
+  next_run: string;
+}
+
+export interface HealthStatus {
+  status: string;
+  scheduler: "running" | "stopped";
+  scheduled_jobs: number;
+  jobs: ScheduledJob[];
+}
+
+export function healthCheck(): Promise<HealthStatus> {
+  return apiFetch<HealthStatus>("/health");
 }

@@ -7,10 +7,12 @@ import {
   getLatestStance,
   getWatchlist,
   getTradeStats,
+  healthCheck,
   type Trade,
   type MarketStance,
   type WatchlistItem,
   type TradeStats,
+  type HealthStatus,
 } from "@/lib/api";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -34,26 +36,62 @@ const STANCE_COLORS: Record<string, { color: string; bg: string }> = {
 // Main Dashboard
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// JOB_META — human-readable names + schedule descriptions for each scheduler job
+// ---------------------------------------------------------------------------
+const JOB_META: Record<string, { label: string; schedule: string }> = {
+  daily_scanner:   { label: "Daily Scanner",    schedule: "4:00 PM" },
+  exit_monitor:    { label: "Exit Monitor",      schedule: "Every 2 min" },
+  entry_monitor:   { label: "Entry Monitor",     schedule: "3:00–3:30 PM" },
+  risk_guardian:   { label: "Risk Guardian",     schedule: "Every 10 min" },
+  regime_classifier: { label: "Regime Classifier", schedule: "4:45 PM" },
+  cio_agent:       { label: "CIO Brief",         schedule: "5:00 PM" },
+  corpus_updater:  { label: "Corpus Updater",    schedule: "5:30 PM" },
+  learning_agent:  { label: "Learning Agent",    schedule: "Every 30 min" },
+  shadow_portfolio:{ label: "Shadow Portfolio",  schedule: "Every 30 min" },
+  autooptimize:    { label: "AutoOptimize",      schedule: "6:00 PM" },
+};
+
+function formatNextRun(nextRunStr: string): string {
+  try {
+    const d = new Date(nextRunStr);
+    if (isNaN(d.getTime())) return nextRunStr;
+    return d.toLocaleString("en-IN", {
+      day: "numeric", month: "short",
+      hour: "2-digit", minute: "2-digit", hour12: true,
+    });
+  } catch {
+    return nextRunStr;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Main Dashboard
+// ---------------------------------------------------------------------------
+
 export default function DashboardPage() {
   const [openTrades, setOpenTrades] = useState<Trade[]>([]);
   const [stats, setStats] = useState<TradeStats | null>(null);
   const [stance, setStance] = useState<MarketStance | null>(null);
   const [watchlist, setWatchlist] = useState<WatchlistItem[]>([]);
+  const [health, setHealth] = useState<HealthStatus | null>(null);
   const [loading, setLoading] = useState(true);
 
   const fetchAll = useCallback(async () => {
     try {
-      const [tradesData, stanceData, watchlistData, statsData] = await Promise.allSettled([
+      const [tradesData, stanceData, watchlistData, statsData, healthData] = await Promise.allSettled([
         getTrades("OPEN"),
         getLatestStance(),
         getWatchlist(),
         getTradeStats(),
+        healthCheck(),
       ]);
 
       if (tradesData.status === "fulfilled") setOpenTrades(tradesData.value);
       if (stanceData.status === "fulfilled") setStance(stanceData.value);
       if (watchlistData.status === "fulfilled") setWatchlist(watchlistData.value);
       if (statsData.status === "fulfilled") setStats(statsData.value);
+      if (healthData.status === "fulfilled") setHealth(healthData.value);
     } catch {
       // Individual failures handled by allSettled
     } finally {
@@ -63,6 +101,9 @@ export default function DashboardPage() {
 
   useEffect(() => {
     fetchAll();
+    // Re-check health every 60 s — catches if the backend goes down
+    const id = setInterval(() => healthCheck().then(setHealth).catch(() => setHealth(null)), 60_000);
+    return () => clearInterval(id);
   }, [fetchAll]);
 
   // Derived values
@@ -71,12 +112,58 @@ export default function DashboardPage() {
   const totalOpenRisk = openTrades.reduce((sum, t) => sum + (t.rpt_amount ?? 0), 0);
   const stanceConfig = stance?.stance ? STANCE_COLORS[stance.stance] : null;
 
+  const schedulerRunning = health?.scheduler === "running";
+
   return (
     <div className="space-y-6">
       {/* Header */}
       <div>
         <h1 className="text-xl font-semibold text-slate-800">Dashboard</h1>
         <p className="text-sm text-slate-500 mt-0.5">Daily command centre — Champion Trader routine</p>
+      </div>
+
+      {/* ================================================================ */}
+      {/* SYSTEM STATUS — always visible */}
+      {/* ================================================================ */}
+      <div className={`rounded-xl border p-4 ${schedulerRunning ? "bg-emerald-50 border-emerald-200" : "bg-red-50 border-red-200"}`}>
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div className="flex items-center gap-2">
+            <span className={`relative flex h-2.5 w-2.5`}>
+              {schedulerRunning && (
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+              )}
+              <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${schedulerRunning ? "bg-emerald-500" : "bg-red-400"}`} />
+            </span>
+            <span className={`text-sm font-semibold ${schedulerRunning ? "text-emerald-800" : "text-red-700"}`}>
+              {schedulerRunning
+                ? `System Running — ${health?.scheduled_jobs ?? 0} jobs scheduled`
+                : "System Offline — start the backend to enable automation"}
+            </span>
+          </div>
+          {!schedulerRunning && (
+            <code className="text-[11px] bg-red-100 text-red-700 border border-red-200 rounded px-2 py-1 font-mono">
+              bash scripts/setup_autostart.sh
+            </code>
+          )}
+        </div>
+
+        {/* Job grid — only show when running */}
+        {schedulerRunning && health && health.jobs.length > 0 && (
+          <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1">
+            {health.jobs.map((job) => {
+              const meta = JOB_META[job.id];
+              return (
+                <div key={job.id} className="flex items-center gap-1.5 text-[11px] text-emerald-700">
+                  <span className="font-medium">{meta?.label ?? job.id}</span>
+                  <span className="text-emerald-500">·</span>
+                  <span className="font-mono text-emerald-600">{meta?.schedule ?? "scheduled"}</span>
+                  <span className="text-emerald-400">→</span>
+                  <span className="text-emerald-500 tabular-nums">{formatNextRun(job.next_run)}</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* ================================================================ */}

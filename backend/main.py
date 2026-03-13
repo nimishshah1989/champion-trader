@@ -117,6 +117,54 @@ def _setup_scheduler():
             name="Shadow Portfolio: Exit Tracker",
         )
 
+        # ── Daily Scanner (post-market) ──────────────────────────────────
+        # Runs all three scans (PPC + NPC + Contraction) automatically at 16:00 IST.
+        # Results are saved to scan_results table and instantly appear in the Pipeline page.
+        # The user still decides which stocks go to READY/NEAR/AWAY — that judgment is human.
+
+        async def _daily_scanner_job() -> None:
+            """Auto-run all scans at market close and save to DB."""
+            from datetime import date as _date
+
+            from sqlalchemy import and_ as _and
+
+            from backend.database import ScanResult, SessionLocal
+            from backend.services.scanner_engine import run_all_scans
+
+            scan_date_str = str(_date.today())
+            db = SessionLocal()
+            try:
+                logger.info(f"[SCHEDULER] Daily scan starting for {scan_date_str}")
+                results = await run_all_scans(scan_date_str)
+
+                # Upsert — delete existing results for today, then insert fresh
+                for result_dict in results:
+                    db.query(ScanResult).filter(
+                        _and(
+                            ScanResult.scan_date == result_dict["scan_date"],
+                            ScanResult.symbol == result_dict["symbol"],
+                            ScanResult.scan_type == result_dict["scan_type"],
+                        )
+                    ).delete()
+                    db.add(ScanResult(**result_dict))
+
+                db.commit()
+                logger.info(
+                    f"[SCHEDULER] Daily scan complete: {len(results)} results saved for {scan_date_str}"
+                )
+            except Exception as exc:
+                logger.error(f"[SCHEDULER] Daily scanner job failed: {exc}")
+                db.rollback()
+            finally:
+                db.close()
+
+        scheduler.add_job(
+            _daily_scanner_job,
+            CronTrigger(day_of_week="mon-fri", hour=16, minute=0),
+            id="daily_scanner",
+            name="Daily Scanner: Post-Market PPC + NPC + Contraction (16:00 IST)",
+        )
+
         # ── Live Market Monitor ───────────────────────────────────────────
         # Two jobs replace manual "Refresh Prices":
         #   1. exit_monitor  — every 2 min, full market hours → SL/target checks only
