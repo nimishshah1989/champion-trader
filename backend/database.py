@@ -6,6 +6,7 @@ from sqlalchemy import (
     Float,
     ForeignKey,
     Integer,
+    Numeric,
     String,
     Text,
     create_engine,
@@ -52,14 +53,14 @@ class ScanResult(Base):
     scan_type = Column(String, nullable=False)  # PPC, NPC, CONTRACTION
 
     # Price data at time of scan
-    close_price = Column(Float)
+    close_price = Column(Numeric(15, 2))
     volume = Column(Integer)
     avg_volume_20d = Column(Float)
     volume_ratio = Column(Float)
 
     # TRP data
-    trp = Column(Float)
-    avg_trp = Column(Float)
+    trp = Column(Numeric(15, 2))
+    avg_trp = Column(Numeric(15, 2))
     trp_ratio = Column(Float)
 
     # Candle characteristics
@@ -77,7 +78,7 @@ class ScanResult(Base):
     base_quality = Column(String)  # SMOOTH, CHOPPY, MIXED
 
     # Liquidity
-    adt = Column(Float)
+    adt = Column(Numeric(15, 2))
     passes_liquidity_filter = Column(Boolean)
 
     # Wake-up call type
@@ -85,7 +86,7 @@ class ScanResult(Base):
 
     # Categorisation
     watchlist_bucket = Column(String)  # READY, NEAR, AWAY
-    trigger_level = Column(Float)
+    trigger_level = Column(Numeric(15, 2))
 
     notes = Column(Text)
     created_at = Column(String, server_default=func.now())
@@ -107,8 +108,8 @@ class Watchlist(Base):
     wuc_types = Column(String)  # comma-separated
 
     # Entry parameters (for READY stocks)
-    trigger_level = Column(Float)
-    planned_entry_price = Column(Float)
+    trigger_level = Column(Numeric(15, 2))
+    planned_entry_price = Column(Numeric(15, 2))
 
     # Position planning
     planned_sl_pct = Column(Float)
@@ -134,33 +135,33 @@ class Trade(Base):
     # Entry details
     entry_date = Column(Date, nullable=False)
     entry_type = Column(String)  # LIVE_BREAK, CLOSE_ABOVE, NEXT_DAY_HIGH
-    entry_price_half1 = Column(Float)
-    entry_price_half2 = Column(Float)
+    entry_price_half1 = Column(Numeric(15, 2))
+    entry_price_half2 = Column(Numeric(15, 2))
     qty_half1 = Column(Integer)
     qty_half2 = Column(Integer)
     total_qty = Column(Integer)
-    avg_entry_price = Column(Float)
+    avg_entry_price = Column(Numeric(15, 2))
 
     # Risk parameters at entry
-    trp_at_entry = Column(Float)
-    sl_price = Column(Float)
+    trp_at_entry = Column(Numeric(15, 2))
+    sl_price = Column(Numeric(15, 2))
     sl_pct = Column(Float)
-    rpt_amount = Column(Float)
+    rpt_amount = Column(Numeric(15, 2))
 
     # Target levels
-    target_2r = Column(Float)
-    target_ne = Column(Float)
-    target_ge = Column(Float)
-    target_ee = Column(Float)
+    target_2r = Column(Numeric(15, 2))
+    target_ne = Column(Numeric(15, 2))
+    target_ge = Column(Numeric(15, 2))
+    target_ee = Column(Numeric(15, 2))
 
     # Exit tracking
     exit_date = Column(Date)
     exit_method = Column(String)
-    exit_price = Column(Float)
+    exit_price = Column(Numeric(15, 2))
     exit_qty = Column(Integer)
 
     # P&L
-    gross_pnl = Column(Float)
+    gross_pnl = Column(Numeric(15, 2))
     r_multiple = Column(Float)
     pnl_pct = Column(Float)
 
@@ -185,11 +186,11 @@ class PartialExit(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     trade_id = Column(Integer, ForeignKey("trades.id"), nullable=False)
     exit_date = Column(Date, nullable=False)
-    exit_price = Column(Float, nullable=False)
+    exit_price = Column(Numeric(15, 2), nullable=False)
     exit_qty = Column(Integer, nullable=False)
     exit_reason = Column(String)  # 2R, NE, GE, EE, EARNINGS_RISK, MANUAL
     r_multiple_at_exit = Column(Float)
-    pnl = Column(Float)
+    pnl = Column(Numeric(15, 2))
     notes = Column(Text)
     created_at = Column(String, server_default=func.now())
 
@@ -227,8 +228,8 @@ class WeeklyJournal(Base):
     week_end = Column(Date, nullable=False)
 
     # Account performance
-    account_value_start = Column(Float)
-    account_value_end = Column(Float)
+    account_value_start = Column(Numeric(15, 2))
+    account_value_end = Column(Numeric(15, 2))
     weekly_return_pct = Column(Float)
 
     # Expectancy metrics
@@ -295,24 +296,24 @@ class PositionCalcSession(Base):
     calc_date = Column(Date, nullable=False)
     symbol = Column(String, nullable=False)
 
-    account_value = Column(Float, nullable=False)
+    account_value = Column(Numeric(15, 2), nullable=False)
     rpt_pct = Column(Float, nullable=False)
-    rpt_amount = Column(Float, nullable=False)
+    rpt_amount = Column(Numeric(15, 2), nullable=False)
 
-    entry_price = Column(Float, nullable=False)
+    entry_price = Column(Numeric(15, 2), nullable=False)
     sl_pct = Column(Float, nullable=False)
-    sl_amount = Column(Float, nullable=False)
-    sl_price = Column(Float, nullable=False)
+    sl_amount = Column(Numeric(15, 2), nullable=False)
+    sl_price = Column(Numeric(15, 2), nullable=False)
 
-    position_value = Column(Float, nullable=False)
+    position_value = Column(Numeric(15, 2), nullable=False)
     position_size = Column(Integer, nullable=False)
     half_qty = Column(Integer, nullable=False)
 
     # Pre-calculated targets
-    target_2r = Column(Float)
-    target_ne = Column(Float)
-    target_ge = Column(Float)
-    target_ee = Column(Float)
+    target_2r = Column(Numeric(15, 2))
+    target_ne = Column(Numeric(15, 2))
+    target_ge = Column(Numeric(15, 2))
+    target_ee = Column(Numeric(15, 2))
 
     notes = Column(Text)
     created_at = Column(String, server_default=func.now())
@@ -341,15 +342,15 @@ class ActionAlert(Base):
     alert_category = Column(String, nullable=False)  # BUY, SELL
     alert_type = Column(String, nullable=False)  # TRIGGER_BREAK, SL_HIT, 2R_HIT, NE_HIT, GE_HIT, EE_HIT, FINAL_EXIT
     symbol = Column(String, nullable=False)
-    current_price = Column(Float)
-    trigger_price = Column(Float)
+    current_price = Column(Numeric(15, 2))
+    trigger_price = Column(Numeric(15, 2))
 
     # BUY-specific fields
     suggested_qty = Column(Integer)
     suggested_half_qty = Column(Integer)
-    suggested_sl_price = Column(Float)
-    suggested_entry_price = Column(Float)
-    account_value_used = Column(Float)
+    suggested_sl_price = Column(Numeric(15, 2))
+    suggested_entry_price = Column(Numeric(15, 2))
+    account_value_used = Column(Numeric(15, 2))
     rpt_pct_used = Column(Float)
     trp_pct = Column(Float)
 
@@ -357,7 +358,7 @@ class ActionAlert(Base):
     trade_id = Column(Integer, ForeignKey("trades.id"))
     exit_qty = Column(Integer)
     exit_pct = Column(Float)
-    target_level = Column(Float)
+    target_level = Column(Numeric(15, 2))
     remaining_qty_after = Column(Integer)
 
     action_text = Column(Text)  # Human-readable instruction
@@ -380,7 +381,7 @@ class SimulationRun(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     run_type = Column(String, nullable=False)  # BACKTEST, PAPER
     name = Column(String)
-    starting_capital = Column(Float, nullable=False)
+    starting_capital = Column(Numeric(15, 2), nullable=False)
     rpt_pct = Column(Float, nullable=False)
     start_date = Column(Date)
     end_date = Column(Date)  # null for PAPER until stopped
@@ -389,8 +390,8 @@ class SimulationRun(Base):
     status = Column(String, default="PENDING")
 
     # Summary results
-    final_capital = Column(Float)
-    total_pnl = Column(Float)
+    final_capital = Column(Numeric(15, 2))
+    total_pnl = Column(Numeric(15, 2))
     total_return_pct = Column(Float)
     total_trades = Column(Integer, default=0)
     win_count = Column(Integer, default=0)
@@ -401,7 +402,7 @@ class SimulationRun(Base):
     arr = Column(Float)
     expectancy = Column(Float)
     max_drawdown_pct = Column(Float)
-    max_drawdown_amount = Column(Float)
+    max_drawdown_amount = Column(Numeric(15, 2))
 
     equity_curve = Column(Text)  # JSON text: [{date, equity}]
     last_processed_date = Column(Date)  # for PAPER
@@ -419,16 +420,16 @@ class SimulationTrade(Base):
     symbol = Column(String, nullable=False)
     signal_date = Column(Date)
     entry_date = Column(Date)
-    entry_price = Column(Float)
+    entry_price = Column(Numeric(15, 2))
     total_qty = Column(Integer)
     half_qty = Column(Integer)
     trp_pct = Column(Float)
-    sl_price = Column(Float)
-    rpt_amount = Column(Float)
-    target_2r = Column(Float)
-    target_ne = Column(Float)
-    target_ge = Column(Float)
-    target_ee = Column(Float)
+    sl_price = Column(Numeric(15, 2))
+    rpt_amount = Column(Numeric(15, 2))
+    target_2r = Column(Numeric(15, 2))
+    target_ne = Column(Numeric(15, 2))
+    target_ge = Column(Numeric(15, 2))
+    target_ee = Column(Numeric(15, 2))
 
     # Exit tracking — qty exited at each target level
     qty_exited_2r = Column(Integer, default=0)
@@ -441,10 +442,10 @@ class SimulationTrade(Base):
 
     status = Column(String, default="OPEN")  # OPEN, PARTIAL, CLOSED
     exit_date = Column(Date)
-    gross_pnl = Column(Float)
+    gross_pnl = Column(Numeric(15, 2))
     r_multiple = Column(Float)
     pnl_pct = Column(Float)
-    portfolio_value_at_entry = Column(Float)
+    portfolio_value_at_entry = Column(Numeric(15, 2))
     created_at = Column(String, server_default=func.now())
 
 
@@ -460,10 +461,10 @@ class RegimeLog(Base):
     regime = Column(String(20), nullable=False)  # TRENDING_BULL, RANGING_QUIET, HIGH_VOLATILITY, WEAKENING_BEAR
     nifty_adx = Column(Float)
     india_vix = Column(Float)
-    fii_net_crore = Column(Float)
+    fii_net_crore = Column(Numeric(15, 2))
     hurst_exponent = Column(Float)
-    nifty_close = Column(Float)
-    nifty_sma150 = Column(Float)
+    nifty_close = Column(Numeric(15, 2))
+    nifty_sma150 = Column(Numeric(15, 2))
     param_bank_version = Column(String(50))
     created_at = Column(DateTime, server_default=func.now())
 
@@ -512,15 +513,15 @@ class ShadowTrade(Base):
     symbol = Column(String(20), nullable=False)
     signal_type = Column(String(20), nullable=False)
     composite_score = Column(Float)
-    entry_price = Column(Float)
-    stop_price = Column(Float)
-    target_price = Column(Float)
+    entry_price = Column(Numeric(15, 2))
+    stop_price = Column(Numeric(15, 2))
+    target_price = Column(Numeric(15, 2))
     rr_ratio = Column(Float)
     regime = Column(String(20))
     was_approved = Column(Boolean, default=False)
-    paper_exit_price = Column(Float)
+    paper_exit_price = Column(Numeric(15, 2))
     paper_exit_date = Column(Date)
-    paper_pnl = Column(Float)
+    paper_pnl = Column(Numeric(15, 2))
     paper_r_multiple = Column(Float)
     created_at = Column(DateTime, server_default=func.now())
 

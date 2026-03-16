@@ -1,4 +1,5 @@
 from datetime import date
+from decimal import Decimal, ROUND_HALF_UP
 
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
@@ -65,14 +66,15 @@ def calc_pyramid(request: PyramidCalcRequest):
     """
     # Stub: basic pyramid calculation
     # In a real pyramid, you add to a winning position with reduced risk
+    TWO_PLACES = Decimal("0.01")
     add_qty = max(1, request.current_qty // 4)  # Add ~25% of current position
     add_value = add_qty * request.current_price
 
     return PyramidCalcResponse(
         recommended_add_qty=add_qty,
-        add_position_value=round(add_value, 2),
-        new_avg_price=round(request.current_price, 2),
+        add_position_value=add_value.quantize(TWO_PLACES, rounding=ROUND_HALF_UP),
+        new_avg_price=request.current_price.quantize(TWO_PLACES, rounding=ROUND_HALF_UP),
         new_total_qty=request.current_qty + add_qty,
-        new_sl_price=0,  # TODO: calculate proper trailing SL
+        new_sl_price=Decimal("0"),  # TODO: calculate proper trailing SL
         notes="Pyramid calculation is a stub — full implementation in Phase 2",
     )

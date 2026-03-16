@@ -1,16 +1,17 @@
 from datetime import date, datetime
+from decimal import Decimal
 from typing import Optional
 
 from pydantic import BaseModel, Field
 
 
 class PriceCheckRequest(BaseModel):
-    account_value: Optional[float] = Field(None, description="Override account value (default from latest market stance)")
+    account_value: Optional[Decimal] = Field(None, description="Override account value (default from latest market stance)")
     rpt_pct: Optional[float] = Field(None, description="Override RPT% (default from latest market stance)")
 
 
 class ActOnAlertRequest(BaseModel):
-    actual_price: Optional[float] = Field(None, description="Override actual execution price")
+    actual_price: Optional[Decimal] = Field(None, description="Override actual execution price")
     notes: Optional[str] = None
 
 
@@ -19,15 +20,15 @@ class ActionAlertResponse(BaseModel):
     alert_category: str  # BUY, SELL
     alert_type: str  # TRIGGER_BREAK, SL_HIT, 2R_HIT, NE_HIT, GE_HIT, EE_HIT, FINAL_EXIT
     symbol: str
-    current_price: Optional[float] = None
-    trigger_price: Optional[float] = None
+    current_price: Optional[Decimal] = None
+    trigger_price: Optional[Decimal] = None
 
     # BUY fields
     suggested_qty: Optional[int] = None
     suggested_half_qty: Optional[int] = None
-    suggested_sl_price: Optional[float] = None
-    suggested_entry_price: Optional[float] = None
-    account_value_used: Optional[float] = None
+    suggested_sl_price: Optional[Decimal] = None
+    suggested_entry_price: Optional[Decimal] = None
+    account_value_used: Optional[Decimal] = None
     rpt_pct_used: Optional[float] = None
     trp_pct: Optional[float] = None
 
@@ -35,7 +36,7 @@ class ActionAlertResponse(BaseModel):
     trade_id: Optional[int] = None
     exit_qty: Optional[int] = None
     exit_pct: Optional[float] = None
-    target_level: Optional[float] = None
+    target_level: Optional[Decimal] = None
     remaining_qty_after: Optional[int] = None
 
     action_text: Optional[str] = None

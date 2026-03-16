@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from pydantic_settings import BaseSettings
 
 
@@ -26,7 +28,7 @@ class Settings(BaseSettings):
     environment: str = "development"
 
     # Defaults
-    default_account_value: float = 1000000
+    default_account_value: Decimal = Decimal("1000000")
     default_rpt_pct: float = 0.50
     default_exchange: str = "NSE"
 

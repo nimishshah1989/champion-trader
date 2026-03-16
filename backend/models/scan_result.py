@@ -1,4 +1,5 @@
 import datetime
+from decimal import Decimal
 from typing import Optional
 
 from pydantic import BaseModel
@@ -14,12 +15,12 @@ class ScanResultResponse(BaseModel):
     scan_date: datetime.date
     symbol: str
     scan_type: str
-    close_price: Optional[float] = None
+    close_price: Optional[Decimal] = None
     volume: Optional[int] = None
     avg_volume_20d: Optional[float] = None
     volume_ratio: Optional[float] = None
-    trp: Optional[float] = None
-    avg_trp: Optional[float] = None
+    trp: Optional[Decimal] = None
+    avg_trp: Optional[Decimal] = None
     trp_ratio: Optional[float] = None
     candle_body_pct: Optional[float] = None
     close_position: Optional[float] = None
@@ -29,11 +30,11 @@ class ScanResultResponse(BaseModel):
     base_days: Optional[int] = None
     has_min_20_bar_base: Optional[bool] = None
     base_quality: Optional[str] = None
-    adt: Optional[float] = None
+    adt: Optional[Decimal] = None
     passes_liquidity_filter: Optional[bool] = None
     wuc_type: Optional[str] = None
     watchlist_bucket: Optional[str] = None
-    trigger_level: Optional[float] = None
+    trigger_level: Optional[Decimal] = None
     notes: Optional[str] = None
 
     model_config = {"from_attributes": True}

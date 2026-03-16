@@ -15,6 +15,7 @@ import json
 import logging
 import time
 from datetime import datetime
+from decimal import Decimal, ROUND_HALF_UP
 from zoneinfo import ZoneInfo
 
 import yfinance as yf
@@ -36,13 +37,13 @@ def is_entry_window() -> bool:
 logger = logging.getLogger(__name__)
 
 
-def fetch_current_prices(symbols: list[str]) -> dict[str, float]:
-    """Batch fetch current prices via yfinance. Returns {symbol: price}."""
+def fetch_current_prices(symbols: list[str]) -> dict[str, Decimal]:
+    """Batch fetch current prices via yfinance. Returns {symbol: Decimal price}."""
     if not symbols:
         return {}
 
     yf_symbols = [f"{s}.NS" for s in symbols]
-    prices: dict[str, float] = {}
+    prices: dict[str, Decimal] = {}
 
     try:
         tickers = yf.Tickers(" ".join(yf_symbols))
@@ -55,7 +56,7 @@ def fetch_current_prices(symbols: list[str]) -> dict[str, float]:
                 info = ticker.fast_info
                 price = getattr(info, "last_price", None)
                 if price and price > 0:
-                    prices[clean] = round(float(price), 2)
+                    prices[clean] = Decimal(str(round(float(price), 2)))
             except Exception as exc:
                 logger.warning(f"Failed to get price for {clean}: {exc}")
 
@@ -67,8 +68,8 @@ def fetch_current_prices(symbols: list[str]) -> dict[str, float]:
 
 def check_buy_signals(
     db: Session,
-    prices: dict[str, float],
-    account_value: float,
+    prices: dict[str, Decimal],
+    account_value: Decimal,
     rpt_pct: float,
 ) -> list[dict]:
     """
@@ -130,12 +131,12 @@ def check_buy_signals(
                 "source": "PRICE_CHECK",
                 "watchlist_id": stock.id,
                 "data": json.dumps({
-                    "rpt_amount": sizing["rpt_amount"],
-                    "position_value": sizing["position_value"],
-                    "target_2r": sizing["target_2r"],
-                    "target_ne": sizing["target_ne"],
-                    "target_ge": sizing["target_ge"],
-                    "target_ee": sizing["target_ee"],
+                    "rpt_amount": float(sizing["rpt_amount"]),
+                    "position_value": float(sizing["position_value"]),
+                    "target_2r": float(sizing["target_2r"]),
+                    "target_ne": float(sizing["target_ne"]),
+                    "target_ge": float(sizing["target_ge"]),
+                    "target_ee": float(sizing["target_ee"]),
                 }),
             })
 
@@ -144,7 +145,7 @@ def check_buy_signals(
 
 def check_sell_signals(
     db: Session,
-    prices: dict[str, float],
+    prices: dict[str, Decimal],
 ) -> list[dict]:
     """
     Check open/partial trades against SL and extension targets.
@@ -235,7 +236,7 @@ def check_sell_signals(
 
 def run_price_check(
     db: Session,
-    account_value: float | None = None,
+    account_value: Decimal | None = None,
     rpt_pct: float | None = None,
     check_entries: bool | None = None,
     check_exits: bool = True,
@@ -281,7 +282,7 @@ def run_price_check(
                 .first()
             )
             if account_value is None:
-                account_value = 500000.0  # Default fallback
+                account_value = Decimal("500000")  # Default fallback
             if rpt_pct is None:
                 rpt_pct = latest_stance.rpt_pct if latest_stance and latest_stance.rpt_pct else TRADING_RULES["default_rpt_pct"]
 

@@ -1,4 +1,5 @@
 from datetime import date, datetime
+from decimal import Decimal, ROUND_HALF_UP
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -24,7 +25,7 @@ router = APIRouter(prefix="/actions", tags=["Actions"])
 
 @router.post("/check-prices", response_model=PriceCheckResponse)
 def check_prices(
-    account_value: Optional[float] = Query(None),
+    account_value: Optional[Decimal] = Query(None),
     rpt_pct: Optional[float] = Query(None),
     db: Session = Depends(get_db),
 ):
@@ -84,11 +85,11 @@ def act_on_alert(
 
         from backend.services.position_calculator import calculate_position
 
-        entry_price = actual_price or alert.suggested_entry_price or 0
+        entry_price = actual_price or alert.suggested_entry_price or Decimal("0")
         trp_pct = alert.trp_pct or 3.0
 
         # Recalculate sizing and targets based on actual entry price
-        account_value = alert.account_value_used or 500000.0
+        account_value = alert.account_value_used or Decimal("500000")
         rpt_pct = alert.rpt_pct_used or 0.5
         sizing = calculate_position(account_value, rpt_pct, entry_price, trp_pct)
 
@@ -130,7 +131,8 @@ def act_on_alert(
         if not trade:
             raise HTTPException(status_code=400, detail="Referenced trade not found")
 
-        exit_price = actual_price or alert.current_price or 0
+        TWO_PLACES = Decimal("0.01")
+        exit_price = actual_price or alert.current_price or Decimal("0")
         exit_qty = alert.exit_qty or 0
         exit_reason = alert.alert_type.replace("_HIT", "").replace("FINAL_EXIT", "FINAL_50DMA")
 
@@ -141,23 +143,23 @@ def act_on_alert(
             trade.exit_method = "SL"
             trade.status = "CLOSED"
             if trade.avg_entry_price and trade.total_qty:
-                trade.gross_pnl = round((exit_price - trade.avg_entry_price) * trade.total_qty, 2)
-                trade.pnl_pct = round(((exit_price - trade.avg_entry_price) / trade.avg_entry_price) * 100, 2)
+                trade.gross_pnl = ((exit_price - trade.avg_entry_price) * trade.total_qty).quantize(TWO_PLACES, rounding=ROUND_HALF_UP)
+                trade.pnl_pct = round(float((exit_price - trade.avg_entry_price) / trade.avg_entry_price) * 100, 2)
                 if trade.trp_at_entry:
-                    trp_value = trade.avg_entry_price * (trade.trp_at_entry / 100)
+                    trp_value = trade.avg_entry_price * (Decimal(str(trade.trp_at_entry)) / Decimal("100"))
                     if trp_value > 0:
-                        trade.r_multiple = round((exit_price - trade.avg_entry_price) / trp_value, 2)
+                        trade.r_multiple = round(float((exit_price - trade.avg_entry_price) / trp_value), 2)
             trade.remaining_qty = 0
             trade.exit_notes = notes or f"SL hit — auto-closed from alert #{alert.id}"
         else:
             # Partial exit
             r_multiple = None
             if trade.avg_entry_price and trade.trp_at_entry:
-                trp_value = trade.avg_entry_price * (trade.trp_at_entry / 100)
+                trp_value = trade.avg_entry_price * (Decimal(str(trade.trp_at_entry)) / Decimal("100"))
                 if trp_value > 0:
-                    r_multiple = round((exit_price - trade.avg_entry_price) / trp_value, 2)
+                    r_multiple = round(float((exit_price - trade.avg_entry_price) / trp_value), 2)
 
-            pnl = round((exit_price - (trade.avg_entry_price or 0)) * exit_qty, 2)
+            pnl = ((exit_price - (trade.avg_entry_price or Decimal("0"))) * exit_qty).quantize(TWO_PLACES, rounding=ROUND_HALF_UP)
 
             partial = PartialExit(
                 trade_id=trade.id,

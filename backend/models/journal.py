@@ -1,4 +1,5 @@
 from datetime import date
+from decimal import Decimal
 from typing import Optional
 
 from pydantic import BaseModel
@@ -7,8 +8,8 @@ from pydantic import BaseModel
 class JournalCreate(BaseModel):
     week_start: date
     week_end: date
-    account_value_start: Optional[float] = None
-    account_value_end: Optional[float] = None
+    account_value_start: Optional[Decimal] = None
+    account_value_end: Optional[Decimal] = None
 
     # Grave mistakes
     grave_casual_trade: bool = False
@@ -57,7 +58,7 @@ class JournalCreate(BaseModel):
 class JournalUpdate(BaseModel):
     """All fields optional for partial updates."""
 
-    account_value_end: Optional[float] = None
+    account_value_end: Optional[Decimal] = None
     grave_casual_trade: Optional[bool] = None
     grave_sl_violation: Optional[bool] = None
     grave_risk_exceeded: Optional[bool] = None
@@ -95,8 +96,8 @@ class JournalResponse(BaseModel):
     id: int
     week_start: date
     week_end: date
-    account_value_start: Optional[float] = None
-    account_value_end: Optional[float] = None
+    account_value_start: Optional[Decimal] = None
+    account_value_end: Optional[Decimal] = None
     weekly_return_pct: Optional[float] = None
     trades_taken: Optional[int] = None
     win_count: Optional[int] = None

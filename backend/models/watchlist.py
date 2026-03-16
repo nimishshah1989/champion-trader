@@ -1,4 +1,5 @@
 from datetime import date
+from decimal import Decimal
 from typing import Optional
 
 from pydantic import BaseModel
@@ -10,8 +11,8 @@ class WatchlistAdd(BaseModel):
     stage: Optional[str] = None
     base_days: Optional[int] = None
     base_quality: Optional[str] = None
-    trigger_level: Optional[float] = None
-    planned_entry_price: Optional[float] = None
+    trigger_level: Optional[Decimal] = None
+    planned_entry_price: Optional[Decimal] = None
     planned_sl_pct: Optional[float] = None  # TRP%
     wuc_types: Optional[str] = None  # comma-separated
     notes: Optional[str] = None
@@ -19,8 +20,8 @@ class WatchlistAdd(BaseModel):
 
 class WatchlistUpdate(BaseModel):
     bucket: Optional[str] = None
-    trigger_level: Optional[float] = None
-    planned_entry_price: Optional[float] = None
+    trigger_level: Optional[Decimal] = None
+    planned_entry_price: Optional[Decimal] = None
     planned_sl_pct: Optional[float] = None
     planned_position_size: Optional[int] = None
     planned_half_qty: Optional[int] = None
@@ -38,8 +39,8 @@ class WatchlistResponse(BaseModel):
     base_days: Optional[int] = None
     base_quality: Optional[str] = None
     wuc_types: Optional[str] = None
-    trigger_level: Optional[float] = None
-    planned_entry_price: Optional[float] = None
+    trigger_level: Optional[Decimal] = None
+    planned_entry_price: Optional[Decimal] = None
     planned_sl_pct: Optional[float] = None
     planned_position_size: Optional[int] = None
     planned_half_qty: Optional[int] = None
@@ -53,6 +54,6 @@ class AlertResponse(BaseModel):
     """READY stocks with trigger levels for alert setting."""
 
     symbol: str
-    trigger_level: float
+    trigger_level: Decimal
     planned_sl_pct: Optional[float] = None
     notes: Optional[str] = None

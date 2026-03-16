@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import logging
 from datetime import date
+from decimal import Decimal, ROUND_HALF_UP
 from typing import Dict, List, Optional
 
 import pandas as pd
@@ -58,12 +59,12 @@ def _build_common_metrics(symbol: str, df: pd.DataFrame, scan_date: str) -> dict
     return {
         "scan_date": scan_date_obj,
         "symbol": symbol,
-        "close_price": round(float(df["Close"].iloc[-1]), 2),
+        "close_price": Decimal(str(round(float(df["Close"].iloc[-1]), 2))),
         "volume": int(df["Volume"].iloc[-1]),
         "avg_volume_20d": round(float(avg_vol.iloc[-1]), 0) if pd.notna(avg_vol.iloc[-1]) else None,
         "volume_ratio": round(float(vol_ratio.iloc[-1]), 2) if pd.notna(vol_ratio.iloc[-1]) else None,
-        "trp": round(float(trp.iloc[-1]), 2) if pd.notna(trp.iloc[-1]) else None,
-        "avg_trp": round(float(avg_trp.iloc[-1]), 2) if pd.notna(avg_trp.iloc[-1]) else None,
+        "trp": Decimal(str(round(float(trp.iloc[-1]), 2))) if pd.notna(trp.iloc[-1]) else None,
+        "avg_trp": Decimal(str(round(float(avg_trp.iloc[-1]), 2))) if pd.notna(avg_trp.iloc[-1]) else None,
         "trp_ratio": round(float(trp_ratio.iloc[-1]), 2) if pd.notna(trp_ratio.iloc[-1]) else None,
         "candle_body_pct": round(float(body_pct.iloc[-1]), 2) if pd.notna(body_pct.iloc[-1]) else None,
         "close_position": round(float(close_pos.iloc[-1]), 2) if pd.notna(close_pos.iloc[-1]) else None,
@@ -73,7 +74,7 @@ def _build_common_metrics(symbol: str, df: pd.DataFrame, scan_date: str) -> dict
         "base_days": base_days,
         "has_min_20_bar_base": base_days >= PARAMETERS["min_base_days"],
         "base_quality": base_quality,
-        "adt": round(adt, 0),
+        "adt": Decimal(str(round(adt, 0))),
         "passes_liquidity_filter": adt >= MIN_ADT,
     }
 
@@ -126,7 +127,7 @@ def _scan_ppc(all_data: dict[str, pd.DataFrame], scan_date: str) -> list[dict]:
             ):
                 metrics["scan_type"] = "PPC"
                 metrics["wuc_type"] = "MBB"  # Most common WUC for PPC
-                metrics["trigger_level"] = round(float(df["High"].iloc[-1]), 2)
+                metrics["trigger_level"] = Decimal(str(round(float(df["High"].iloc[-1]), 2)))
                 metrics["watchlist_bucket"] = _determine_watchlist_bucket(
                     metrics["stage"], metrics["base_days"], metrics["base_quality"]
                 )
@@ -180,7 +181,7 @@ def _scan_npc(all_data: dict[str, pd.DataFrame], scan_date: str) -> list[dict]:
             ):
                 metrics["scan_type"] = "NPC"
                 metrics["wuc_type"] = None
-                metrics["trigger_level"] = round(float(df["Low"].iloc[-1]), 2)
+                metrics["trigger_level"] = Decimal(str(round(float(df["Low"].iloc[-1]), 2)))
                 metrics["watchlist_bucket"] = _determine_watchlist_bucket(
                     metrics["stage"], metrics["base_days"], metrics["base_quality"]
                 )
@@ -226,7 +227,7 @@ def _scan_contraction(all_data: dict[str, pd.DataFrame], scan_date: str) -> list
                 metrics["scan_type"] = "CONTRACTION"
                 metrics["wuc_type"] = "BA"  # Breakout Anticipated
                 # Trigger = highest high of the last 5 bars (breakout level)
-                metrics["trigger_level"] = round(float(df["High"].iloc[-5:].max()), 2)
+                metrics["trigger_level"] = Decimal(str(round(float(df["High"].iloc[-5:].max()), 2)))
                 metrics["watchlist_bucket"] = _determine_watchlist_bucket(
                     metrics["stage"], metrics["base_days"], metrics["base_quality"]
                 )
