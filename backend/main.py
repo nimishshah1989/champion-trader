@@ -40,14 +40,17 @@ def _setup_scheduler():
         from apscheduler.schedulers.asyncio import AsyncIOScheduler
         from apscheduler.triggers.cron import CronTrigger
 
-        scheduler = AsyncIOScheduler(timezone="Asia/Kolkata")
+        import pytz
 
-        # Risk Guardian — every 10 minutes during market hours
+        IST = pytz.timezone("Asia/Kolkata")
+        scheduler = AsyncIOScheduler(timezone=IST)
+
+        # Risk Guardian — every 10 minutes during market hours (9:15–15:30 IST)
         from backend.intelligence.risk_guardian import monitor_positions
 
         scheduler.add_job(
             monitor_positions,
-            CronTrigger(day_of_week="mon-fri", hour="9-15", minute="*/10"),
+            CronTrigger(day_of_week="mon-fri", hour="9-15", minute="*/10", timezone=IST),
             id="risk_guardian",
             name="Risk Guardian: Position Monitor",
         )
@@ -57,7 +60,7 @@ def _setup_scheduler():
 
         scheduler.add_job(
             process_closed_trades,
-            CronTrigger(day_of_week="mon-fri", hour="9-16", minute="0,30"),
+            CronTrigger(day_of_week="mon-fri", hour="9-16", minute="0,30", timezone=IST),
             id="learning_agent",
             name="Learning Agent: Post-Mortem Generator",
         )
@@ -67,7 +70,7 @@ def _setup_scheduler():
 
         scheduler.add_job(
             classify_regime,
-            CronTrigger(day_of_week="mon-fri", hour=16, minute=45),
+            CronTrigger(day_of_week="mon-fri", hour=16, minute=45, timezone=IST),
             id="regime_classifier",
             name="Regime Classifier: Daily Classification",
         )
@@ -77,7 +80,7 @@ def _setup_scheduler():
 
         scheduler.add_job(
             generate_brief,
-            CronTrigger(day_of_week="mon-fri", hour=17, minute=0),
+            CronTrigger(day_of_week="mon-fri", hour=17, minute=0, timezone=IST),
             id="cio_agent",
             name="CIO Agent: Daily Brief",
         )
@@ -87,7 +90,7 @@ def _setup_scheduler():
 
         scheduler.add_job(
             ingest_daily,
-            CronTrigger(day_of_week="mon-fri", hour=17, minute=30),
+            CronTrigger(day_of_week="mon-fri", hour=17, minute=30, timezone=IST),
             id="corpus_updater",
             name="Corpus Updater: Market Data Ingestion",
         )
@@ -102,6 +105,7 @@ def _setup_scheduler():
                     day_of_week="mon-fri",
                     hour=settings.autooptimize_start_hour,
                     minute=0,
+                    timezone=IST,
                 ),
                 id="autooptimize",
                 name="AutoOptimize: Overnight Research Loop",
@@ -112,7 +116,7 @@ def _setup_scheduler():
 
         scheduler.add_job(
             update_shadow_exits,
-            CronTrigger(day_of_week="mon-fri", hour="9-16", minute="15,45"),
+            CronTrigger(day_of_week="mon-fri", hour="9-16", minute="15,45", timezone=IST),
             id="shadow_portfolio",
             name="Shadow Portfolio: Exit Tracker",
         )
@@ -160,7 +164,7 @@ def _setup_scheduler():
 
         scheduler.add_job(
             _daily_scanner_job,
-            CronTrigger(day_of_week="mon-fri", hour=16, minute=0),
+            CronTrigger(day_of_week="mon-fri", hour=16, minute=0, timezone=IST),
             id="daily_scanner",
             name="Daily Scanner: Post-Market PPC + NPC + Contraction (16:00 IST)",
         )
@@ -194,10 +198,10 @@ def _setup_scheduler():
             finally:
                 db.close()
 
-        # Exit monitor: every 2 min throughout market hours (9:00–15:58 IST)
+        # Exit monitor: every 2 min throughout market hours (9:00–15:30 IST)
         scheduler.add_job(
             _auto_check_exits,
-            CronTrigger(day_of_week="mon-fri", hour="9-15", minute="*/2"),
+            CronTrigger(day_of_week="mon-fri", hour="9-15", minute="*/2", timezone=IST),
             id="exit_monitor",
             name="Live Monitor: Exit/SL Checker (every 2 min)",
         )
@@ -205,7 +209,7 @@ def _setup_scheduler():
         # Entry monitor: every 1 min during the last 30-min entry window (15:00–15:30 IST)
         scheduler.add_job(
             _auto_check_entries,
-            CronTrigger(day_of_week="mon-fri", hour="15", minute="0-30"),
+            CronTrigger(day_of_week="mon-fri", hour="15", minute="0-30", timezone=IST),
             id="entry_monitor",
             name="Live Monitor: Entry Window Checker (every 1 min, 15:00–15:30)",
         )
@@ -287,12 +291,19 @@ def root():
 
 @app.get("/health")
 def health_check():
+    import pytz
+
+    ist = pytz.timezone("Asia/Kolkata")
     jobs = []
     if scheduler and scheduler.running:
-        jobs = [
-            {"id": j.id, "name": j.name, "next_run": str(j.next_run_time)}
-            for j in scheduler.get_jobs()
-        ]
+        for j in scheduler.get_jobs():
+            nxt = j.next_run_time
+            if nxt:
+                nxt_ist = nxt.astimezone(ist)
+                next_str = nxt_ist.strftime("%Y-%m-%d %I:%M %p IST")
+            else:
+                next_str = "paused"
+            jobs.append({"id": j.id, "name": j.name, "next_run": next_str})
     return {
         "status": "ok",
         "scheduler": "running" if scheduler and scheduler.running else "stopped",
