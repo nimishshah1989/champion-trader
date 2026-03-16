@@ -1,11 +1,44 @@
 import logging
 from contextlib import asynccontextmanager
+from decimal import Decimal
+from typing import Any
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from backend.config import settings
 from backend.database import init_db
+
+
+# ── Custom JSON encoder: Decimal → float globally ──────────────────
+# Pydantic v2 serialises Decimal as strings by default. The frontend
+# expects plain numbers (calls .toFixed() etc.), so we override the
+# default JSONResponse to convert Decimals to floats on the way out.
+
+import json as _json
+
+
+class _DecimalEncoder(_json.JSONEncoder):
+    """JSON encoder that converts Decimal values to float."""
+
+    def default(self, o: Any) -> Any:
+        if isinstance(o, Decimal):
+            return float(o)
+        return super().default(o)
+
+
+class DecimalJSONResponse(JSONResponse):
+    """JSONResponse subclass that handles Decimal serialisation."""
+
+    def render(self, content: Any) -> bytes:
+        return _json.dumps(
+            content,
+            ensure_ascii=False,
+            allow_nan=False,
+            cls=_DecimalEncoder,
+            separators=(",", ":"),
+        ).encode("utf-8")
 
 logging.basicConfig(
     level=logging.INFO,
@@ -252,6 +285,7 @@ app = FastAPI(
     description="Swing trading intelligence platform based on Afzal Lokhandwala's Champion Trader methodology",
     version="2.0.0",
     lifespan=lifespan,
+    default_response_class=DecimalJSONResponse,
 )
 
 # CORS — private trading tool, allow all origins
