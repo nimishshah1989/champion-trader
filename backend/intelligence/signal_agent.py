@@ -99,7 +99,7 @@ def compute_setup_score(scan_result: dict, params: dict | None = None) -> float:
     score += stage_scores.get(stage, 0)
 
     # Liquidity (0-15 points)
-    adt = scan_result.get("adt") or 0
+    adt = float(scan_result.get("adt") or 0)
     adt_crore = adt / 1e7
     min_adt = params.get("min_adt_crore", 1.0)
     adt_ceiling = max(min_adt * 10, 10.0)
@@ -197,7 +197,7 @@ def _passes_minimum_thresholds(scan_dict: dict, params: dict) -> bool:
     vol_ratio = scan_dict.get("volume_ratio") or 0
     close_pos = scan_dict.get("close_position") or 0
     base_days = scan_dict.get("base_days") or 0
-    adt = scan_dict.get("adt") or 0
+    adt = float(scan_dict.get("adt") or 0)
     adt_crore = adt / 1e7
 
     # Liquidity and base days — universal

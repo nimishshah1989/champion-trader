@@ -92,12 +92,12 @@ async def process_closed_trades() -> None:
 
 async def _generate_post_mortem(db, trade: Trade) -> None:
     """Generate a full post-mortem for a closed trade."""
-    entry_price = trade.avg_entry_price or 0
-    exit_price = trade.exit_price or 0
-    trp_pct = trade.trp_at_entry or 0
+    entry_price = float(trade.avg_entry_price or 0)
+    exit_price = float(trade.exit_price or 0)
+    trp_pct = float(trade.trp_at_entry or 0)
     trp_value = entry_price * (trp_pct / 100) if trp_pct else 0
-    r_multiple = trade.r_multiple or 0
-    pnl = trade.gross_pnl or 0
+    r_multiple = float(trade.r_multiple or 0)
+    pnl = float(trade.gross_pnl or 0)
 
     # Regime at entry date
     regime_at_entry = _lookup_regime_at_entry(db, trade.entry_date)

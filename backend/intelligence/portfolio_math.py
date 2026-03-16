@@ -195,13 +195,16 @@ def calculate_open_risk(
             "per_position": [{symbol, risk_amount, risk_pct}]
         }
     """
+    # Ensure account_value is float (may be Decimal from config)
+    account_value = float(account_value)
+
     per_position = []
     total_risk = 0.0
 
     for pos in positions:
         qty = pos.get("remaining_qty", 0) or 0
-        entry = pos.get("avg_entry_price", 0) or 0
-        sl = pos.get("stop_loss", 0) or 0
+        entry = float(pos.get("avg_entry_price", 0) or 0)
+        sl = float(pos.get("stop_loss", 0) or 0)
         symbol = pos.get("symbol", "UNKNOWN")
 
         if qty > 0 and entry > 0 and sl > 0:

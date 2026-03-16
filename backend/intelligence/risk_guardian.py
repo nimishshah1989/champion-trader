@@ -113,11 +113,11 @@ async def monitor_positions() -> None:
 
 async def _check_single_position(db, trade: Trade, live_price: float) -> None:
     """Check a single position for SL breach and trailing stop updates."""
-    effective_sl = trade.sl_price or 0
-    entry_price = trade.avg_entry_price or 0
+    effective_sl = float(trade.sl_price or 0)
+    entry_price = float(trade.avg_entry_price or 0)
 
     # TRP value in absolute rupees: entry_price * (trp_at_entry / 100)
-    trp_pct = trade.trp_at_entry or 0
+    trp_pct = float(trade.trp_at_entry or 0)
     trp_value = entry_price * (trp_pct / 100) if trp_pct else 0
 
     if not trp_value or not entry_price or not effective_sl:
@@ -201,8 +201,8 @@ async def _execute_sl_exit(db, trade: Trade, exit_price: float) -> None:
     if remaining <= 0:
         return
 
-    entry_price = trade.avg_entry_price or 0
-    trp_pct = trade.trp_at_entry or 0
+    entry_price = float(trade.avg_entry_price or 0)
+    trp_pct = float(trade.trp_at_entry or 0)
     trp_value = entry_price * (trp_pct / 100) if trp_pct else 1
 
     try:
@@ -259,7 +259,7 @@ async def _portfolio_level_checks(
     """Run portfolio-level risk checks every 30 minutes."""
     global _frozen
 
-    account_value = settings.default_account_value
+    account_value = float(settings.default_account_value)  # Decimal → float for arithmetic
 
     # Build a sector lookup from the stocks table
     symbols = [t.symbol for t in trades]

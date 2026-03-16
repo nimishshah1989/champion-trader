@@ -104,7 +104,7 @@ function SummaryCards({ data }: { data: LearningProgress }) {
   const trendInfo = TREND_LABELS[v.trend] ?? TREND_LABELS.stable;
 
   return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+    <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
       {/* Regime */}
       <div className={`rounded-xl border p-5 ${regimeStyle.bg} ${regimeStyle.border}`}>
         <p className="text-xs text-slate-400 font-medium uppercase tracking-wide mb-1">
@@ -224,9 +224,9 @@ function ParameterGrid({ data }: { data: LearningProgress }) {
               return (
                 <div
                   key={key}
-                  className="px-5 py-3 flex items-center gap-4 hover:bg-slate-50/50"
+                  className="px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 hover:bg-slate-50/50"
                 >
-                  <div className="w-48 flex-shrink-0">
+                  <div className="sm:w-40 md:w-48 flex-shrink-0">
                     <p className="text-xs font-semibold text-slate-700">
                       {PARAM_LABELS[key] ?? key.replace(/_/g, " ")}
                     </p>
@@ -238,19 +238,19 @@ function ParameterGrid({ data }: { data: LearningProgress }) {
                   </div>
 
                   {/* Value + bar */}
-                  <div className="flex-1 max-w-xs">
+                  <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between mb-1">
-                      <span className="font-mono text-xs text-slate-400">
+                      <span className="font-mono text-[10px] sm:text-xs text-slate-400">
                         {safeFixed(p.bound_low, 2)}
                       </span>
                       <span
-                        className={`font-mono text-sm font-bold ${
+                        className={`font-mono text-xs sm:text-sm font-bold ${
                           p.regime_adjusted ? "text-amber-600" : "text-teal-600"
                         }`}
                       >
                         {safeFixed(p.effective_value, 3)}
                       </span>
-                      <span className="font-mono text-xs text-slate-400">
+                      <span className="font-mono text-[10px] sm:text-xs text-slate-400">
                         {safeFixed(p.bound_high, 2)}
                       </span>
                     </div>
@@ -282,7 +282,7 @@ function ParameterGrid({ data }: { data: LearningProgress }) {
                   </div>
 
                   {/* Experiment stats */}
-                  <div className="w-28 flex-shrink-0 text-right">
+                  <div className="sm:w-28 flex-shrink-0 sm:text-right">
                     <span className="text-xs text-slate-500">
                       {p.experiments_run} exp
                     </span>
@@ -415,25 +415,20 @@ function FeedbackLoopDiagram() {
       <h3 className="text-xs font-semibold text-slate-600 uppercase tracking-wider mb-4">
         How the Learning Loop Works
       </h3>
-      <div className="flex flex-wrap items-center gap-2 justify-center">
+      <div className="grid grid-cols-3 sm:grid-cols-6 gap-3 justify-items-center">
         {steps.map((step, idx) => (
-          <div key={idx} className="flex items-center gap-2">
-            <div className="flex flex-col items-center">
-              <div className="w-10 h-10 rounded-full bg-teal-50 border-2 border-teal-200 flex items-center justify-center">
-                <span className="text-sm font-bold text-teal-600">
-                  {step.icon}
-                </span>
-              </div>
-              <p className="text-[10px] font-semibold text-slate-700 mt-1 text-center w-20">
-                {step.label}
-              </p>
-              <p className="text-[9px] text-slate-400 text-center w-24">
-                {step.desc}
-              </p>
+          <div key={idx} className="flex flex-col items-center">
+            <div className="w-10 h-10 rounded-full bg-teal-50 border-2 border-teal-200 flex items-center justify-center">
+              <span className="text-sm font-bold text-teal-600">
+                {step.icon}
+              </span>
             </div>
-            {idx < steps.length - 1 && (
-              <span className="text-slate-300 text-lg mb-6">&rarr;</span>
-            )}
+            <p className="text-[10px] font-semibold text-slate-700 mt-1 text-center">
+              {step.label}
+            </p>
+            <p className="text-[9px] text-slate-400 text-center">
+              {step.desc}
+            </p>
           </div>
         ))}
         {/* Loop arrow back */}
@@ -552,7 +547,7 @@ export default function LearningDashboardPage() {
           </ErrorBoundary>
 
           {/* Two-column: Parameters + Timeline */}
-          <div className="grid gap-6 lg:grid-cols-5">
+          <div className="grid gap-6 grid-cols-1 lg:grid-cols-5">
             <div className="lg:col-span-3">
               <ErrorBoundary>
                 <ParameterGrid data={data} />

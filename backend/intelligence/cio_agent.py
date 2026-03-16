@@ -129,7 +129,7 @@ async def generate_brief(account_value: float = None) -> dict:
     global _latest_brief
 
     if account_value is None:
-        account_value = settings.default_account_value
+        account_value = float(settings.default_account_value)  # Decimal → float
 
     logger.info("Generating CIO Daily Brief...")
     today = datetime.now().strftime("%Y-%m-%d")
