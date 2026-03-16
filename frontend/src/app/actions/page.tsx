@@ -99,10 +99,17 @@ function SpinnerIcon() {
 // ---------------------------------------------------------------------------
 
 function LiveMonitorBadge() {
-  const [status, setStatus] = useState<MonitorStatus>(getMonitorStatus);
+  // Defer initial status to useEffect to avoid SSR/client hydration mismatch
+  // (getMonitorStatus uses new Date() which differs between server and client)
+  const [status, setStatus] = useState<MonitorStatus>({
+    state: "market_closed",
+    label: "Loading...",
+    color: "text-slate-500 bg-slate-50 border-slate-200",
+  });
 
-  // Re-evaluate every 30 s so badge updates as market opens/closes
+  // Set real status on mount + re-evaluate every 30 s
   useEffect(() => {
+    setStatus(getMonitorStatus());
     const id = setInterval(() => setStatus(getMonitorStatus()), 30_000);
     return () => clearInterval(id);
   }, []);
