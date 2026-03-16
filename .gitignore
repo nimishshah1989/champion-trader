@@ -44,6 +44,11 @@ coverage/
 .coverage
 htmlcov/
 
+# QA Agent
+QA_REPORT.md
+qa_screenshots/
+qa_config.yaml
+
 # Build
 dist/
 build/

@@ -8,29 +8,47 @@ historical context from RAG.
 Called by CIO Agent to get top N setups for the Daily Brief.
 """
 
+from __future__ import annotations
+
 import logging
 from datetime import datetime
 from typing import Optional
 
 from backend.config import settings
 from backend.database import SessionLocal, ScanResult, Trade
-from backend.intelligence.strategy import PARAMETERS
 from backend.services.position_calculator import calculate_position
 from backend.services.trading_rules import TRADING_RULES
 
 logger = logging.getLogger(__name__)
 
 
-def compute_setup_score(scan_result: dict) -> float:
+def _get_effective_parameters() -> dict:
+    """
+    Get the effective parameters: base PARAMETERS merged with regime overrides.
+    This is the single source of truth for all signal thresholds.
+    """
+    from backend.intelligence.parameter_banks import get_active_parameters
+    from backend.intelligence.regime_classifier import get_latest_regime
+
+    regime_info = get_latest_regime()
+    regime = regime_info.get("regime", "RANGING_QUIET")
+    return get_active_parameters(regime)
+
+
+def compute_setup_score(scan_result: dict, params: dict | None = None) -> float:
     """
     Compute composite quality score (0-100) for a scan result.
 
+    Uses live PARAMETERS (merged with regime overrides) for all thresholds.
     Factors:
       - Signal strength (TRP ratio, volume ratio)
       - Base quality (base days, base quality grade)
       - Stage alignment (S2 > S1B)
       - Liquidity (ADT)
     """
+    if params is None:
+        params = _get_effective_parameters()
+
     score = 0.0
 
     # Signal strength (0-40 points)
@@ -38,18 +56,26 @@ def compute_setup_score(scan_result: dict) -> float:
     vol_ratio = scan_result.get("volume_ratio") or 0
     close_pos = scan_result.get("close_position") or 0
 
-    # TRP ratio: higher is better, max contribution at 3.0+
-    trp_score = min(trp_ratio / 3.0, 1.0) * 15
+    # Use PARAMETERS for normalization — higher threshold = stricter scoring
+    ppc_trp_min = params.get("ppc_trp_ratio_min", 1.5)
+    ppc_vol_min = params.get("ppc_volume_ratio_min", 1.5)
+    ppc_close_min = params.get("ppc_close_position_min", 0.60)
+    npc_close_max = params.get("npc_close_position_max", 0.40)
 
-    # Volume ratio: higher is better, max at 3.0+
-    vol_score = min(vol_ratio / 3.0, 1.0) * 15
+    # TRP ratio: normalize against 2x the threshold (max contribution at 2x min)
+    trp_ceiling = ppc_trp_min * 2
+    trp_score = min(trp_ratio / trp_ceiling, 1.0) * 15
+
+    # Volume ratio: normalize against 2x the threshold
+    vol_ceiling = ppc_vol_min * 2
+    vol_score = min(vol_ratio / vol_ceiling, 1.0) * 15
 
     # Close position: for PPC, higher is better; for NPC, lower is better
     scan_type = scan_result.get("scan_type", "PPC")
     if scan_type == "PPC":
-        close_score = min(close_pos / 0.90, 1.0) * 10
+        close_score = min(close_pos / max(ppc_close_min + 0.10, 0.70), 1.0) * 10
     elif scan_type == "NPC":
-        close_score = min((1 - close_pos) / 0.80, 1.0) * 10
+        close_score = min((1 - close_pos) / max(1 - npc_close_max + 0.10, 0.70), 1.0) * 10
     else:
         close_score = 5  # Neutral for contraction
 
@@ -58,8 +84,10 @@ def compute_setup_score(scan_result: dict) -> float:
     # Base quality (0-25 points)
     base_days = scan_result.get("base_days") or 0
     base_quality = scan_result.get("base_quality", "")
+    min_base = params.get("min_base_days", 20)
 
-    base_days_score = min(base_days / 40, 1.0) * 15
+    # Normalize base days against 2x minimum
+    base_days_score = min(base_days / (min_base * 2), 1.0) * 15
     quality_map = {"SMOOTH": 10, "MIXED": 6, "CHOPPY": 2}
     base_qual_score = quality_map.get(base_quality, 0)
 
@@ -73,7 +101,9 @@ def compute_setup_score(scan_result: dict) -> float:
     # Liquidity (0-15 points)
     adt = scan_result.get("adt") or 0
     adt_crore = adt / 1e7
-    adt_score = min(adt_crore / 10.0, 1.0) * 15
+    min_adt = params.get("min_adt_crore", 1.0)
+    adt_ceiling = max(min_adt * 10, 10.0)
+    adt_score = min(adt_crore / adt_ceiling, 1.0) * 15
     score += adt_score
 
     return round(min(score, 100), 1)
@@ -157,6 +187,43 @@ def generate_setup_card(scan_result: dict, account_value: float, rpt_pct: float 
     }
 
 
+def _passes_minimum_thresholds(scan_dict: dict, params: dict) -> bool:
+    """
+    Check if a scan result meets the minimum thresholds from PARAMETERS.
+    This is where the learning loop closes: optimized thresholds filter signals.
+    """
+    scan_type = scan_dict.get("scan_type", "PPC")
+    trp_ratio = scan_dict.get("trp_ratio") or 0
+    vol_ratio = scan_dict.get("volume_ratio") or 0
+    close_pos = scan_dict.get("close_position") or 0
+    base_days = scan_dict.get("base_days") or 0
+    adt = scan_dict.get("adt") or 0
+    adt_crore = adt / 1e7
+
+    # Liquidity and base days — universal
+    if adt_crore < params.get("min_adt_crore", 1.0):
+        return False
+    if base_days < params.get("min_base_days", 20):
+        return False
+
+    if scan_type == "PPC":
+        if trp_ratio < params.get("ppc_trp_ratio_min", 1.5):
+            return False
+        if close_pos < params.get("ppc_close_position_min", 0.60):
+            return False
+        if vol_ratio < params.get("ppc_volume_ratio_min", 1.5):
+            return False
+    elif scan_type == "NPC":
+        if trp_ratio < params.get("npc_trp_ratio_min", 1.5):
+            return False
+        if close_pos > params.get("npc_close_position_max", 0.40):
+            return False
+        if vol_ratio < params.get("npc_volume_ratio_min", 1.5):
+            return False
+
+    return True
+
+
 async def get_top_setups(
     top_n: int = 5,
     account_value: float = 500000,
@@ -166,9 +233,10 @@ async def get_top_setups(
     """
     Get top N ranked setup cards from the latest scan results.
 
-    Queries the scan_results table for the most recent scan date,
-    scores each result, generates setup cards, and returns top N.
+    Uses regime-aware PARAMETERS for both filtering and scoring.
+    This is the closed loop: AutoOptimize → strategy.py → here.
     """
+    params = _get_effective_parameters()
     db = SessionLocal()
     try:
         # Get latest scan date
@@ -188,7 +256,7 @@ async def get_top_setups(
         if not results:
             return []
 
-        # Convert to dicts and score
+        # Convert to dicts, filter by learned thresholds, then score
         setup_cards = []
         for r in results:
             scan_dict = {
@@ -207,11 +275,20 @@ async def get_top_setups(
                 "adt": getattr(r, "avg_daily_turnover", 0) or 0,
             }
 
+            # Filter against learned/regime-adjusted thresholds
+            if not _passes_minimum_thresholds(scan_dict, params):
+                continue
+
             card = generate_setup_card(scan_dict, account_value, rpt_pct)
             setup_cards.append(card)
 
         # Sort by composite score descending
         setup_cards.sort(key=lambda x: x["composite_score"], reverse=True)
+
+        logger.info(
+            f"Top setups: {len(setup_cards)} passed filters "
+            f"(from {len(results)} scans, params version: regime-adjusted)"
+        )
 
         return setup_cards[:top_n]
 

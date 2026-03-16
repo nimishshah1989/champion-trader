@@ -60,6 +60,49 @@ def create_trade(trade: TradeCreate, db: Session = Depends(get_db)):
     return db_trade
 
 
+@router.get("/stats", response_model=TradeStats)
+def get_trade_stats(db: Session = Depends(get_db)):
+    """Aggregate trade statistics: win rate, ARR, total P&L."""
+    all_trades = db.query(Trade).all()
+    closed_trades = [t for t in all_trades if t.status == "CLOSED"]
+
+    wins = [t for t in closed_trades if t.gross_pnl and t.gross_pnl > 0]
+    losses = [t for t in closed_trades if t.gross_pnl and t.gross_pnl <= 0]
+
+    win_rate = None
+    if closed_trades:
+        win_rate = round(len(wins) / len(closed_trades) * 100, 2)
+
+    avg_win_r = None
+    avg_loss_r = None
+    if wins:
+        win_rs = [t.r_multiple for t in wins if t.r_multiple is not None]
+        if win_rs:
+            avg_win_r = round(sum(win_rs) / len(win_rs), 2)
+    if losses:
+        loss_rs = [abs(t.r_multiple) for t in losses if t.r_multiple is not None]
+        if loss_rs:
+            avg_loss_r = round(sum(loss_rs) / len(loss_rs), 2)
+
+    arr = None
+    if avg_win_r and avg_loss_r and avg_loss_r > 0:
+        arr = round(avg_win_r / avg_loss_r, 2)
+
+    total_pnl = sum(t.gross_pnl for t in closed_trades if t.gross_pnl) or 0
+
+    return TradeStats(
+        total_trades=len(all_trades),
+        open_trades=len([t for t in all_trades if t.status in ("OPEN", "PARTIAL")]),
+        closed_trades=len(closed_trades),
+        win_count=len(wins),
+        loss_count=len(losses),
+        win_rate=win_rate,
+        avg_r_multiple=avg_win_r,
+        arr=arr,
+        total_pnl=round(total_pnl, 2),
+    )
+
+
 @router.get("/{trade_id}", response_model=TradeResponse)
 def get_trade(trade_id: int, db: Session = Depends(get_db)):
     """Get full trade detail."""
@@ -165,46 +208,3 @@ def close_trade(trade_id: int, close: TradeClose, db: Session = Depends(get_db))
     trade.remaining_qty = 0
     db.commit()
     return {"message": f"Trade {trade.symbol} closed", "gross_pnl": trade.gross_pnl}
-
-
-@router.get("/stats", response_model=TradeStats)
-def get_trade_stats(db: Session = Depends(get_db)):
-    """Aggregate trade statistics: win rate, ARR, total P&L."""
-    all_trades = db.query(Trade).all()
-    closed_trades = [t for t in all_trades if t.status == "CLOSED"]
-
-    wins = [t for t in closed_trades if t.gross_pnl and t.gross_pnl > 0]
-    losses = [t for t in closed_trades if t.gross_pnl and t.gross_pnl <= 0]
-
-    win_rate = None
-    if closed_trades:
-        win_rate = round(len(wins) / len(closed_trades) * 100, 2)
-
-    avg_win_r = None
-    avg_loss_r = None
-    if wins:
-        win_rs = [t.r_multiple for t in wins if t.r_multiple is not None]
-        if win_rs:
-            avg_win_r = round(sum(win_rs) / len(win_rs), 2)
-    if losses:
-        loss_rs = [abs(t.r_multiple) for t in losses if t.r_multiple is not None]
-        if loss_rs:
-            avg_loss_r = round(sum(loss_rs) / len(loss_rs), 2)
-
-    arr = None
-    if avg_win_r and avg_loss_r and avg_loss_r > 0:
-        arr = round(avg_win_r / avg_loss_r, 2)
-
-    total_pnl = sum(t.gross_pnl for t in closed_trades if t.gross_pnl) or 0
-
-    return TradeStats(
-        total_trades=len(all_trades),
-        open_trades=len([t for t in all_trades if t.status in ("OPEN", "PARTIAL")]),
-        closed_trades=len(closed_trades),
-        win_count=len(wins),
-        loss_count=len(losses),
-        win_rate=win_rate,
-        avg_r_multiple=avg_win_r,
-        arr=arr,
-        total_pnl=round(total_pnl, 2),
-    )

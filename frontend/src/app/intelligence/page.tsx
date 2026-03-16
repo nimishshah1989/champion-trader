@@ -433,7 +433,13 @@ export default function IntelligenceDashboard() {
       </ErrorBoundary>
 
       {/* Quick links */}
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <Link href="/intelligence/learning" className="block">
+          <div className="bg-teal-50 rounded-xl border border-teal-200 p-5 hover:border-teal-400 transition-colors">
+            <h3 className="text-sm font-semibold text-teal-800 mb-1">Learning Dashboard</h3>
+            <p className="text-xs text-teal-600">See how the system learns: parameter evolution, feedback loop health</p>
+          </div>
+        </Link>
         <Link href="/intelligence/optimize" className="block">
           <div className="bg-white rounded-xl border border-slate-200 p-5 hover:border-teal-300 transition-colors">
             <h3 className="text-sm font-semibold text-slate-800 mb-1">AutoOptimize History</h3>

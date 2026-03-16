@@ -550,6 +550,72 @@ export async function getShadowComparison(): Promise<ShadowComparison> {
 }
 
 // ---------------------------------------------------------------------------
+// Types — Learning Progress
+// ---------------------------------------------------------------------------
+
+export interface LearningProgress {
+  loop_status: {
+    closed: boolean;
+    issues: string[];
+    description: string;
+  };
+  current_regime: {
+    regime: string;
+    date: string | null;
+    nifty_adx: number;
+    india_vix: number;
+    hurst_exponent: number;
+  };
+  regime_banks: {
+    active_regime: string | null;
+    active_version: string;
+    banks: Record<string, { overrides: Record<string, number>; override_count: number }>;
+  };
+  parameters: Record<string, {
+    base_value: number;
+    effective_value: number;
+    regime_adjusted: boolean;
+    bound_low: number;
+    bound_high: number;
+    position_in_range: number;
+    experiments_run: number;
+    improvements: number;
+  }>;
+  experiment_summary: {
+    total_experiments: number;
+    keep_count: number;
+    revert_count: number;
+    error_count: number;
+    keep_rate_pct: number;
+    most_improved_parameter: string | null;
+    best_score: number | null;
+    latest_score: number | null;
+    first_experiment: string | null;
+    latest_experiment: string | null;
+  };
+  experiment_timeline: Array<{
+    timestamp: string;
+    parameter: string;
+    outcome: string;
+    score_delta: number | null;
+  }>;
+  learning_velocity: {
+    recent_keep_rate: number;
+    older_keep_rate: number | null;
+    trend: string;
+    total_experiments: number;
+  };
+}
+
+// ---------------------------------------------------------------------------
+// API Functions — Learning Progress
+// ---------------------------------------------------------------------------
+
+export async function getLearningProgress(): Promise<LearningProgress> {
+  return apiFetch<LearningProgress>("/api/intelligence/learning-progress");
+}
+
+// ---------------------------------------------------------------------------
 // API Functions — Attribution
 // ---------------------------------------------------------------------------
 

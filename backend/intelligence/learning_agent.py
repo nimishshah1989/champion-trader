@@ -15,6 +15,8 @@ After generating:
   3. Flag underperforming signal x regime combos
 """
 
+from __future__ import annotations
+
 import logging
 from datetime import date as date_cls, datetime
 

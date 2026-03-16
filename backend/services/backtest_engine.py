@@ -24,6 +24,7 @@ from sqlalchemy.orm import Session
 
 from backend.data.nse_stocks import get_yfinance_symbols, strip_ns_suffix
 from backend.database import SimulationRun, SimulationTrade, SessionLocal
+from backend.intelligence.strategy import PARAMETERS
 from backend.services.position_calculator import calculate_position
 from backend.services.trading_rules import TRADING_RULES
 
@@ -769,11 +770,11 @@ def _execute_backtest(
             ):
                 continue
 
-            # PPC conditions
+            # PPC conditions — read from PARAMETERS (written by AutoOptimize)
             if not (
-                trp_ratio_val >= 1.5
-                and close_pos_val >= 0.60
-                and vol_ratio_val >= 1.5
+                trp_ratio_val >= PARAMETERS.get("ppc_trp_ratio_min", 1.5)
+                and close_pos_val >= PARAMETERS.get("ppc_close_position_min", 0.60)
+                and vol_ratio_val >= PARAMETERS.get("ppc_volume_ratio_min", 1.5)
                 and is_green_val
                 and adt_val >= MIN_ADT
             ):
@@ -792,7 +793,11 @@ def _execute_backtest(
                 continue
 
             base_days, base_quality = _estimate_base_days_at(df, day_idx)
-            if base_days < TRADING_RULES["min_base_bars"]:
+            min_base = max(
+                TRADING_RULES["min_base_bars"],
+                int(PARAMETERS.get("min_base_days", 20)),
+            )
+            if base_days < min_base:
                 continue
 
             # TRP must be >= 2.0 for tradeable

@@ -20,6 +20,8 @@ Portfolio-level checks (every 30 minutes):
 AUTONOMOUS: May ONLY place SELL orders for SL breach. Never BUY.
 """
 
+from __future__ import annotations
+
 import logging
 from datetime import datetime
 
