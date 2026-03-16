@@ -1,72 +1,12 @@
 import logging
 from contextlib import asynccontextmanager
-from decimal import Decimal
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.config import settings
 from backend.database import init_db
-
-
-import json as _json
-import re as _re
-
-from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.requests import Request
-from starlette.responses import Response
-
-# ── Middleware: Decimal-string → float in JSON responses ─────────────
-# Pydantic v2 serialises Decimal as strings ("4.24"). The frontend
-# expects numbers (calls .toFixed()). This middleware rewrites JSON
-# response bodies, converting string values that are pure numbers
-# back to floats.  It's O(n) on response size but responses are small.
-
-_NUMERIC_RE = _re.compile(r'^-?\d+(\.\d+)?$')
-
-
-def _convert_strings_to_numbers(obj):  # type: ignore[no-untyped-def]
-    """Recursively convert string-encoded numbers in a parsed JSON object."""
-    if isinstance(obj, dict):
-        return {k: _convert_strings_to_numbers(v) for k, v in obj.items()}
-    if isinstance(obj, list):
-        return [_convert_strings_to_numbers(i) for i in obj]
-    if isinstance(obj, str) and _NUMERIC_RE.match(obj):
-        try:
-            return float(obj)
-        except (ValueError, OverflowError):
-            return obj
-    return obj
-
-
-class DecimalFixMiddleware(BaseHTTPMiddleware):
-    """Convert Pydantic's Decimal-as-string back to JSON numbers."""
-
-    async def dispatch(self, request: Request, call_next) -> Response:  # type: ignore[override]
-        response = await call_next(request)
-        content_type = response.headers.get("content-type", "")
-        if "application/json" not in content_type:
-            return response
-
-        # Read the response body
-        body_chunks = []
-        async for chunk in response.body_iterator:  # type: ignore[attr-defined]
-            body_chunks.append(chunk if isinstance(chunk, bytes) else chunk.encode())
-        body = b"".join(body_chunks)
-
-        try:
-            data = _json.loads(body)
-            fixed = _convert_strings_to_numbers(data)
-            new_body = _json.dumps(fixed, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
-        except (ValueError, TypeError):
-            new_body = body
-
-        return Response(
-            content=new_body,
-            status_code=response.status_code,
-            headers=dict(response.headers),
-            media_type="application/json",
-        )
+from backend.middleware.decimal_fix import DecimalFixMiddleware
 
 logging.basicConfig(
     level=logging.INFO,
