@@ -96,7 +96,7 @@ async def run_scan(request: ScanRequest, db: Session = Depends(get_db)):
 
         if scan_type == "ALL":
             # Single download, all three scans
-            results = await run_all_scans(scan_date_str)
+            results, _data = await run_all_scans(scan_date_str)
         elif scan_type == "PPC":
             results = await run_ppc_scan(scan_date_str)
         elif scan_type == "NPC":

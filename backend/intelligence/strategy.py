@@ -84,5 +84,29 @@ def get_parameter(name: str) -> float:
     return PARAMETERS[name]
 
 
-# DO NOT MODIFY BELOW THIS LINE
-# The agent reads only the PARAMETERS and BOUNDS dicts above.
+# ── FROZEN DEFAULTS — NEVER MODIFIED ──────────────────────────────────
+# Snapshot of the human-defined parameters as of 2026-03-17.
+# Used by the baseline scanner to compare optimized vs default performance.
+# AutoOptimize MUST NOT touch this dict.
+
+DEFAULT_PARAMETERS: Dict[str, float] = {
+    "ppc_trp_ratio_min":          1.5,
+    "ppc_close_position_min":     0.60,
+    "ppc_volume_ratio_min":       1.5,
+    "npc_trp_ratio_min":          1.5,
+    "npc_close_position_max":     0.40,
+    "npc_volume_ratio_min":       1.5,
+    "contraction_atr_lookback":   5,
+    "contraction_narrowing_min":  3,
+    "contraction_resistance_pct": 3.0,
+    "min_base_days":              20,
+    "sma_window":                 150,
+    "stage_sma_lookback":         20,
+    "min_adt_crore":              1.0,
+    "weight_ppc":                 0.50,
+    "weight_contraction":         0.30,
+    "weight_npc_filter":          0.20,
+}
+
+# DO NOT MODIFY ABOVE OR BELOW THIS LINE
+# The agent reads only the PARAMETERS and BOUNDS dicts at the top.

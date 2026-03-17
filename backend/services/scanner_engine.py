@@ -265,12 +265,15 @@ async def run_contraction_scan(scan_date: str, data: dict[str, pd.DataFrame] | N
     return _scan_contraction(data, scan_date)
 
 
-async def run_all_scans(scan_date: str) -> list[dict]:
+async def run_all_scans(
+    scan_date: str, data: dict[str, pd.DataFrame] | None = None
+) -> tuple[list[dict], dict[str, pd.DataFrame]]:
     """
     Run all three scans using a single shared data download.
-    This is much faster than running each scan independently.
+    Returns (results, data) so callers can reuse the OHLCV data.
     """
-    data = await fetch_all_stocks(scan_date)
+    if data is None:
+        data = await fetch_all_stocks(scan_date)
     logger.info(f"Data fetched for {len(data)} symbols. Running all scans...")
 
     ppc_results = _scan_ppc(data, scan_date)
@@ -282,4 +285,4 @@ async def run_all_scans(scan_date: str) -> list[dict]:
         f"All scans complete: {len(ppc_results)} PPC, "
         f"{len(npc_results)} NPC, {len(contraction_results)} Contraction"
     )
-    return all_results
+    return all_results, data

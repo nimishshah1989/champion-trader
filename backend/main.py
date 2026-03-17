@@ -141,7 +141,7 @@ def _setup_scheduler():
             db = SessionLocal()
             try:
                 logger.info(f"[SCHEDULER] Daily scan starting for {scan_date_str}")
-                results = await run_all_scans(scan_date_str)
+                results, all_data = await run_all_scans(scan_date_str)
 
                 # Upsert — delete existing results for today, then insert fresh
                 for result_dict in results:
@@ -162,6 +162,15 @@ def _setup_scheduler():
                 # AUTOPILOT: auto-populate watchlist from scan results
                 auto_result = run_post_scan_automation()
                 logger.info(f"[AUTOPILOT] Post-scan result: {auto_result}")
+
+                # A/B BASELINE: run same scans with frozen default params
+                from backend.services.baseline_scanner import (
+                    run_baseline_scans,
+                    save_and_compare,
+                )
+                baseline_results = run_baseline_scans(all_data, scan_date_str)
+                comparison = save_and_compare(baseline_results)
+                logger.info(f"[BASELINE] Comparison result: {comparison}")
 
             except Exception as exc:
                 logger.error(f"[SCHEDULER] Daily scanner job failed: {exc}")
@@ -332,6 +341,13 @@ def autopilot_run_now():
     scan_result = run_post_scan_automation()
     alert_result = run_post_alert_automation()
     return {"scan_automation": scan_result, "alert_automation": alert_result}
+
+
+@app.get("/autopilot/comparison")
+def autopilot_comparison(days: int = 30):
+    """A/B comparison: optimized params vs frozen defaults over time."""
+    from backend.services.baseline_scanner import get_comparison_history
+    return get_comparison_history(days)
 
 
 @app.get("/health")

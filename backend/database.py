@@ -544,6 +544,50 @@ class AutoCheckLog(Base):
     created_at = Column(DateTime, server_default=func.now())
 
 
+# --- Table 19: baseline_scan_results ---
+# Parallel scan using FROZEN default parameters (never modified by AutoOptimize).
+# Compared daily against scan_results (which use optimized params) to measure
+# whether parameter tuning is finding better or worse stocks.
+class BaselineScanResult(Base):
+    __tablename__ = "baseline_scan_results"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    scan_date = Column(Date, nullable=False)
+    symbol = Column(String, nullable=False)
+    scan_type = Column(String, nullable=False)
+    close_price = Column(Numeric(15, 2))
+    trp = Column(Numeric(15, 2))
+    trp_ratio = Column(Float)
+    volume_ratio = Column(Float)
+    close_position = Column(Float)
+    stage = Column(String)
+    base_days = Column(Integer)
+    base_quality = Column(String)
+    watchlist_bucket = Column(String)
+    trigger_level = Column(Numeric(15, 2))
+    passes_liquidity_filter = Column(Boolean)
+    param_snapshot = Column(Text)  # JSON of DEFAULT_PARAMETERS used
+    created_at = Column(DateTime, server_default=func.now())
+
+
+# --- Table 20: daily_scan_comparison ---
+# One row per day summarising the delta between optimized and baseline scans.
+class DailyScanComparison(Base):
+    __tablename__ = "daily_scan_comparison"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    compare_date = Column(Date, nullable=False, unique=True)
+    optimized_count = Column(Integer, default=0)
+    baseline_count = Column(Integer, default=0)
+    overlap_count = Column(Integer, default=0)      # in both
+    optimized_only = Column(Text)                    # JSON list of symbols
+    baseline_only = Column(Text)                     # JSON list of symbols
+    overlap_symbols = Column(Text)                   # JSON list of symbols
+    optimized_params = Column(Text)                  # JSON snapshot
+    baseline_params = Column(Text)                   # JSON snapshot
+    created_at = Column(DateTime, server_default=func.now())
+
+
 def init_db() -> None:
     """Create all tables in the database."""
     Base.metadata.create_all(bind=engine)
