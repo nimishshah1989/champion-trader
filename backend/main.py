@@ -124,17 +124,18 @@ def _setup_scheduler():
 
         # ── Daily Scanner (post-market) ──────────────────────────────────
         # Runs all three scans (PPC + NPC + Contraction) automatically at 16:00 IST.
-        # Results are saved to scan_results table and instantly appear in the Pipeline page.
-        # The user still decides which stocks go to READY/NEAR/AWAY — that judgment is human.
+        # Results are saved to scan_results table.
+        # AUTOPILOT: After scan, auto-populates watchlist from qualifying results.
 
         async def _daily_scanner_job() -> None:
-            """Auto-run all scans at market close and save to DB."""
+            """Auto-run all scans at market close, save to DB, auto-populate watchlist."""
             from datetime import date as _date
 
             from sqlalchemy import and_ as _and
 
             from backend.database import ScanResult, SessionLocal
             from backend.services.scanner_engine import run_all_scans
+            from backend.services.autopilot import run_post_scan_automation
 
             scan_date_str = str(_date.today())
             db = SessionLocal()
@@ -157,6 +158,11 @@ def _setup_scheduler():
                 logger.info(
                     f"[SCHEDULER] Daily scan complete: {len(results)} results saved for {scan_date_str}"
                 )
+
+                # AUTOPILOT: auto-populate watchlist from scan results
+                auto_result = run_post_scan_automation()
+                logger.info(f"[AUTOPILOT] Post-scan result: {auto_result}")
+
             except Exception as exc:
                 logger.error(f"[SCHEDULER] Daily scanner job failed: {exc}")
                 db.rollback()
@@ -178,9 +184,10 @@ def _setup_scheduler():
 
         from backend.database import SessionLocal
         from backend.services.price_monitor import run_price_check
+        from backend.services.autopilot import run_post_alert_automation
 
         def _auto_check_exits() -> None:
-            """Auto check open trades for SL hits and profit targets."""
+            """Auto check open trades for SL hits and profit targets, then auto-execute."""
             db = SessionLocal()
             try:
                 run_price_check(db, check_entries=False, check_exits=True, source="SCHEDULER")
@@ -188,9 +195,16 @@ def _setup_scheduler():
                 logger.error(f"exit_monitor job failed: {exc}")
             finally:
                 db.close()
+            # AUTOPILOT: auto-execute any SELL alerts generated
+            try:
+                result = run_post_alert_automation()
+                if result.get("sells_executed", 0) > 0:
+                    logger.info(f"[AUTOPILOT] Post-exit-check: {result}")
+            except Exception as exc:
+                logger.error(f"[AUTOPILOT] Post-exit automation failed: {exc}")
 
         def _auto_check_entries() -> None:
-            """Auto check READY watchlist for trigger breaks (entry window only)."""
+            """Auto check READY watchlist for trigger breaks, then auto-execute."""
             db = SessionLocal()
             try:
                 run_price_check(db, check_entries=True, check_exits=False, source="SCHEDULER")
@@ -198,6 +212,13 @@ def _setup_scheduler():
                 logger.error(f"entry_monitor job failed: {exc}")
             finally:
                 db.close()
+            # AUTOPILOT: auto-execute any BUY alerts generated
+            try:
+                result = run_post_alert_automation()
+                if result.get("buys_executed", 0) > 0:
+                    logger.info(f"[AUTOPILOT] Post-entry-check: {result}")
+            except Exception as exc:
+                logger.error(f"[AUTOPILOT] Post-entry automation failed: {exc}")
 
         # Exit monitor: every 2 min throughout market hours (9:00–15:30 IST)
         scheduler.add_job(
@@ -290,7 +311,27 @@ def root():
         "version": "2.0.0",
         "environment": settings.environment,
         "intelligence": True,
+        "autopilot": True,
     }
+
+
+@app.get("/autopilot/status")
+def autopilot_status():
+    """Virtual portfolio status — shows all autopilot trades and P&L."""
+    from backend.services.autopilot_report import get_virtual_portfolio_summary
+    return get_virtual_portfolio_summary()
+
+
+@app.post("/autopilot/run-now")
+def autopilot_run_now():
+    """Manually trigger autopilot: populate watchlist + execute alerts."""
+    from backend.services.autopilot import (
+        run_post_scan_automation,
+        run_post_alert_automation,
+    )
+    scan_result = run_post_scan_automation()
+    alert_result = run_post_alert_automation()
+    return {"scan_automation": scan_result, "alert_automation": alert_result}
 
 
 @app.get("/health")
