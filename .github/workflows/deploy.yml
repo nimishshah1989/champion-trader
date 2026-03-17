@@ -1,4 +1,4 @@
-name: Deploy to EC2
+name: Deploy & QA
 
 on:
   push:
@@ -6,25 +6,165 @@ on:
   workflow_dispatch:
 
 jobs:
-  deploy:
+  # ── Stage 1: Lint + Type Check ──────────────────────────────────────
+  quality-gate:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Deploy via SSH
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install backend dependencies
+        run: pip install -r requirements.txt
+
+      - name: Python type check (basic)
+        run: python -c "import py_compile; import glob; [py_compile.compile(f, doraise=True) for f in glob.glob('backend/**/*.py', recursive=True)]"
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: |
+          corepack enable
+          corepack prepare pnpm@latest --activate
+          pnpm install --frozen-lockfile
+
+      - name: Frontend type check
+        working-directory: frontend
+        run: pnpm tsc --noEmit
+
+  # ── Stage 2: Deploy Backend ─────────────────────────────────────────
+  deploy-backend:
+    needs: quality-gate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy backend via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script_stop: true
+          command_timeout: 15m
           script: |
             set -e
             cd ~/apps/champion
             git pull origin main
-            docker build -f Dockerfile.backend -t champion-trader .
+
+            echo "Building backend image..."
+            docker build -f Dockerfile.backend -t champion-trader:latest .
+
+            echo "Replacing backend container..."
             docker stop champion || true
             docker rm champion || true
-            docker run -d --name champion --env-file .env -p 8003:8000 --restart unless-stopped champion-trader
-            sleep 5
-            curl -sf http://localhost:8003/health || curl -sf http://localhost:8003/
-            echo "✅ Deploy successful"
+            docker run -d \
+              --name champion \
+              --env-file .env \
+              -p 8003:8000 \
+              -v ~/apps/champion/db_data:/app/db_data \
+              -e DATABASE_URL=sqlite:///./db_data/champion_trader.db \
+              --restart unless-stopped \
+              champion-trader:latest
+
+            echo "Waiting for backend startup..."
+            sleep 8
+            curl -sf http://localhost:8003/health
+            echo ""
+            echo "Backend deploy complete"
+
+  # ── Stage 3: Deploy Frontend ────────────────────────────────────────
+  deploy-frontend:
+    needs: quality-gate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy frontend via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script_stop: true
+          command_timeout: 15m
+          script: |
+            set -e
+            cd ~/apps/champion/frontend
+
+            echo "Building frontend image..."
+            docker build \
+              --build-arg NEXT_PUBLIC_API_URL=https://champion-api.jslwealth.in \
+              -t champion-frontend:latest .
+
+            echo "Replacing frontend container..."
+            docker stop champion-frontend || true
+            docker rm champion-frontend || true
+            docker run -d \
+              --name champion-frontend \
+              -p 3003:3000 \
+              --restart unless-stopped \
+              champion-frontend:latest
+
+            echo "Waiting for frontend startup..."
+            sleep 8
+            curl -sf http://localhost:3003/ > /dev/null
+            echo "Frontend deploy complete"
+
+  # ── Stage 4: Production QA Loop ─────────────────────────────────────
+  # Runs against PRODUCTION URLs, not localhost.
+  # Loops up to 3 times — if failures persist after retries, the job fails.
+  production-qa:
+    needs: [deploy-backend, deploy-frontend]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Production QA loop (max 3 attempts)
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          MAX_ATTEMPTS=3
+          ATTEMPT=1
+          WAIT_SECONDS=30
+
+          while [ $ATTEMPT -le $MAX_ATTEMPTS ]; do
+            echo ""
+            echo "========================================"
+            echo "  QA ATTEMPT $ATTEMPT of $MAX_ATTEMPTS"
+            echo "========================================"
+            echo ""
+
+            if python scripts/production_health_check.py; then
+              echo ""
+              echo "ALL CHECKS PASSED on attempt $ATTEMPT"
+              exit 0
+            fi
+
+            if [ $ATTEMPT -lt $MAX_ATTEMPTS ]; then
+              echo ""
+              echo "Some checks failed. Waiting ${WAIT_SECONDS}s before retry..."
+              sleep $WAIT_SECONDS
+              WAIT_SECONDS=$((WAIT_SECONDS * 2))
+            fi
+
+            ATTEMPT=$((ATTEMPT + 1))
+          done
+
+          echo ""
+          echo "PRODUCTION QA FAILED after $MAX_ATTEMPTS attempts"
+          echo ""
+
+          # Send Telegram notification on final failure
+          python scripts/production_health_check.py --notify || true
+
+          exit 1
