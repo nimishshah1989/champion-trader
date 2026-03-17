@@ -35,7 +35,8 @@ export function InfoTooltip({ termKey, showFullTerm, children }: InfoTooltipProp
       <TooltipTrigger asChild>{trigger}</TooltipTrigger>
       <TooltipContent
         side="top"
-        className="bg-white border border-slate-200 shadow-sm px-3 py-2 rounded-lg"
+        sideOffset={4}
+        className="!bg-white !text-slate-700 border border-slate-200 shadow-sm px-3 py-2 rounded-lg"
       >
         <div className="max-w-[280px] text-left">
           <p className="font-semibold text-xs text-slate-800">{label}</p>
