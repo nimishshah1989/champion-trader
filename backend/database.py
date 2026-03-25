@@ -32,6 +32,7 @@ from backend.tables import (  # noqa: F401
     AutoCheckLog,
     BaselineScanResult,
     DailyScanComparison,
+    ProcessedPostMortem,
 )
 
 # Use check_same_thread=False for SQLite with FastAPI

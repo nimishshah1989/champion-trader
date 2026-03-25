@@ -22,6 +22,7 @@ from datetime import date as date_cls, datetime
 from decimal import Decimal, ROUND_HALF_UP
 
 from backend.database import (
+    ProcessedPostMortem,
     RegimeLog,
     SessionLocal,
     SignalAttribution,
@@ -30,9 +31,6 @@ from backend.database import (
 from backend.intelligence.rag_engine import ingest_document
 
 logger = logging.getLogger(__name__)
-
-# Track which trade IDs have already been post-mortem'd this session
-_processed_trade_ids: set[int] = set()
 
 # ---------------------------------------------------------------------------
 # Named constants
@@ -53,6 +51,12 @@ async def process_closed_trades() -> None:
     """
     db = SessionLocal()
     try:
+        # Get IDs already processed (persisted across restarts)
+        already_done = {
+            row.trade_id
+            for row in db.query(ProcessedPostMortem.trade_id).all()
+        }
+
         closed_trades = (
             db.query(Trade)
             .filter(Trade.status.in_(["CLOSED", "STOPPED"]))
@@ -60,7 +64,7 @@ async def process_closed_trades() -> None:
         )
 
         new_closures = [
-            t for t in closed_trades if t.id not in _processed_trade_ids
+            t for t in closed_trades if t.id not in already_done
         ]
 
         if not new_closures:
@@ -71,7 +75,7 @@ async def process_closed_trades() -> None:
         for trade in new_closures:
             try:
                 await _generate_post_mortem(db, trade)
-                _processed_trade_ids.add(trade.id)
+                db.add(ProcessedPostMortem(trade_id=trade.id))
             except Exception as e:
                 logger.error(f"Post-mortem failed for trade {trade.id}: {e}")
 

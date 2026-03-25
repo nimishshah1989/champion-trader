@@ -44,7 +44,7 @@ cd frontend && pnpm dev
 python -c "from backend.database import init_db; init_db()"
 ```
 
-## Database Tables (20 total)
+## Database Tables (21 total)
 1. `stocks` — Stock master data (NSE symbols)
 2. `scan_results` — Daily PPC/NPC/Contraction scan outputs
 3. `watchlist` — READY/NEAR/AWAY categorised stocks
@@ -64,6 +64,7 @@ python -c "from backend.database import init_db; init_db()"
 18. `auto_check_log` — Price check audit trail
 19. `baseline_scan_results` — A/B scan using frozen default params
 20. `daily_scan_comparison` — Daily delta between optimized vs default scans
+21. `processed_post_mortems` — Tracks which trades have been post-mortem'd by learning agent
 
 ## API Route Prefixes
 - `/scanner` — Run and view scans

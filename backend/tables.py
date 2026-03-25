@@ -1,7 +1,7 @@
 """
 SQLAlchemy table definitions for the Champion Trader System.
 
-All 20 tables are defined here. Import them via backend.database for convenience.
+All 21 tables are defined here. Import them via backend.database for convenience.
 """
 
 from sqlalchemy import (
@@ -581,3 +581,14 @@ class DailyScanComparison(Base):
     optimized_params = Column(Text)                  # JSON snapshot
     baseline_params = Column(Text)                   # JSON snapshot
     created_at = Column(DateTime, server_default=func.now())
+
+
+# --- Table 21: processed_post_mortems ---
+# Tracks which trade IDs the learning agent has already processed.
+# Replaces the in-memory _processed_trade_ids set that was lost on restart.
+class ProcessedPostMortem(Base):
+    __tablename__ = "processed_post_mortems"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    trade_id = Column(Integer, ForeignKey("trades.id"), nullable=False, unique=True)
+    processed_at = Column(DateTime, server_default=func.now())

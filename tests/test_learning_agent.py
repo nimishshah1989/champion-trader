@@ -22,6 +22,7 @@ from backend.intelligence.learning_agent import (
     _lookup_regime_at_entry,
     _update_attribution,
     _check_underperformance,
+    process_closed_trades,
     EXIT_R_EXTREME_EXTENSION,
     EXIT_R_GREAT_EXTENSION,
     EXIT_R_NORMAL_EXTENSION,
@@ -29,6 +30,7 @@ from backend.intelligence.learning_agent import (
     UNDERPERFORMANCE_MIN_TRADES,
     UNDERPERFORMANCE_WIN_RATE_THRESHOLD,
 )
+from backend.database import ProcessedPostMortem
 
 
 # ---------------------------------------------------------------------------
@@ -287,3 +289,96 @@ class TestCheckUnderperformance:
         with patch("backend.intelligence.learning_agent.logger") as mock_logger:
             _check_underperformance(mock_db, "PPC", "BULLISH")
             mock_logger.warning.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# process_closed_trades — DB persistence of processed IDs
+# ---------------------------------------------------------------------------
+
+class TestProcessClosedTradesPersistence:
+    """Verify _processed_trade_ids replaced by ProcessedPostMortem table."""
+
+    @pytest.mark.asyncio
+    async def test_skips_already_processed_trades(self):
+        """Trades already in ProcessedPostMortem are not re-processed."""
+        mock_trade = MagicMock()
+        mock_trade.id = 42
+        mock_trade.status = "CLOSED"
+
+        mock_already = MagicMock()
+        mock_already.trade_id = 42
+
+        with patch("backend.intelligence.learning_agent.SessionLocal") as MockSession:
+            db = MagicMock()
+            MockSession.return_value = db
+
+            # First query: ProcessedPostMortem.trade_id → returns {42}
+            # Second query: Trade → returns [mock_trade]
+            def query_side_effect(model):
+                q = MagicMock()
+                if model is ProcessedPostMortem.trade_id:
+                    q.all.return_value = [mock_already]
+                else:
+                    q.filter.return_value.all.return_value = [mock_trade]
+                return q
+            db.query.side_effect = query_side_effect
+
+            await process_closed_trades()
+
+            # Should NOT call db.add because trade 42 is already processed
+            db.add.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_processes_new_trade_and_persists(self):
+        """New closed trade gets post-mortem'd and recorded in DB."""
+        mock_trade = MagicMock()
+        mock_trade.id = 99
+        mock_trade.status = "CLOSED"
+        mock_trade.symbol = "RELIANCE"
+        mock_trade.avg_entry_price = 2500
+        mock_trade.exit_price = 2600
+        mock_trade.trp_at_entry = 3.0
+        mock_trade.r_multiple = 2.0
+        mock_trade.gross_pnl = 10000
+        mock_trade.entry_date = date(2026, 1, 1)
+        mock_trade.exit_date = date(2026, 1, 15)
+        mock_trade.sl_price = 2425
+        mock_trade.setup_type = "PPC"
+        mock_trade.entry_notes = ""
+
+        with patch("backend.intelligence.learning_agent.SessionLocal") as MockSession, \
+             patch("backend.intelligence.learning_agent.ingest_document"), \
+             patch("backend.intelligence.learning_agent._generate_post_mortem") as mock_pm:
+            db = MagicMock()
+            MockSession.return_value = db
+
+            # First query returns no processed IDs, second returns closed trades
+            query_results = MagicMock()
+            # db.query(ProcessedPostMortem.trade_id).all() → empty
+            first_query = MagicMock()
+            first_query.all.return_value = []
+            # db.query(Trade).filter(...).all() → [mock_trade]
+            second_query = MagicMock()
+            second_query.filter.return_value.all.return_value = [mock_trade]
+
+            db.query.side_effect = [first_query, second_query]
+
+            await process_closed_trades()
+
+            # _generate_post_mortem should have been called
+            mock_pm.assert_called_once_with(db, mock_trade)
+
+            # Should have called db.add with a ProcessedPostMortem record
+            add_calls = db.add.call_args_list
+            pm_added = [
+                c for c in add_calls
+                if isinstance(c[0][0], ProcessedPostMortem)
+            ]
+            assert len(pm_added) == 1
+            assert pm_added[0][0][0].trade_id == 99
+
+    def test_processed_post_mortem_table_exists(self):
+        """Verify the ProcessedPostMortem model is properly defined."""
+        assert ProcessedPostMortem.__tablename__ == "processed_post_mortems"
+        assert hasattr(ProcessedPostMortem, "trade_id")
+        assert hasattr(ProcessedPostMortem, "processed_at")
