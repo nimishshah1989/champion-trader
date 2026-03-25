@@ -21,60 +21,75 @@ function SimpleCard({
 }
 
 // ---------------------------------------------------------------------------
-// Jargon Buster — Key Terms in Plain Language
+// Jargon Buster
 // ---------------------------------------------------------------------------
 
 export function JargonBuster() {
   const terms = [
     {
+      term: "PPC / NPC / Contraction",
+      simple:
+        "Three types of stock patterns the system scans for. PPC (Positive Price Candle) = a strong green day with high volume near the top of the range. NPC (Negative Price Candle) = the opposite pattern, used as a filter. Contraction = the stock's daily range is narrowing, often a sign it's about to make a big move.",
+    },
+    {
       term: "Stop-Loss (SL)",
       simple:
-        "A safety net. If a stock falls to this price, you sell it to limit your loss. Like a seatbelt — you hope you never need it, but it protects you when things go wrong.",
+        "A safety net price. If a stock falls to this level, the position is exited to limit loss. Calculated as Entry Price minus TRP value. The system never moves a stop-loss down.",
     },
     {
-      term: "Market Regime / Market Mood",
+      term: "TRP (True Range Percentage)",
       simple:
-        "Is the market happy (trending up), moody (volatile), bored (sideways), or sad (falling)? The system detects this automatically and adjusts its behavior — just like you'd carry an umbrella on a cloudy day.",
-    },
-    {
-      term: "R-Multiple",
-      simple:
-        "A simple way to measure profit relative to risk. If you risked ₹100 and made ₹200, that's a 2R trade. If you risked ₹100 and lost ₹100, that's -1R. Higher R = better trade.",
-    },
-    {
-      term: "Win Rate",
-      simple:
-        "Out of all your trades, what percentage were winners? If you made 10 trades and 6 were profitable, your win rate is 60%.",
+        "How volatile a stock is, expressed as a percentage of price. Higher TRP = more volatile = wider stop-loss = smaller position size. Minimum 2.0% to be tradeable.",
     },
     {
       term: "RPT (Risk Per Trade)",
       simple:
-        "How much of your total money you're willing to risk on a single trade. Default is 0.5% — so if you have ₹10,00,000, you'd risk ₹5,000 per trade. Small enough that one bad trade won't hurt you.",
+        "Percentage of total capital risked on each trade. Default 0.5%. So with 1,00,000 capital, you risk 500 per trade. This determines position size.",
     },
     {
-      term: "Human Alpha",
+      term: "R-Multiple",
       simple:
-        "Are YOUR decisions adding value? If the machine suggests 10 stocks and you pick the 5 best ones, you have positive alpha. If you consistently skip the winners, your alpha is negative.",
+        "Profit measured in units of risk. If you risked 500 and made 1,000, that's 2R. If you lost 500, that's -1R. The exit framework targets: 2R (mathematical), 4R (normal extension), 8R (great extension), 12R (extreme extension).",
     },
     {
       term: "Composite Score",
       simple:
-        "A single number (like a school exam score) that measures how well the stock-picking rules are performing. The overnight optimizer tries to make this number go up.",
+        "A single number measuring strategy quality. Formula: expectancy x sqrt(trade_count) x (1 - max_drawdown). The overnight optimizer tries to maximise this. Penalised if drawdown exceeds 15%.",
     },
     {
-      term: "PPC / NPC / Contraction",
+      term: "Market Regime",
       simple:
-        "Three types of stock patterns the system looks for. PPC (Positive Price Candle) means a strong green day with high volume. NPC is the opposite. Contraction means the stock is getting very quiet — often a sign it's about to make a big move.",
-    },
-    {
-      term: "Parameter Banks",
-      simple:
-        "Different sets of rules for different market moods. Like how you'd drive differently on a highway vs a village road — the system has different settings for trending vs volatile vs quiet markets.",
+        "The system classifies market conditions into 4 modes: TRENDING (strong direction), RANGING (sideways), VOLATILE (big swings), BEARISH (falling). Different parameter banks activate for each regime.",
     },
     {
       term: "Expectancy",
       simple:
-        "If you repeat this strategy many times, how much profit can you expect per trade on average? A positive expectancy means the system has an edge. Like a casino — they have positive expectancy on every game.",
+        "Expected R per trade, calculated as (Win Rate x Avg Win R) - (Loss Rate x Avg Loss R). Positive means the strategy has an edge over many trades.",
+    },
+    {
+      term: "Autopilot",
+      simple:
+        "The virtual paper trading engine. Uses 1,00,000 virtual capital, 0.5% RPT, max 5 positions, max 10% open risk. Automatically executes BUY/SELL alerts. No real money involved.",
+    },
+    {
+      term: "AutoOptimize",
+      simple:
+        "The overnight self-improvement engine. Runs 10 experiments per session, each testing a single parameter change via a full 90-day backtest. One AI call per session analyses results. Cost: ~180/month.",
+    },
+    {
+      term: "Parameter Banks",
+      simple:
+        "Different sets of scanning thresholds for different market regimes. Like driving settings: highway mode (trending), city mode (ranging), rain mode (volatile). The regime classifier decides which bank is active.",
+    },
+    {
+      term: "A/B Comparison",
+      simple:
+        "Every day, the scanner runs twice: once with optimised parameters and once with frozen default parameters. This measures whether AutoOptimize improvements are real or just noise.",
+    },
+    {
+      term: "Signal Attribution",
+      simple:
+        "A scorecard tracking win rate and average R for each signal type (PPC, NPC, Contraction) in each market regime. Flags underperforming combos after 20+ trades.",
     },
   ];
 
@@ -84,7 +99,7 @@ export function JargonBuster() {
         Jargon Buster
       </h3>
       <p className="text-xs text-slate-400 mb-5">
-        Every technical term explained in everyday language
+        Every technical term explained in plain language
       </p>
       <div className="space-y-4">
         {terms.map((t) => (
@@ -104,34 +119,42 @@ export function JargonBuster() {
 }
 
 // ---------------------------------------------------------------------------
-// FAQ — Common Questions
+// FAQ
 // ---------------------------------------------------------------------------
 
 export function FAQ() {
   const questions = [
     {
-      q: "Will this tool buy or sell stocks on my behalf?",
-      a: "No. The tool ONLY suggests stocks. You make every buy/sell decision yourself through your own broker (Zerodha, Dhan, Groww, etc.). The only exception is the Safety Monitor which will alert you if a stop-loss is hit — but even then, you execute the trade.",
+      q: "Does this system trade real money?",
+      a: "No. The Autopilot runs on virtual capital (1,00,000). It generates alerts and executes paper trades to test the strategy. For real trading, you use the signals as input and execute through your own broker.",
     },
     {
-      q: "What if I don't check it every day?",
-      a: "Nothing bad happens. The system runs in the background, but it doesn't take action without you. If you skip a day, you just miss that day's suggestions. Your existing positions are still monitored by the Safety Monitor.",
+      q: "What runs automatically without my laptop?",
+      a: "Everything. The system runs on a cloud server (EC2) with 10 scheduled jobs via APScheduler. It scans stocks, monitors positions, classifies market regime, generates briefs, runs overnight optimisation, and manages the virtual portfolio. All independent of your laptop.",
     },
     {
-      q: "How much money do I need to start?",
-      a: "The tool works with any amount — the default is ₹1,00,000 but you can set it to whatever your actual trading capital is. It automatically calculates position sizes based on your capital so you never risk too much on one trade.",
+      q: "How does the system learn and improve?",
+      a: "Three feedback loops: (1) AutoOptimize runs 10 parameter experiments per night, backtesting each change and keeping improvements. (2) The Learning Agent writes a post-mortem for every closed trade, tracking which signal types work in which regimes. (3) Signal Attribution flags underperforming patterns after 20+ trades.",
     },
     {
-      q: "What are these 'agents' I keep hearing about?",
-      a: "They're just automated timers — like setting an alarm. At specific times during the day, the system runs a task (check risk, classify market, write summary). They're NOT AI robots making decisions. Think of them as scheduled chores the system does automatically.",
+      q: "What does the AI actually do?",
+      a: "Very little. AI makes ONE call per overnight session (~$0.10) to analyse the batch of 10 experiment results and suggest strategic direction. Everything else — scanning, regime detection, risk monitoring, position sizing, exit framework, learning notes, daily brief — is pure math and rule-based logic.",
     },
     {
-      q: "How does the system 'learn'?",
-      a: "After each trade closes (win or loss), the system records what happened. Over time, it can see patterns — like 'breakout signals in volatile markets tend to fail'. The overnight optimizer then adjusts the stock-picking criteria based on these patterns, running hundreds of experiments against past data.",
+      q: "How much does it cost to run?",
+      a: "About $2.20/month for AI calls (22 trading days x $0.10/session). The EC2 server cost is separate (infrastructure). No per-scan, per-trade, or per-alert AI charges.",
     },
     {
-      q: "Is my money safe?",
-      a: "This tool has NO access to your bank account or broker account. It cannot move money, buy stocks, or sell stocks. It is a suggestion and tracking tool only. Your money stays with your broker.",
+      q: "What is the exit framework?",
+      a: "When a trade hits 2R profit: sell 20% (mathematical exit). At 4R: sell 20% (normal extension). At 8R: sell 40% (great extension). At 12R: sell 80% (extreme extension). Stop-loss trails up after each target. Remaining position exits when price closes below 50-day DMA.",
+    },
+    {
+      q: "What's the difference between Simulation and AutoOptimize?",
+      a: "Simulation is a tool YOU use to manually test the strategy over any date range. AutoOptimize uses backtests AUTOMATICALLY overnight to test parameter changes. Same engine underneath, different purpose.",
+    },
+    {
+      q: "How does the A/B comparison work?",
+      a: "Each day, the scanner runs twice: once with the current optimised parameters and once with frozen default parameters (never changed). The daily comparison shows whether the optimiser's changes are actually helping or hurting.",
     },
   ];
 
@@ -158,50 +181,50 @@ export function FAQ() {
 }
 
 // ---------------------------------------------------------------------------
-// Getting Started — Simplified Checklist
+// Getting Started
 // ---------------------------------------------------------------------------
 
 export function GettingStarted() {
   const steps = [
     {
-      label: "Open the Intelligence Dashboard",
+      label: "Check the Dashboard",
       detail:
-        "This is your starting point. Check the market mood, read the daily summary, and review the stock suggestions.",
+        "See system health, open positions, and watchlist at a glance. Verify all 10 scheduled jobs are running.",
     },
     {
-      label: "Review each stock suggestion",
+      label: "Review the Intelligence Hub",
       detail:
-        "Look at the confidence score, the suggested price, and the stop-loss level. Read the one-line reason. If it makes sense to you, click Approve. If not, click Skip.",
+        "Check today's market regime, risk status, and the daily brief. See if there are any high-scoring setups.",
     },
     {
-      label: "Place your trades through your broker",
+      label: "Monitor the Pipeline",
       detail:
-        "If you approved a stock, go to your broker app (Zerodha, Dhan, etc.) and place the actual order at the suggested price. The tool does not execute trades for you.",
+        "View scan results from 4:00 PM. READY stocks will be checked for trigger breaks in tomorrow's entry window (3:00-3:30 PM).",
     },
     {
-      label: "Check your Trades page to track positions",
+      label: "Watch Actions for BUY/SELL alerts",
       detail:
-        "Open positions, partial exits, and closed trades all show up here. The Safety Monitor runs in the background and alerts you if a stop-loss is hit.",
+        "The price monitor generates alerts automatically. Autopilot executes them with virtual capital. You can use these signals for your real broker trades.",
     },
     {
-      label: "Let the system work overnight",
+      label: "Review Trades for P&L tracking",
       detail:
-        "After market hours, the system automatically updates market mood, writes a summary, and runs improvement experiments. You don't need to do anything.",
+        "All virtual trades with entry/exit, partial exits, R-multiples, and gross P&L. Use the Performance tab for aggregate stats.",
     },
     {
-      label: "Next morning, repeat from Step 1",
+      label: "Check Optimize results each morning",
       detail:
-        "Check the new daily summary, review fresh stock picks, and manage your existing positions.",
+        "See how many overnight experiments were run, how many improved the composite score, and read the AI session analysis.",
     },
   ];
 
   return (
     <SimpleCard>
       <h3 className="text-lg font-semibold text-slate-800 mb-1">
-        Getting Started — 6 Simple Steps
+        Getting Started
       </h3>
       <p className="text-xs text-slate-400 mb-5">
-        You can be up and running in under 5 minutes
+        The system runs autonomously. Here&rsquo;s how to monitor it.
       </p>
       <div className="space-y-4">
         {steps.map((step, idx) => (

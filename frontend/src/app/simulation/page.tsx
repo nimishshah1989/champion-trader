@@ -62,31 +62,34 @@ export default function SimulationPage() {
       <div>
         <h1 className="text-xl font-semibold text-slate-800">Simulation</h1>
         <p className="text-sm text-slate-500">
-          Backtest and paper trade the Champion Trader methodology
+          Backtest and paper trade the Champion Trader methodology. AutoOptimize
+          uses this same engine overnight to score parameter experiments.
         </p>
       </div>
 
       <InfoBanner title="Quick Reference -- Simulation Engine" storageKey="simulation">
         <Term label="Historical Backtest">
-          Run the Champion Trader strategy against historical price data. The
-          engine scans for PPC/NPC/Contraction setups, sizes positions using
-          your RPT%, and executes the full exit framework (2R, NE, GE, EE).
+          Run the full CTS strategy against historical data for ~464 NSE stocks.
+          The engine scans for PPC setups, sizes positions using your RPT%, and
+          executes the complete exit framework (2R at 20%, NE at 20%, GE at 40%,
+          EE at 80%). Produces equity curve, drawdown, win rate, and expectancy.
         </Term>
         <Term label="Paper Trading">
           Simulate the strategy day-by-day on live market data. Process one day
           at a time to see entries, exits, and equity progression in real time.
         </Term>
-        <Term label="RPT (Risk Per Trade)">
-          Percentage of account risked per trade. Default 0.5%. Range:
-          0.2%-1.0%. Lower RPT = smaller positions, more conservative.
+        <Term label="Used by AutoOptimize">
+          The overnight optimiser runs backtests to score each parameter
+          experiment. Composite score = expectancy x sqrt(trade_count) x (1 -
+          max_drawdown). 10 experiments per session, capped to limit compute.
         </Term>
         <Term label="Equity Curve">
-          Daily portfolio value plot. Upward slope = edge is working. Deep
-          drawdowns indicate strategy struggles in certain market regimes.
+          Daily portfolio value plot. Upward slope = strategy edge is working.
+          Deep drawdowns indicate struggles in certain market regimes.
         </Term>
-        <Term label="Expectancy">
-          Expected R per trade. Formula: (Win Rate x Avg Win R) - (Loss Rate x
-          Avg Loss R). Positive = you have an edge.
+        <Term label="Key Metrics">
+          Win Rate (% of profitable trades), Expectancy (expected R per trade),
+          ARR (Average Risk:Reward ratio), Max Drawdown (worst peak-to-trough).
         </Term>
       </InfoBanner>
 

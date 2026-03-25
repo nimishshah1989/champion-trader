@@ -55,6 +55,8 @@ def compute_composite_score(
       expectancy = (win_rate * avg_win_R) - (loss_rate * avg_loss_R)
       PENALTY: score halved if max_drawdown > 15%
       PENALTY: score = 0 if trade_count < MIN_TRADE_COUNT
+
+    All DB values are cast to float to avoid Decimal/float TypeError.
     """
     trade_count = len(trades)
 
@@ -63,23 +65,23 @@ def compute_composite_score(
             "composite_score": 0.0,
             "expectancy": 0.0,
             "trade_count": trade_count,
-            "max_drawdown_pct": run.max_drawdown_pct or 0.0,
+            "max_drawdown_pct": float(run.max_drawdown_pct or 0),
             "win_rate": 0.0,
         }
 
-    wins = [t for t in trades if (t.r_multiple or 0) > 0]
-    losses = [t for t in trades if (t.r_multiple or 0) <= 0]
+    wins = [t for t in trades if float(t.r_multiple or 0) > 0]
+    losses = [t for t in trades if float(t.r_multiple or 0) <= 0]
 
     win_rate = len(wins) / trade_count
     loss_rate = 1.0 - win_rate
 
     avg_win_r = (
-        sum(t.r_multiple for t in wins if t.r_multiple is not None) / len(wins)
+        sum(float(t.r_multiple) for t in wins if t.r_multiple is not None) / len(wins)
         if wins
         else 0.0
     )
     avg_loss_r = (
-        abs(sum(t.r_multiple for t in losses if t.r_multiple is not None) / len(losses))
+        abs(sum(float(t.r_multiple) for t in losses if t.r_multiple is not None) / len(losses))
         if losses
         else 0.0
     )
@@ -87,7 +89,7 @@ def compute_composite_score(
     expectancy = (win_rate * avg_win_r) - (loss_rate * avg_loss_r)
 
     # max_drawdown_pct from backtest_engine is stored as percentage (0-100)
-    raw_dd = run.max_drawdown_pct or 0.0
+    raw_dd = float(run.max_drawdown_pct or 0)
     max_dd = raw_dd / 100.0 if raw_dd > 1.0 else raw_dd
 
     score = expectancy * math.sqrt(trade_count) * (1.0 - max_dd)

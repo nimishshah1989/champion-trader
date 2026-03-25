@@ -115,7 +115,10 @@ def _run_backtest_background(
     rpt_pct: float,
 ) -> None:
     """Background thread: runs the full backtest with its own DB session."""
-    db = SessionLocal()
+    # expire_on_commit=False prevents SQLAlchemy from reloading SimulationTrade
+    # objects as Decimal after progress-reporting commits. The backtest loop
+    # sets values as float and must keep reading them as float.
+    db = SessionLocal(expire_on_commit=False)
     run = None
     try:
         run = db.query(SimulationRun).filter(SimulationRun.id == run_id).first()
@@ -381,13 +384,13 @@ def _execute_backtest(
                 closed_positions.append(pos)
                 continue
 
-            entry_price = pos.entry_price or 0
+            entry_price = float(pos.entry_price or 0)
             total_qty = pos.total_qty or remaining
-            trp_value = entry_price * (pos.trp_pct / 100) if pos.trp_pct else 0
+            trp_value = entry_price * (float(pos.trp_pct or 0) / 100) if pos.trp_pct else 0
 
             # Init/update position metadata
             meta = pos_meta.get(pos.id, {
-                "effective_sl": pos.sl_price or 0,
+                "effective_sl": float(pos.sl_price or 0),
                 "hold_days": 0,
                 "was_above_dma50": False,
                 "consec_below_dma": 0,
@@ -424,42 +427,47 @@ def _execute_backtest(
             # Target checks
             exited_this_day = 0
 
-            if pos.target_2r and day_high >= pos.target_2r and (pos.qty_exited_2r or 0) == 0:
+            t_2r = float(pos.target_2r or 0)
+            t_ne = float(pos.target_ne or 0)
+            t_ge = float(pos.target_ge or 0)
+            t_ee = float(pos.target_ee or 0)
+
+            if t_2r and day_high >= t_2r and (pos.qty_exited_2r or 0) == 0:
                 exit_qty = min(max(1, round(total_qty * TRADING_RULES["mathematical_exit_pct"])), remaining)
                 if exit_qty > 0:
-                    cash += pos.target_2r * exit_qty
+                    cash += t_2r * exit_qty
                     pos.qty_exited_2r = exit_qty
                     remaining -= exit_qty
                     exited_this_day += exit_qty
                     meta["effective_sl"] = entry_price
 
-            if remaining > 0 and pos.target_ne and day_high >= pos.target_ne and (pos.qty_exited_ne or 0) == 0:
+            if remaining > 0 and t_ne and day_high >= t_ne and (pos.qty_exited_ne or 0) == 0:
                 exit_qty = min(max(1, round(remaining * TRADING_RULES["ne_exit_pct"])), remaining)
                 if exit_qty > 0:
-                    cash += pos.target_ne * exit_qty
+                    cash += t_ne * exit_qty
                     pos.qty_exited_ne = exit_qty
                     remaining -= exit_qty
                     exited_this_day += exit_qty
-                    meta["effective_sl"] = pos.target_2r
+                    meta["effective_sl"] = t_2r
 
-            if remaining > 0 and pos.target_ge and day_high >= pos.target_ge and (pos.qty_exited_ge or 0) == 0:
+            if remaining > 0 and t_ge and day_high >= t_ge and (pos.qty_exited_ge or 0) == 0:
                 exit_qty = min(max(1, round(remaining * TRADING_RULES["ge_exit_pct"])), remaining)
                 if exit_qty > 0:
-                    cash += pos.target_ge * exit_qty
+                    cash += t_ge * exit_qty
                     pos.qty_exited_ge = exit_qty
                     remaining -= exit_qty
                     exited_this_day += exit_qty
-                    meta["effective_sl"] = pos.target_ne
+                    meta["effective_sl"] = t_ne
                     meta["is_extended"] = True
 
-            if remaining > 0 and pos.target_ee and day_high >= pos.target_ee and (pos.qty_exited_ee or 0) == 0:
+            if remaining > 0 and t_ee and day_high >= t_ee and (pos.qty_exited_ee or 0) == 0:
                 exit_qty = min(max(1, round(remaining * TRADING_RULES["ee_exit_pct"])), remaining)
                 if exit_qty > 0:
-                    cash += pos.target_ee * exit_qty
+                    cash += t_ee * exit_qty
                     pos.qty_exited_ee = exit_qty
                     remaining -= exit_qty
                     exited_this_day += exit_qty
-                    meta["effective_sl"] = pos.target_ge
+                    meta["effective_sl"] = t_ge
 
             # LOD trailing
             if remaining > 0 and meta.get("is_extended"):
@@ -524,19 +532,27 @@ def _execute_backtest(
                 continue
 
             equity = cash + sum(
-                (p.remaining_qty or 0) * (indicators.get(p.symbol, {}).get("close", {}).get(day_str, p.entry_price or 0))
+                (p.remaining_qty or 0) * float(indicators.get(p.symbol, {}).get("close", {}).get(day_str, p.entry_price or 0))
                 for p in open_positions
             )
 
-            current_risk = sum((p.rpt_amount or 0) for p in open_positions)
+            current_risk = sum(float(p.rpt_amount or 0) for p in open_positions)
             max_risk = equity * (TRADING_RULES["max_open_risk_pct"] / 100)
 
             trp_pct = entry["trp_pct"]
             sizing = calculate_position(equity, rpt_pct, trigger, trp_pct)
 
+            # Convert Decimal sizing values to float for backtest arithmetic
+            sz_sl = float(sizing["sl_price"])
+            sz_rpt = float(sizing["rpt_amount"])
+            sz_2r = float(sizing["target_2r"])
+            sz_ne = float(sizing["target_ne"])
+            sz_ge = float(sizing["target_ge"])
+            sz_ee = float(sizing["target_ee"])
+
             if sizing["position_size"] < 2:
                 continue
-            if current_risk + sizing["rpt_amount"] > max_risk:
+            if current_risk + sz_rpt > max_risk:
                 continue
             if trigger * sizing["position_size"] > cash:
                 continue
@@ -550,12 +566,12 @@ def _execute_backtest(
                 total_qty=sizing["position_size"],
                 half_qty=sizing["half_qty"],
                 trp_pct=trp_pct,
-                sl_price=sizing["sl_price"],
-                rpt_amount=sizing["rpt_amount"],
-                target_2r=sizing["target_2r"],
-                target_ne=sizing["target_ne"],
-                target_ge=sizing["target_ge"],
-                target_ee=sizing["target_ee"],
+                sl_price=sz_sl,
+                rpt_amount=sz_rpt,
+                target_2r=sz_2r,
+                target_ne=sz_ne,
+                target_ge=sz_ge,
+                target_ee=sz_ee,
                 remaining_qty=sizing["position_size"],
                 status="OPEN",
                 portfolio_value_at_entry=equity,
@@ -635,7 +651,7 @@ def _execute_backtest(
 
         # --- Record equity ---
         mtm = sum(
-            (p.remaining_qty or 0) * indicators.get(p.symbol, {}).get("close", {}).get(day_str, p.entry_price or 0)
+            (p.remaining_qty or 0) * float(indicators.get(p.symbol, {}).get("close", {}).get(day_str, p.entry_price or 0))
             for p in open_positions
         )
         equity = cash + mtm
@@ -654,10 +670,10 @@ def _execute_backtest(
     last_day = trading_days[-1] if trading_days else end_date.isoformat()
     for pos in open_positions:
         ind = indicators.get(pos.symbol, {})
-        close_price = ind.get("close", {}).get(last_day, pos.entry_price or 0)
+        close_price = float(ind.get("close", {}).get(last_day, pos.entry_price or 0))
         remaining = pos.remaining_qty or 0
         if remaining > 0:
-            entry_price = pos.entry_price or 0
+            entry_price = float(pos.entry_price or 0)
             cash += close_price * remaining
             pos.qty_exited_final = remaining
             pos.remaining_qty = 0
@@ -666,7 +682,8 @@ def _execute_backtest(
             total_pnl = _compute_total_pnl(pos, entry_price)
             total_pnl += (close_price - entry_price) * remaining
             pos.gross_pnl = round(total_pnl, 2)
-            trp_value = entry_price * (pos.trp_pct / 100) if pos.trp_pct else 0
+            trp_pct_val = float(pos.trp_pct or 0)
+            trp_value = entry_price * (trp_pct_val / 100) if trp_pct_val else 0
             total_qty = pos.total_qty or 1
             if trp_value > 0 and total_qty > 0:
                 pos.r_multiple = round(total_pnl / (trp_value * total_qty), 2)

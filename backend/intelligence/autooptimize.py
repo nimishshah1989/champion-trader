@@ -36,6 +36,7 @@ logger = logging.getLogger("autooptimize")
 
 LOG_DIR = RESULTS_TSV.parent / "logs"
 PAUSE_ON_ERROR_SEC = 30  # pause before retrying after error
+MAX_EXPERIMENTS_PER_SESSION = 10  # cap to limit compute (backtests are expensive)
 
 _stop_event = threading.Event()
 _running = False
@@ -237,6 +238,14 @@ def start_loop() -> None:
                 )
                 break
 
+            # Check experiment cap
+            if experiment_count >= MAX_EXPERIMENTS_PER_SESSION:
+                logger.info(
+                    f"Experiment cap ({MAX_EXPERIMENTS_PER_SESSION}) reached. "
+                    f"Stopping loop to conserve compute."
+                )
+                break
+
             # Validate parameters before each experiment
             violations = validate_parameters()
             if violations:
@@ -285,6 +294,18 @@ def start_loop() -> None:
 
     finally:
         _running = False
+
+        # Run Claude analysis on the full session results (one API call)
+        if experiment_count > 0:
+            try:
+                from backend.intelligence.autooptimize_analysis import (
+                    run_session_analysis,
+                )
+                analysis = run_session_analysis(experiment_count, keep_count, revert_count)
+                logger.info(f"Claude session analysis: {analysis}")
+            except Exception as exc:
+                logger.warning(f"Session analysis skipped: {exc}")
+
         logger.info("=" * 60)
         logger.info(
             f"AutoOptimize loop STOPPED after {experiment_count} experiments. "

@@ -1,9 +1,11 @@
 """
 autooptimize_proposals.py -- Parameter proposal generation and hypothesis creation.
 
-Uses Claude API to form data-driven hypotheses about which single parameter
-to change in the CTS strategy, then mutates strategy.py accordingly.
+Uses deterministic parameter sweep to form hypotheses about which single
+parameter to change in the CTS strategy, then mutates strategy.py accordingly.
 Also handles results.tsv I/O, database logging, and git operations.
+
+Zero Claude API cost — all hypotheses generated via rules + random perturbation.
 """
 
 from __future__ import annotations
@@ -12,15 +14,14 @@ import csv
 import importlib
 import json
 import logging
+import random
 import re
 from datetime import date
 from pathlib import Path
 from typing import Any
 
 import git
-from anthropic import Anthropic
 
-from backend.config import settings
 from backend.database import (
     OptimizeExperiment,
     SessionLocal,
@@ -184,43 +185,45 @@ def revert_strategy_file(parameter: str, old_value: float) -> None:
 
 
 # ===========================================================================
-# CLAUDE HYPOTHESIS GENERATION
+# DETERMINISTIC HYPOTHESIS GENERATION (zero Claude API cost)
 # ===========================================================================
 
-_HYPOTHESIS_SYSTEM_PROMPT = (
-    "You are an autonomous trading parameter researcher. "
-    "You analyze experiment history and form data-driven hypotheses. "
-    "Respond ONLY with valid JSON. No markdown, no explanation outside the JSON."
-)
+# Parameters to cycle through, ordered by impact on trade generation
+_PARAM_PRIORITY = [
+    "ppc_trp_ratio_min",
+    "ppc_close_position_min",
+    "ppc_volume_ratio_min",
+    "min_base_days",
+    "npc_trp_ratio_min",
+    "npc_close_position_max",
+    "npc_volume_ratio_min",
+    "contraction_atr_lookback",
+    "contraction_narrowing_min",
+    "contraction_resistance_pct",
+    "sma_window",
+    "stage_sma_lookback",
+    "min_adt_crore",
+]
 
-_HYPOTHESIS_USER_TEMPLATE = """## Research Mandate
-{mandate}
+# Weight params excluded from random sweep — they need coordinated changes
+_WEIGHT_PARAMS = frozenset({"weight_ppc", "weight_contraction", "weight_npc_filter"})
 
-## Current Parameters
-{params_json}
+# Step sizes as fraction of the parameter's range
+_STEP_FRACTION = 0.15
 
-## Parameter Bounds (hard walls -- you must NOT exceed these)
-{bounds_json}
 
-## Experiment History (most recent {history_window})
-{results_history}
-
-## Your Task
-Based on the experiment history and current parameters, form a hypothesis about
-which SINGLE parameter to change and what new value to try.
-
-Respond with EXACTLY this JSON format, nothing else:
-{{"parameter": "<parameter_name>", "new_value": <number>, "hypothesis": "<one sentence explaining your reasoning>"}}
-
-Rules:
-- Change exactly ONE parameter per experiment
-- The new_value MUST be strictly within the bounds for that parameter
-- Base your hypothesis on patterns in the experiment history
-- If no history exists, start with PPC signal thresholds (they drive most trade generation)
-- Avoid repeating an experiment that already showed REVERT with the same direction
-- Consider trade-offs: tighter filters reduce false signals but also reduce trade_count
-- Weight parameters must respect the constraint: weight_ppc + weight_contraction + weight_npc_filter = 1.0
-  If you change one weight, the others will need adjustment in future experiments"""
+def _parse_recent_experiments(results_history: str) -> list[dict[str, str]]:
+    """Parse TSV history string into list of dicts."""
+    lines = results_history.strip().split("\n")
+    if len(lines) <= 1:
+        return []
+    header = lines[0].split("\t")
+    rows = []
+    for line in lines[1:]:
+        vals = line.split("\t")
+        if len(vals) == len(header):
+            rows.append(dict(zip(header, vals)))
+    return rows
 
 
 def get_hypothesis_from_claude(
@@ -229,67 +232,83 @@ def get_hypothesis_from_claude(
     mandate: str,
 ) -> dict[str, Any]:
     """
-    Call Claude to form a hypothesis about which parameter to change.
+    Generate a deterministic hypothesis about which parameter to change.
+
+    Uses round-robin parameter selection with random perturbation within bounds.
+    Avoids repeating recently reverted experiments in the same direction.
+    Zero API cost — no LLM calls.
 
     Returns: {"parameter": str, "new_value": float, "hypothesis": str}
-    Raises: ValueError if Claude returns invalid/out-of-bounds suggestions.
     """
-    client = Anthropic(api_key=settings.anthropic_api_key)
+    recent = _parse_recent_experiments(results_history)
 
-    params_json = json.dumps(current_params, indent=2)
-    bounds_json = json.dumps(
-        {k: [v[0], v[1]] for k, v in BOUNDS.items()}, indent=2
-    )
+    # Build set of recently tried (param, direction) combos that were REVERT
+    reverted: set[tuple[str, str]] = set()
+    recently_tried: set[str] = set()
+    for row in recent[-10:]:
+        param = row.get("parameter", "")
+        outcome = row.get("outcome", "")
+        recently_tried.add(param)
+        if outcome == "REVERT":
+            old_val = float(row.get("old_value", 0))
+            new_val = float(row.get("new_value", 0))
+            direction = "up" if new_val > old_val else "down"
+            reverted.add((param, direction))
 
-    user_content = _HYPOTHESIS_USER_TEMPLATE.format(
-        mandate=mandate,
-        params_json=params_json,
-        bounds_json=bounds_json,
-        results_history=results_history,
-        history_window=EXPERIMENT_HISTORY_WINDOW,
-    )
+    # Pick parameter: prefer ones not recently tried
+    param_name = None
+    for p in _PARAM_PRIORITY:
+        if p not in recently_tried and p not in _WEIGHT_PARAMS:
+            param_name = p
+            break
 
-    response = client.messages.create(
-        model=settings.autooptimize_model,
-        max_tokens=1024,
-        system=_HYPOTHESIS_SYSTEM_PROMPT,
-        messages=[{"role": "user", "content": user_content}],
-    )
+    # If all have been tried recently, pick the one tried longest ago
+    if param_name is None:
+        for p in _PARAM_PRIORITY:
+            if p not in _WEIGHT_PARAMS:
+                param_name = p
+                break
 
-    raw_text = response.content[0].text.strip()
+    if param_name is None:
+        param_name = _PARAM_PRIORITY[0]
 
-    # Handle markdown code blocks that Claude sometimes wraps JSON in
-    code_block_match = re.search(r"```(?:json)?\s*(.*?)\s*```", raw_text, re.DOTALL)
-    text = code_block_match.group(1) if code_block_match else raw_text
-
-    parsed = json.loads(text)
-
-    param_name = str(parsed["parameter"])
-    new_val = float(parsed["new_value"])
-    hypothesis_text = str(parsed.get("hypothesis", "No hypothesis provided"))
-
-    # Validate parameter exists
-    if param_name not in BOUNDS:
-        raise ValueError(f"Claude suggested unknown parameter: {param_name}")
-
-    # Validate bounds
+    current_val = current_params[param_name]
     lo, hi = BOUNDS[param_name]
-    if not (lo <= new_val <= hi):
-        raise ValueError(
-            f"Claude suggested {param_name}={new_val}, outside bounds [{lo}, {hi}]"
-        )
+    step = (hi - lo) * _STEP_FRACTION
 
-    # Validate weight constraint if touching a weight parameter
-    weight_keys = {"weight_ppc", "weight_contraction", "weight_npc_filter"}
-    if param_name in weight_keys:
-        test_params = dict(current_params)
-        test_params[param_name] = new_val
-        weight_sum = sum(test_params[k] for k in weight_keys)
-        if abs(weight_sum - 1.0) > 0.01:
-            raise ValueError(
-                f"Changing {param_name} to {new_val} would make weights sum "
-                f"to {weight_sum:.3f} (must be ~1.0). Rejecting hypothesis."
-            )
+    # Try up first, then down; skip if that direction was recently reverted
+    direction = random.choice(["up", "down"])
+    if (param_name, direction) in reverted:
+        direction = "down" if direction == "up" else "up"
+
+    if direction == "up":
+        new_val = current_val + step * random.uniform(0.5, 1.5)
+    else:
+        new_val = current_val - step * random.uniform(0.5, 1.5)
+
+    # Clamp to bounds
+    new_val = max(lo, min(hi, new_val))
+
+    # Round appropriately
+    if param_name in INTEGER_PARAMETERS:
+        new_val = float(round(new_val))
+    else:
+        new_val = round(new_val, 2)
+
+    # Don't test the same value
+    if abs(new_val - current_val) < 0.001:
+        new_val = current_val + step if current_val + step <= hi else current_val - step
+        new_val = max(lo, min(hi, new_val))
+        if param_name in INTEGER_PARAMETERS:
+            new_val = float(round(new_val))
+        else:
+            new_val = round(new_val, 2)
+
+    actual_dir = "increase" if new_val > current_val else "decrease"
+    hypothesis_text = (
+        f"Systematic sweep: {actual_dir} {param_name} from {current_val} to {new_val} "
+        f"to test impact on composite score."
+    )
 
     return {
         "parameter": param_name,

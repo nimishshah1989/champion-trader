@@ -15,12 +15,6 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 import { SettingsButton } from "@/components/settings-drawer";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
-import { ChevronRight } from "lucide-react";
 
 const CORE_NAV = [
   { title: "Dashboard", href: "/" },
@@ -30,12 +24,9 @@ const CORE_NAV = [
   { title: "Review", href: "/review" },
 ] as const;
 
-const ADVANCED_NAV = [
-  { title: "Simulation", href: "/simulation" },
-] as const;
-
 const INTELLIGENCE_NAV = [
   { title: "Intelligence", href: "/intelligence" },
+  { title: "Simulation", href: "/simulation" },
   { title: "Optimize", href: "/intelligence/optimize" },
   { title: "Shadow", href: "/intelligence/shadow" },
   { title: "Attribution", href: "/intelligence/attribution" },
@@ -76,31 +67,6 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
-
-        {/* Advanced — collapsed by default */}
-        <Collapsible defaultOpen={false} className="group/collapsible">
-          <SidebarGroup>
-            <CollapsibleTrigger className="flex w-full items-center justify-between px-2 py-1.5 text-xs font-medium text-sidebar-foreground/60 hover:text-sidebar-foreground/80">
-              <span>Advanced</span>
-              <ChevronRight className="h-3.5 w-3.5 transition-transform group-data-[state=open]/collapsible:rotate-90" />
-            </CollapsibleTrigger>
-            <CollapsibleContent>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  {ADVANCED_NAV.map((item) => (
-                    <SidebarMenuItem key={item.href}>
-                      <SidebarMenuButton asChild isActive={isActive(item.href, pathname)}>
-                        <Link href={item.href}>
-                          <span>{item.title}</span>
-                        </Link>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  ))}
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </CollapsibleContent>
-          </SidebarGroup>
-        </Collapsible>
 
         {/* Intelligence */}
         <SidebarGroup>

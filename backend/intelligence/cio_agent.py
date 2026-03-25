@@ -1,9 +1,9 @@
 """
-cio_agent.py — Generates the CIO Daily Brief via Claude API.
+cio_agent.py — Generates the CIO Daily Brief.
 
-Runs at 17:00 IST daily.
+Runs at 17:00 IST daily. Zero Claude API cost — recommendation is rule-based.
 
-Inputs gathered before calling Claude:
+Inputs gathered:
   1. Today's regime from regime_classifier
   2. Active parameter bank
   3. Overnight AutoOptimize results
@@ -15,12 +15,12 @@ Inputs gathered before calling Claude:
 Output: structured Telegram message with setup cards and recommendation.
 """
 
+from __future__ import annotations
+
 import json
 import logging
 from datetime import datetime
 from decimal import Decimal
-
-from anthropic import Anthropic
 
 from backend.config import settings
 from backend.database import SessionLocal, Trade
@@ -257,37 +257,38 @@ async def _generate_recommendation(
     risk_data: dict,
     mtd: dict,
 ) -> str:
-    """Use Claude to generate a one-line trading recommendation."""
-    try:
-        client = Anthropic(api_key=settings.anthropic_api_key)
+    """Generate a one-line trading recommendation using rules. Zero API cost."""
+    risk_pct = risk_data.get("total_risk_pct", 0)
+    exceeds_limit = risk_data.get("exceeds_limit", False)
+    win_rate = mtd.get("mtd_win_rate", 0)
+    top_score = setups[0]["composite_score"] if setups else 0
+    top_symbol = setups[0]["symbol"] if setups else None
 
-        context = {
-            "regime": regime,
-            "open_positions": len(positions),
-            "total_risk_pct": risk_data["total_risk_pct"],
-            "mtd_pnl": mtd["mtd_pnl"],
-            "mtd_win_rate": mtd["mtd_win_rate"],
-            "top_setup_score": setups[0]["composite_score"] if setups else 0,
-            "top_setup_symbol": setups[0]["symbol"] if setups else None,
-            "risk_exceeds_limit": risk_data["exceeds_limit"],
-        }
+    # Rule 1: Risk limit breached → defensive
+    if exceeds_limit:
+        return "Risk limit breached. No new entries until existing positions reduce risk."
 
-        response = client.messages.create(
-            model=settings.autooptimize_model,
-            max_tokens=150,
-            system="You are a disciplined swing trading CIO. Give one clear, actionable sentence.",
-            messages=[{
-                "role": "user",
-                "content": f"Given this context, what is today's recommendation?\n{json.dumps(context)}"
-            }]
-        )
+    # Rule 2: Bearish regime → capital preservation
+    if regime in ("BEARISH", "CRISIS"):
+        if setups and top_score > 80:
+            return f"Bearish regime but {top_symbol} scores {top_score}/100 — consider half-size only."
+        return "Bearish regime. Preserve capital. No new entries recommended."
 
-        return response.content[0].text.strip()
-    except Exception as e:
-        logger.error(f"Recommendation generation failed: {e}")
-        if setups and setups[0]["composite_score"] > 70:
-            return f"Consider {setups[0]['symbol']} if market opens constructively."
+    # Rule 3: Good setup in favourable regime
+    if setups and top_score > 70 and regime in ("BULLISH", "TRENDING"):
+        return f"Strong setup: {top_symbol} ({top_score}/100) in {regime} regime. Execute if trigger breaks."
+
+    # Rule 4: Moderate setup
+    if setups and top_score > 50:
+        return f"Moderate setup: {top_symbol} ({top_score}/100). Wait for clean trigger break with volume."
+
+    # Rule 5: No setups or low quality
+    if not setups or top_score <= 50:
+        if len(positions) > 0:
+            return f"No new setups. Monitor {len(positions)} open positions. Trail stops on winners."
         return "No compelling setups today. Preserve capital."
+
+    return "Monitor watchlist for developing setups."
 
 
 def get_latest_brief() -> dict:

@@ -21,9 +21,6 @@ import logging
 from datetime import date as date_cls, datetime
 from decimal import Decimal, ROUND_HALF_UP
 
-from anthropic import Anthropic
-
-from backend.config import settings
 from backend.database import (
     RegimeLog,
     SessionLocal,
@@ -265,29 +262,49 @@ async def _generate_learning_note(
     exit_quality: str,
     hold_days: int,
 ) -> str:
-    """Generate a 2-sentence learning insight via Claude."""
-    try:
-        client = Anthropic(api_key=settings.anthropic_api_key)
-        response = client.messages.create(
-            model=settings.autooptimize_model,
-            max_tokens=LEARNING_NOTE_MAX_TOKENS,
-            system="You are a trading journal analyst. Write exactly 2 sentences.",
-            messages=[
-                {
-                    "role": "user",
-                    "content": (
-                        f"Trade: {trade.symbol}, {regime} regime, "
-                        f"R={trade.r_multiple:.2f}, held {hold_days} days, "
-                        f"exit: {exit_quality}. "
-                        f"What is the key learning from this trade?"
-                    ),
-                }
-            ],
+    """Generate a 2-sentence learning insight using templates. Zero API cost."""
+    r_mult = float(trade.r_multiple or 0)
+    symbol = trade.symbol or "UNKNOWN"
+
+    # Build contextual insight based on outcome patterns
+    if exit_quality == "STOPPED_OUT":
+        if hold_days <= 3:
+            insight = (
+                f"{symbol} stopped out after only {hold_days} days — entry timing may have been premature. "
+                f"In {regime} regime, consider waiting for stronger trigger confirmation."
+            )
+        else:
+            insight = (
+                f"{symbol} stopped out at R={r_mult:.2f} after {hold_days} days in {regime} regime. "
+                f"Stop placement held as designed — discipline maintained."
+            )
+    elif exit_quality in ("EXTREME_EXTENSION", "GREAT_EXTENSION"):
+        insight = (
+            f"{symbol} achieved {exit_quality.replace('_', ' ').lower()} at R={r_mult:.2f} in {hold_days} days. "
+            f"{regime} regime favoured extended moves — trail stops on similar setups."
         )
-        return response.content[0].text.strip()
-    except Exception as e:
-        logger.error(f"Learning note generation failed: {e}")
-        return f"Trade closed at {exit_quality} in {regime} regime."
+    elif exit_quality == "NORMAL_EXTENSION":
+        insight = (
+            f"{symbol} reached normal extension (R={r_mult:.2f}) in {hold_days} days. "
+            f"Solid execution in {regime} regime — partial exits preserved capital."
+        )
+    elif exit_quality == "MATHEMATICAL_EXIT":
+        insight = (
+            f"{symbol} hit 2R mathematical exit ({r_mult:.2f}R) after {hold_days} days. "
+            f"Textbook execution — risk managed, profit booked per framework."
+        )
+    elif exit_quality == "PARTIAL_WIN":
+        insight = (
+            f"{symbol} closed as partial win (R={r_mult:.2f}) after {hold_days} days in {regime} regime. "
+            f"Exited before full target — review if regime shift warranted early exit."
+        )
+    else:
+        insight = (
+            f"{symbol} closed at {exit_quality} (R={r_mult:.2f}) after {hold_days} days in {regime} regime. "
+            f"Review entry quality and regime alignment for this signal type."
+        )
+
+    return insight
 
 
 # ---------------------------------------------------------------------------
