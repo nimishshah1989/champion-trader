@@ -28,6 +28,14 @@ from backend.intelligence.strategy import PARAMETERS
 from backend.services.position_calculator import calculate_position
 from backend.services.trading_rules import TRADING_RULES
 
+# Re-export extracted modules so external imports still work
+from backend.services.backtest_metrics import compute_total_pnl  # noqa: F401
+from backend.services.backtest_strategies import (  # noqa: F401
+    precompute_indicators,
+    check_stage_fast,
+    estimate_base_days_at,
+)
+
 logger = logging.getLogger(__name__)
 
 # Need 150 bars before start_date for 150-day SMA (stage analysis) + 50 DMA buffer
@@ -54,6 +62,12 @@ MAX_BACKTEST_RUNTIME_SECS = 45 * 60  # 45 minutes
 
 # Stuck detection: if a RUNNING backtest has not updated in this many seconds, treat as stuck
 STUCK_THRESHOLD_SECS = 30 * 60  # 30 minutes
+
+# Keep old private names available for internal use
+_precompute_indicators = precompute_indicators
+_check_stage_fast = check_stage_fast
+_estimate_base_days_at = estimate_base_days_at
+_compute_total_pnl = compute_total_pnl
 
 
 def run_backtest(
@@ -155,7 +169,6 @@ def cleanup_stuck_backtests() -> list[int]:
                     pass
 
             if updated is None:
-                # Can't determine age — mark as stuck
                 run.status = "FAILED"
                 run.error_message = "Marked as failed: unable to determine last update time"
                 run.updated_at = now.isoformat()
@@ -230,181 +243,6 @@ def _fetch_universe_ohlcv(start_date: str, end_date: str) -> dict[str, pd.DataFr
 
     logger.info(f"Total: {len(result)} stocks with valid data")
     return result
-
-
-# ---------------------------------------------------------------------------
-# Pre-compute technical indicators
-# ---------------------------------------------------------------------------
-
-def _precompute_indicators(ohlcv: dict[str, pd.DataFrame]) -> dict[str, dict]:
-    """
-    Pre-compute all PPC detection metrics as vectorized Series.
-    Returns {symbol: {trp_ratio, close_pos, vol_ratio, is_green, adt, high, ...}}
-    where each value is a dict keyed by date_str for O(1) lookups.
-    """
-    indicators: dict[str, dict] = {}
-
-    for symbol, df in ohlcv.items():
-        try:
-            if len(df) < 30:
-                continue
-
-            # TRP and ratios
-            trp = (df["High"] - df["Low"]) / df["Close"] * 100
-            avg_trp = trp.rolling(window=20, min_periods=20).mean()
-            trp_ratio = trp / avg_trp.replace(0, np.nan)
-
-            # Close position
-            candle_range = df["High"] - df["Low"]
-            close_pos = (df["Close"] - df["Low"]) / candle_range.replace(0, np.nan)
-
-            # Volume ratio
-            avg_vol = df["Volume"].rolling(window=20, min_periods=20).mean()
-            vol_ratio = df["Volume"] / avg_vol.replace(0, np.nan)
-
-            # ADT (rolling)
-            turnover = df["Volume"] * df["Close"]
-            adt = turnover.rolling(window=20, min_periods=20).mean()
-
-            # Is green candle
-            is_green = df["Close"] > df["Open"]
-
-            # 20 DMA for tighter trailing (3+ month override)
-            dma20 = df["Close"].rolling(window=20, min_periods=20).mean()
-
-            # 50 DMA for exit signals
-            dma50 = df["Close"].rolling(window=50, min_periods=50).mean()
-
-            # 150 DMA for stage analysis (pre-compute for efficiency)
-            sma150 = df["Close"].rolling(window=150, min_periods=150).mean()
-
-            # Build date-keyed lookups
-            sym_data: dict = {
-                "trp_ratio": {},
-                "trp_pct": {},
-                "close_pos": {},
-                "vol_ratio": {},
-                "is_green": {},
-                "adt": {},
-                "high": {},
-                "low": {},
-                "close": {},
-                "open": {},
-                "dma20": {},
-                "dma50": {},
-                "sma150": {},
-                "sma150_20ago": {},
-            }
-
-            dates = df.index
-            for i, idx in enumerate(dates):
-                ds = idx.strftime("%Y-%m-%d") if hasattr(idx, "strftime") else str(idx.date())
-
-                if pd.notna(trp_ratio.iloc[i]):
-                    sym_data["trp_ratio"][ds] = float(trp_ratio.iloc[i])
-                if pd.notna(trp.iloc[i]):
-                    sym_data["trp_pct"][ds] = float(trp.iloc[i])
-                if pd.notna(close_pos.iloc[i]):
-                    sym_data["close_pos"][ds] = float(close_pos.iloc[i])
-                if pd.notna(vol_ratio.iloc[i]):
-                    sym_data["vol_ratio"][ds] = float(vol_ratio.iloc[i])
-                sym_data["is_green"][ds] = bool(is_green.iloc[i])
-                if pd.notna(adt.iloc[i]):
-                    sym_data["adt"][ds] = float(adt.iloc[i])
-                sym_data["high"][ds] = float(df["High"].iloc[i])
-                sym_data["low"][ds] = float(df["Low"].iloc[i])
-                sym_data["close"][ds] = float(df["Close"].iloc[i])
-                sym_data["open"][ds] = float(df["Open"].iloc[i])
-                if pd.notna(dma20.iloc[i]):
-                    sym_data["dma20"][ds] = float(dma20.iloc[i])
-                if pd.notna(dma50.iloc[i]):
-                    sym_data["dma50"][ds] = float(dma50.iloc[i])
-                if pd.notna(sma150.iloc[i]):
-                    sym_data["sma150"][ds] = float(sma150.iloc[i])
-                if i >= 20 and pd.notna(sma150.iloc[i - 20]):
-                    sym_data["sma150_20ago"][ds] = float(sma150.iloc[i - 20])
-
-            # Store raw DataFrame for stage/base analysis on PPC candidates
-            sym_data["_df"] = df
-
-            indicators[symbol] = sym_data
-
-        except Exception as exc:
-            logger.warning(f"Pre-compute failed for {symbol}: {exc}")
-
-    return indicators
-
-
-def _check_stage_fast(ind: dict, day_str: str) -> str:
-    """Fast stage determination using pre-computed SMA values."""
-    current_close = ind["close"].get(day_str)
-    current_sma = ind["sma150"].get(day_str)
-    sma_20_ago = ind["sma150_20ago"].get(day_str)
-
-    if current_close is None or current_sma is None or sma_20_ago is None:
-        return "UNKNOWN"
-
-    sma_slope_pct = (current_sma - sma_20_ago) / sma_20_ago * 100
-    price_vs_sma_pct = (current_close - current_sma) / current_sma * 100
-
-    if price_vs_sma_pct < -5 and sma_slope_pct < -0.5:
-        return "S4"
-    if price_vs_sma_pct > 3 and sma_slope_pct > 0.5:
-        return "S2"
-    if -3 <= price_vs_sma_pct <= 8 and -0.5 <= sma_slope_pct <= 1.5:
-        if price_vs_sma_pct > 0:
-            return "S1B"
-        return "S1"
-    if -5 <= price_vs_sma_pct <= 3 and -1.0 <= sma_slope_pct <= 0.5:
-        return "S3"
-    if -5 <= price_vs_sma_pct <= 5 and abs(sma_slope_pct) < 1.0:
-        return "S1"
-    if price_vs_sma_pct > 0:
-        return "S2"
-    return "S4"
-
-
-def _estimate_base_days_at(df: pd.DataFrame, day_idx: int) -> tuple[int, str]:
-    """Estimate base days at a specific index in the DataFrame."""
-    if day_idx < 30:
-        return (0, "UNKNOWN")
-
-    closes = df["Close"].values[:day_idx + 1]
-    highs = df["High"].values[:day_idx + 1]
-
-    lookback = min(60, len(highs))
-    recent_high = float(np.max(highs[-lookback:]))
-    upper_bound = recent_high * 1.02
-    lower_bound = recent_high * 0.85
-
-    base_days = 0
-    for i in range(len(closes) - 1, -1, -1):
-        if lower_bound <= closes[i] <= upper_bound:
-            base_days += 1
-        else:
-            break
-
-    if base_days < 10:
-        return (base_days, "UNKNOWN")
-
-    base_slice_h = df["High"].values[day_idx - base_days + 1:day_idx + 1]
-    base_slice_l = df["Low"].values[day_idx - base_days + 1:day_idx + 1]
-    base_slice_c = df["Close"].values[day_idx - base_days + 1:day_idx + 1]
-
-    if len(base_slice_c) == 0:
-        return (base_days, "UNKNOWN")
-
-    daily_ranges = (base_slice_h - base_slice_l) / np.where(base_slice_c == 0, 1, base_slice_c)
-    range_std = float(np.std(daily_ranges))
-
-    if range_std < 0.015:
-        quality = "SMOOTH"
-    elif range_std < 0.025:
-        quality = "MIXED"
-    else:
-        quality = "CHOPPY"
-
-    return (base_days, quality)
 
 
 # ---------------------------------------------------------------------------
@@ -488,17 +326,12 @@ def _execute_backtest(
     cash = starting_capital
     open_positions: list[SimulationTrade] = []
     closed_positions: list[SimulationTrade] = []
-    pending_entries: list[dict] = []  # each has symbol, trigger_level, signal_date, trp_pct, days_waiting
+    pending_entries: list[dict] = []
     equity_curve: list[dict] = []
     peak_equity = starting_capital
     max_drawdown_pct = 0.0
     max_drawdown_amount = 0.0
 
-    # Per-position tracking:
-    #   effective_sl: trailing SL (starts at original, moves up after targets)
-    #   hold_days: trading days since entry
-    #   was_above_dma50: whether close was ever above 50 DMA
-    #   consec_below_dma: consecutive closes below 50 DMA (for "undercut" confirmation)
     pos_meta: dict[int, dict] = {}
 
     backtest_start_time = time.monotonic()
@@ -580,9 +413,7 @@ def _execute_backtest(
                 pos.remaining_qty = 0
                 pos.status = "CLOSED"
                 pos.exit_date = date.fromisoformat(day_str)
-                # Total PnL = prior partial exits + this SL exit
                 prior_pnl = _compute_total_pnl(pos, entry_price, sl_exit_price=exit_price)
-                # prior_pnl already includes the SL exit (qty_exited_sl was just set)
                 pos.gross_pnl = round(prior_pnl, 2)
                 if trp_value > 0 and total_qty > 0:
                     pos.r_multiple = round(prior_pnl / (trp_value * total_qty), 2)
@@ -590,7 +421,7 @@ def _execute_backtest(
                 closed_positions.append(pos)
                 continue
 
-            # Target checks — 2R uses % of original; NE/GE/EE use % of REMAINING (per methodology)
+            # Target checks
             exited_this_day = 0
 
             if pos.target_2r and day_high >= pos.target_2r and (pos.qty_exited_2r or 0) == 0:
@@ -600,7 +431,6 @@ def _execute_backtest(
                     pos.qty_exited_2r = exit_qty
                     remaining -= exit_qty
                     exited_this_day += exit_qty
-                    # Trail SL to breakeven (entry price)
                     meta["effective_sl"] = entry_price
 
             if remaining > 0 and pos.target_ne and day_high >= pos.target_ne and (pos.qty_exited_ne or 0) == 0:
@@ -610,7 +440,6 @@ def _execute_backtest(
                     pos.qty_exited_ne = exit_qty
                     remaining -= exit_qty
                     exited_this_day += exit_qty
-                    # Trail SL up to 2R level
                     meta["effective_sl"] = pos.target_2r
 
             if remaining > 0 and pos.target_ge and day_high >= pos.target_ge and (pos.qty_exited_ge or 0) == 0:
@@ -620,7 +449,6 @@ def _execute_backtest(
                     pos.qty_exited_ge = exit_qty
                     remaining -= exit_qty
                     exited_this_day += exit_qty
-                    # Trail SL up to NE level; mark position as extended for LOD trailing
                     meta["effective_sl"] = pos.target_ne
                     meta["is_extended"] = True
 
@@ -631,23 +459,20 @@ def _execute_backtest(
                     pos.qty_exited_ee = exit_qty
                     remaining -= exit_qty
                     exited_this_day += exit_qty
-                    # Trail SL up to GE level
                     meta["effective_sl"] = pos.target_ge
 
-            # LOD trailing — after GE hit, trail SL using Low of the Day (README: "trail using LOD")
+            # LOD trailing
             if remaining > 0 and meta.get("is_extended"):
                 meta["effective_sl"] = max(meta["effective_sl"], day_low)
 
-            # 50 DMA / 20 DMA final exit — "Stock CLOSES and UNDERCUTS below"
-            # After 3+ months above 20 DMA, use tighter 20 DMA; otherwise 50 DMA
+            # 50 DMA / 20 DMA final exit
             dma20 = ind["dma20"].get(day_str)
             if dma20 and day_close > dma20:
                 meta["consec_above_dma20"] = meta.get("consec_above_dma20", 0) + 1
             else:
                 meta["consec_above_dma20"] = 0
 
-            # Choose which DMA to use for final exit
-            use_dma20 = meta.get("consec_above_dma20", 0) >= 60  # ~3 months
+            use_dma20 = meta.get("consec_above_dma20", 0) >= 60
             final_dma = dma20 if (use_dma20 and dma20) else dma50
 
             if (
@@ -667,7 +492,6 @@ def _execute_backtest(
                 pos.status = "CLOSED"
                 pos.exit_date = date.fromisoformat(day_str)
                 total_pnl = _compute_total_pnl(pos, entry_price)
-                # Include final exit PnL if position closed via 50 DMA
                 if pos.qty_exited_final and pos.qty_exited_final > 0:
                     final_exit_price = day_close
                     total_pnl += (final_exit_price - entry_price) * pos.qty_exited_final
@@ -683,7 +507,7 @@ def _execute_backtest(
 
         open_positions = still_open
 
-        # --- Process pending entries (signals from recent days, kept alive for PENDING_ENTRY_MAX_DAYS) ---
+        # --- Process pending entries ---
         new_pending: list[dict] = []
         for entry in pending_entries:
             symbol = entry["symbol"]
@@ -694,19 +518,16 @@ def _execute_backtest(
 
             day_high = ind["high"].get(day_str)
             if day_high is None or day_high < trigger:
-                # Trigger not hit — keep alive if within max days
                 entry["days_waiting"] = entry.get("days_waiting", 0) + 1
                 if entry["days_waiting"] < PENDING_ENTRY_MAX_DAYS:
                     new_pending.append(entry)
                 continue
 
-            # Calculate current equity
             equity = cash + sum(
                 (p.remaining_qty or 0) * (indicators.get(p.symbol, {}).get("close", {}).get(day_str, p.entry_price or 0))
                 for p in open_positions
             )
 
-            # Max open risk check
             current_risk = sum((p.rpt_amount or 0) for p in open_positions)
             max_risk = equity * (TRADING_RULES["max_open_risk_pct"] / 100)
 
@@ -714,7 +535,7 @@ def _execute_backtest(
             sizing = calculate_position(equity, rpt_pct, trigger, trp_pct)
 
             if sizing["position_size"] < 2:
-                continue  # Need at least 2 shares for meaningful partial exits
+                continue
             if current_risk + sizing["rpt_amount"] > max_risk:
                 continue
             if trigger * sizing["position_size"] > cash:
@@ -746,7 +567,7 @@ def _execute_backtest(
 
         pending_entries = new_pending
 
-        # --- Run PPC scan on today's candles across the full universe ---
+        # --- Run PPC scan on today's candles ---
         open_symbols = {p.symbol for p in open_positions}
         pending_symbols = {e["symbol"] for e in pending_entries}
 
@@ -754,7 +575,6 @@ def _execute_backtest(
             if symbol in open_symbols or symbol in pending_symbols:
                 continue
 
-            # Fast PPC check using pre-computed values
             trp_ratio_val = ind["trp_ratio"].get(day_str)
             close_pos_val = ind["close_pos"].get(day_str)
             vol_ratio_val = ind["vol_ratio"].get(day_str)
@@ -770,7 +590,6 @@ def _execute_backtest(
             ):
                 continue
 
-            # PPC conditions — read from PARAMETERS (written by AutoOptimize)
             if not (
                 trp_ratio_val >= PARAMETERS.get("ppc_trp_ratio_min", 1.5)
                 and close_pos_val >= PARAMETERS.get("ppc_close_position_min", 0.60)
@@ -780,12 +599,10 @@ def _execute_backtest(
             ):
                 continue
 
-            # PPC candidate — now check stage and base (only for matches)
             stage = _check_stage_fast(ind, day_str)
             if stage not in ("S1B", "S2"):
                 continue
 
-            # Base days check (heavier computation, but only for PPC + right stage)
             df = ind["_df"]
             day_idx_map = df_date_indices.get(symbol, {})
             day_idx = day_idx_map.get(day_str)
@@ -800,7 +617,6 @@ def _execute_backtest(
             if base_days < min_base:
                 continue
 
-            # TRP must be >= 2.0 for tradeable
             trp_pct = ind["trp_pct"].get(day_str, 0)
             if trp_pct < TRADING_RULES["min_trp"]:
                 continue
@@ -809,7 +625,6 @@ def _execute_backtest(
             if trigger_level is None:
                 continue
 
-            # Signal detected — queue for next-day entry (stays alive for up to 3 days)
             pending_entries.append({
                 "symbol": symbol,
                 "trigger_level": round(trigger_level, 2),
@@ -910,24 +725,3 @@ def _execute_backtest(
         f"Backtest {run.id} completed: {len(all_trades)} trades, "
         f"{total_return_pct:.2f}% return, {len(trading_days)} days replayed"
     )
-
-
-def _compute_total_pnl(pos: SimulationTrade, entry_price: float, sl_exit_price: float | None = None) -> float:
-    """Compute total P&L from all partial and SL exits (excluding final exit).
-
-    sl_exit_price: the actual SL price used for exit (may be trailed up from original).
-    If not provided, falls back to pos.sl_price (original SL).
-    """
-    total = 0.0
-    if pos.qty_exited_2r and pos.target_2r:
-        total += (pos.target_2r - entry_price) * pos.qty_exited_2r
-    if pos.qty_exited_ne and pos.target_ne:
-        total += (pos.target_ne - entry_price) * pos.qty_exited_ne
-    if pos.qty_exited_ge and pos.target_ge:
-        total += (pos.target_ge - entry_price) * pos.qty_exited_ge
-    if pos.qty_exited_ee and pos.target_ee:
-        total += (pos.target_ee - entry_price) * pos.qty_exited_ee
-    if pos.qty_exited_sl:
-        actual_sl = sl_exit_price if sl_exit_price is not None else (pos.sl_price or 0)
-        total += (actual_sl - entry_price) * pos.qty_exited_sl
-    return total

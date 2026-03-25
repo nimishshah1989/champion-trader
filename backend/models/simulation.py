@@ -9,13 +9,13 @@ class BacktestRequest(BaseModel):
     start_date: date
     end_date: date
     starting_capital: Decimal = Field(default=Decimal("100000"), description="Starting capital in INR")
-    rpt_pct: float = Field(default=0.5, ge=0.2, le=1.0, description="Risk per trade %")
+    rpt_pct: Decimal = Field(default=Decimal("0.5"), ge=Decimal("0.2"), le=Decimal("1.0"), description="Risk per trade %")
     name: Optional[str] = None
 
 
 class PaperStartRequest(BaseModel):
     starting_capital: Decimal = Field(default=Decimal("100000"), description="Starting capital in INR")
-    rpt_pct: float = Field(default=0.5, ge=0.2, le=1.0, description="Risk per trade %")
+    rpt_pct: Decimal = Field(default=Decimal("0.5"), ge=Decimal("0.2"), le=Decimal("1.0"), description="Risk per trade %")
     name: Optional[str] = None
 
 

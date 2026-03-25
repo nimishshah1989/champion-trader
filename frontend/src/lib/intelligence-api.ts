@@ -3,7 +3,50 @@
 //
 // The backend returns raw dict shapes (Python-style). This module normalizes
 // them into the typed interfaces the React components consume.
+// Types are defined in ./intelligence-types.ts and re-exported here.
 // ---------------------------------------------------------------------------
+
+import type {
+  IntelligenceRequestOptions,
+  RegimeType,
+  RegimeData,
+  OptimizeStatus,
+  OptimizeHistory,
+  ExperimentRecord,
+  StrategyParameter,
+  DailyBrief,
+  SetupCard,
+  RiskStatus,
+  ShadowComparison,
+  ShadowTrade,
+  AttributionRow,
+  LearningProgress,
+  RawRegimeResponse,
+  RawBriefResponse,
+  RawRiskResponse,
+  RawOptimizeStatus,
+  RawOptimizeHistory,
+  RawStrategyResponse,
+  RawShadowResponse,
+  RawAttributionResponse,
+} from "./intelligence-types";
+
+export type {
+  RegimeType,
+  RegimeData,
+  OptimizeStatus,
+  OptimizeHistory,
+  ExperimentRecord,
+  StrategyParameter,
+  DailyBrief,
+  SetupCard,
+  RiskStatus,
+  RiskPosition,
+  ShadowComparison,
+  ShadowTrade,
+  AttributionRow,
+  LearningProgress,
+} from "./intelligence-types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -14,13 +57,7 @@ const WIN_RATE_SCALE = 100;
 // Shared fetch helper
 // ---------------------------------------------------------------------------
 
-interface RequestOptions {
-  method?: string;
-  body?: unknown;
-  headers?: Record<string, string>;
-}
-
-async function apiFetch<T>(path: string, options: RequestOptions = {}): Promise<T> {
+async function apiFetch<T>(path: string, options: IntelligenceRequestOptions = {}): Promise<T> {
   const { method = "GET", body, headers = {} } = options;
 
   const response = await fetch(`${API_BASE}${path}`, {
@@ -58,281 +95,6 @@ function pct(v: unknown): number {
 }
 
 // ---------------------------------------------------------------------------
-// Types — Regime
-// ---------------------------------------------------------------------------
-
-export type RegimeType =
-  | "TRENDING_BULL"
-  | "RANGING_QUIET"
-  | "HIGH_VOLATILITY"
-  | "WEAKENING_BEAR";
-
-export interface RegimeData {
-  regime: RegimeType;
-  adx: number;
-  vix: number;
-  hurst: number;
-  timestamp: string;
-}
-
-// ---------------------------------------------------------------------------
-// Types — AutoOptimize
-// ---------------------------------------------------------------------------
-
-export interface OptimizeStatus {
-  running: boolean;
-  last_run: string | null;
-  current_best_score: number | null;
-  total_experiments: number;
-  keep_count: number;
-  revert_count: number;
-}
-
-export interface ExperimentRecord {
-  id: number;
-  timestamp: string;
-  parameter: string;
-  old_value: number;
-  new_value: number;
-  hypothesis: string;
-  old_score: number;
-  new_score: number;
-  outcome: "KEEP" | "REVERT";
-}
-
-export interface OptimizeHistory {
-  experiments: ExperimentRecord[];
-  total_experiments: number;
-  keep_rate: number;
-  best_score: number;
-  most_improved_parameter: string | null;
-}
-
-export interface StrategyParameter {
-  name: string;
-  value: number;
-  min_bound: number;
-  max_bound: number;
-  description: string;
-}
-
-// ---------------------------------------------------------------------------
-// Types — Daily Brief
-// ---------------------------------------------------------------------------
-
-export interface DailyBrief {
-  date: string;
-  brief_text: string;
-  generated_at: string;
-  regime: RegimeType;
-  top_setups: SetupCard[];
-}
-
-export interface SetupCard {
-  symbol: string;
-  signal_type: string;
-  score: number;
-  entry_price: number;
-  stop_loss: number;
-  target: number;
-  rationale: string;
-}
-
-// ---------------------------------------------------------------------------
-// Types — Risk Status
-// ---------------------------------------------------------------------------
-
-export interface RiskStatus {
-  open_positions: number;
-  total_risk_pct: number;
-  max_risk_pct: number;
-  frozen: boolean;
-  frozen_reason: string | null;
-  positions: RiskPosition[];
-}
-
-export interface RiskPosition {
-  symbol: string;
-  risk_pct: number;
-  entry_price: number;
-  sl_price: number;
-  qty: number;
-}
-
-// ---------------------------------------------------------------------------
-// Types — Shadow Portfolio
-// ---------------------------------------------------------------------------
-
-export interface ShadowComparison {
-  shadow_win_rate: number;
-  live_win_rate: number;
-  shadow_avg_r: number;
-  live_avg_r: number;
-  human_alpha: number;
-  verdict: string;
-  approved_win_rate: number;
-  skipped_win_rate: number;
-  trades: ShadowTrade[];
-}
-
-export interface ShadowTrade {
-  id: number;
-  signal_date: string;
-  symbol: string;
-  signal_type: string;
-  score: number;
-  entry: number;
-  stop: number;
-  target: number;
-  was_approved: boolean;
-  paper_exit: number | null;
-  paper_r: number | null;
-  paper_pnl: number | null;
-}
-
-// ---------------------------------------------------------------------------
-// Types — Attribution
-// ---------------------------------------------------------------------------
-
-export interface AttributionRow {
-  signal_type: string;
-  regime: string;
-  trade_count: number;
-  win_count: number;
-  win_rate: number;
-  avg_r: number;
-  total_r: number;
-}
-
-// ---------------------------------------------------------------------------
-// Backend raw response shapes (what the Python API actually returns)
-// ---------------------------------------------------------------------------
-
-/* eslint-disable @typescript-eslint/no-explicit-any */
-interface RawRegimeResponse {
-  regime: {
-    regime: string;
-    date: string | null;
-    nifty_adx: number;
-    india_vix: number;
-    hurst_exponent: number;
-    param_bank_version: string | null;
-  } | null;
-  parameter_banks: any;
-}
-
-interface RawBriefResponse {
-  date?: string;
-  brief_text?: string;
-  generated_at?: string;
-  regime?: { regime: string } | string;
-  setups?: Array<{
-    symbol: string;
-    composite_score: number;
-    scan_type: string;
-    entry_price: number;
-    stop_price: number;
-    target_2r: number;
-    rr_ratio?: number;
-    risk_amount?: number;
-    base_days?: number;
-    base_quality?: string;
-  }>;
-  top_setups?: SetupCard[];
-  recommendation?: string;
-  error?: string;
-}
-
-interface RawRiskResponse {
-  frozen: boolean;
-  open_positions: number;
-  risk: {
-    total_risk_amount: number;
-    total_risk_pct: number;
-    exceeds_limit: boolean;
-    per_position: Array<{
-      symbol: string;
-      risk_amount: number;
-      risk_pct: number;
-    }>;
-  };
-}
-
-interface RawOptimizeStatus {
-  running: boolean;
-  enabled?: boolean;
-  last_result?: { timestamp?: string; new_score?: number } | null;
-  current_parameters?: Record<string, number>;
-  [key: string]: any;
-}
-
-interface RawOptimizeHistory {
-  experiments: Array<{
-    timestamp: string;
-    parameter: string;
-    old_value: string | number;
-    new_value: string | number;
-    hypothesis: string;
-    old_score: string | number;
-    new_score: string | number;
-    outcome: string;
-    trade_count?: string | number;
-    expectancy?: string | number;
-    max_dd?: string | number;
-  }>;
-  summary: {
-    total_experiments: number;
-    keep_count: number;
-    revert_count: number;
-    error_count?: number;
-    keep_rate_pct: number;
-    most_improved_parameter: string | null;
-    best_score: number | null;
-    latest_score?: number | null;
-  };
-}
-
-interface RawStrategyResponse {
-  parameters: Record<string, number>;
-  bounds: Record<string, [number, number]>;
-  valid: boolean;
-  violations: string[];
-}
-
-interface RawShadowResponse {
-  shadow_trades?: number;
-  shadow_win_rate?: number;
-  shadow_avg_r?: number;
-  shadow_total_r?: number;
-  approved_count?: number;
-  approved_win_rate?: number;
-  skipped_count?: number;
-  skipped_win_rate?: number;
-  live_trades?: number;
-  live_win_rate?: number;
-  live_avg_r?: number;
-  live_total_r?: number;
-  human_alpha?: number;
-  verdict?: string;
-  sufficient_data?: boolean;
-  message?: string;
-  trades?: ShadowTrade[];
-}
-
-interface RawAttributionResponse {
-  attribution: Array<{
-    signal_type: string;
-    regime: string;
-    trade_count: number;
-    win_count: number;
-    win_rate: number;
-    avg_r: number;
-    total_r: number;
-  }>;
-}
-/* eslint-enable @typescript-eslint/no-explicit-any */
-
-// ---------------------------------------------------------------------------
 // Parameter descriptions (static — backend doesn't include these)
 // ---------------------------------------------------------------------------
 
@@ -349,7 +111,7 @@ const PARAM_DESCRIPTIONS: Record<string, string> = {
   min_base_days: "Minimum days in base formation",
   sma_window: "SMA window for stage analysis",
   stage_sma_lookback: "Lookback period for SMA slope",
-  min_adt_crore: "Min average daily turnover (₹ Cr)",
+  min_adt_crore: "Min average daily turnover (Cr)",
   weight_ppc: "Composite score weight: PPC",
   weight_contraction: "Composite score weight: Contraction",
   weight_npc_filter: "Composite score weight: NPC filter",
@@ -467,8 +229,6 @@ export async function getDailyBrief(): Promise<DailyBrief> {
   }
 
   // Map backend "setups" (with different field names) to frontend SetupCard[]
-  // Backend uses: {composite_score, scan_type, stop_price, target_2r, base_quality, ...}
-  // Frontend uses: {score, signal_type, stop_loss, target, rationale, ...}
   const rawSetups: unknown[] = Array.isArray(raw.setups)
     ? raw.setups
     : Array.isArray(raw.top_setups)
@@ -550,64 +310,6 @@ export async function getShadowComparison(): Promise<ShadowComparison> {
 }
 
 // ---------------------------------------------------------------------------
-// Types — Learning Progress
-// ---------------------------------------------------------------------------
-
-export interface LearningProgress {
-  loop_status: {
-    closed: boolean;
-    issues: string[];
-    description: string;
-  };
-  current_regime: {
-    regime: string;
-    date: string | null;
-    nifty_adx: number;
-    india_vix: number;
-    hurst_exponent: number;
-  };
-  regime_banks: {
-    active_regime: string | null;
-    active_version: string;
-    banks: Record<string, { overrides: Record<string, number>; override_count: number }>;
-  };
-  parameters: Record<string, {
-    base_value: number;
-    effective_value: number;
-    regime_adjusted: boolean;
-    bound_low: number;
-    bound_high: number;
-    position_in_range: number;
-    experiments_run: number;
-    improvements: number;
-  }>;
-  experiment_summary: {
-    total_experiments: number;
-    keep_count: number;
-    revert_count: number;
-    error_count: number;
-    keep_rate_pct: number;
-    most_improved_parameter: string | null;
-    best_score: number | null;
-    latest_score: number | null;
-    first_experiment: string | null;
-    latest_experiment: string | null;
-  };
-  experiment_timeline: Array<{
-    timestamp: string;
-    parameter: string;
-    outcome: string;
-    score_delta: number | null;
-  }>;
-  learning_velocity: {
-    recent_keep_rate: number;
-    older_keep_rate: number | null;
-    trend: string;
-    total_experiments: number;
-  };
-}
-
-// ---------------------------------------------------------------------------
 // API Functions — Learning Progress
 // ---------------------------------------------------------------------------
 
@@ -629,7 +331,7 @@ export async function getAttribution(): Promise<AttributionRow[]> {
       ? (raw as RawAttributionResponse).attribution
       : [];
 
-  // Scale win_rate from 0-1 → 0-100 if needed
+  // Scale win_rate from 0-1 -> 0-100 if needed
   return rows.map((r) => ({
     signal_type: String(r.signal_type ?? ""),
     regime: String(r.regime ?? ""),

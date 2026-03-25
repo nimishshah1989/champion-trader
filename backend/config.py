@@ -29,7 +29,7 @@ class Settings(BaseSettings):
 
     # Defaults
     default_account_value: Decimal = Decimal("1000000")
-    default_rpt_pct: float = 0.50
+    default_rpt_pct: Decimal = Decimal("0.50")
     default_exchange: str = "NSE"
 
     # Anthropic (CIO Agent + AutoOptimize)

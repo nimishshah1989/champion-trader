@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import logging
 from datetime import date, datetime
+from decimal import Decimal, ROUND_HALF_UP
 
 from sqlalchemy.orm import Session
 
@@ -22,8 +23,8 @@ logger = logging.getLogger(__name__)
 
 def start_paper_session(
     db: Session,
-    starting_capital: float,
-    rpt_pct: float,
+    starting_capital: Decimal | float,
+    rpt_pct: Decimal | float,
     name: str | None = None,
 ) -> SimulationRun:
     """Create a new paper trading session."""
@@ -172,29 +173,29 @@ def process_paper_day(db: Session, run_id: int) -> dict:
         .all()
     )
 
-    total_invested = 0.0
-    total_returned = 0.0
+    total_invested = Decimal("0")
+    total_returned = Decimal("0")
     for t in all_trades:
-        entry_price = t.entry_price or 0
+        entry_price = Decimal(str(t.entry_price or 0))
         total_qty = t.total_qty or 0
         total_invested += entry_price * total_qty
 
         # Cash returned from exits
         if t.qty_exited_2r and t.target_2r:
-            total_returned += t.target_2r * t.qty_exited_2r
+            total_returned += Decimal(str(t.target_2r)) * t.qty_exited_2r
         if t.qty_exited_ne and t.target_ne:
-            total_returned += t.target_ne * t.qty_exited_ne
+            total_returned += Decimal(str(t.target_ne)) * t.qty_exited_ne
         if t.qty_exited_ge and t.target_ge:
-            total_returned += t.target_ge * t.qty_exited_ge
+            total_returned += Decimal(str(t.target_ge)) * t.qty_exited_ge
         if t.qty_exited_ee and t.target_ee:
-            total_returned += t.target_ee * t.qty_exited_ee
+            total_returned += Decimal(str(t.target_ee)) * t.qty_exited_ee
         if t.qty_exited_sl and t.sl_price:
-            total_returned += t.sl_price * t.qty_exited_sl
+            total_returned += Decimal(str(t.sl_price)) * t.qty_exited_sl
         if t.qty_exited_final and t.exit_date:
             # Approximation — use entry price if we don't have exact final exit price
             total_returned += entry_price * t.qty_exited_final
 
-    cash = run.starting_capital - total_invested + total_returned
+    cash = Decimal(str(run.starting_capital)) - total_invested + total_returned
 
     # --- Check new signals for entry ---
     existing_symbols = {t.symbol for t in all_trades if t.status in ("OPEN", "PARTIAL")}
@@ -216,14 +217,14 @@ def process_paper_day(db: Session, run_id: int) -> dict:
 
         # Calculate equity
         mtm = sum(
-            (pos.remaining_qty or 0) * (prices.get(pos.symbol, pos.entry_price or 0))
+            (pos.remaining_qty or 0) * Decimal(str(prices.get(pos.symbol, pos.entry_price or 0)))
             for pos in open_positions
         )
         equity = cash + mtm
 
         # Risk check
-        current_risk = sum((pos.rpt_amount or 0) for pos in open_positions if pos.status in ("OPEN", "PARTIAL"))
-        max_risk = equity * (TRADING_RULES["max_open_risk_pct"] / 100)
+        current_risk = sum(Decimal(str(pos.rpt_amount or 0)) for pos in open_positions if pos.status in ("OPEN", "PARTIAL"))
+        max_risk = equity * (Decimal(str(TRADING_RULES["max_open_risk_pct"])) / Decimal("100"))
 
         sizing = calculate_position(equity, rpt_pct, scan.trigger_level, scan.trp)
         if current_risk + sizing["rpt_amount"] > max_risk:
@@ -267,7 +268,7 @@ def process_paper_day(db: Session, run_id: int) -> dict:
         .all()
     )
     mtm = sum(
-        (pos.remaining_qty or 0) * prices.get(pos.symbol, pos.entry_price or 0)
+        (pos.remaining_qty or 0) * Decimal(str(prices.get(pos.symbol, pos.entry_price or 0)))
         for pos in current_open
     )
     equity = cash + mtm
@@ -379,7 +380,7 @@ def stop_paper_session(db: Session, run_id: int) -> SimulationRun:
     wins = [t for t in closed if t.gross_pnl and t.gross_pnl > 0]
     losses = [t for t in closed if t.gross_pnl is not None and t.gross_pnl <= 0]
 
-    total_pnl = sum(t.gross_pnl for t in closed if t.gross_pnl) or 0.0
+    total_pnl = sum(Decimal(str(t.gross_pnl)) for t in closed if t.gross_pnl) or Decimal("0")
 
     run.status = "STOPPED"
     run.end_date = today

@@ -60,7 +60,8 @@ function loadFromStorage(): TradingSettings {
       maxPositions: deriveMaxPositions(stance),
       stanceRptOverride: parsed.stanceRptOverride ?? null,
     };
-  } catch {
+  } catch (err) {
+    console.error("Failed to parse settings from localStorage:", err);
     return DEFAULTS;
   }
 }
@@ -69,8 +70,8 @@ function persistToStorage(settings: TradingSettings): void {
   if (typeof window === "undefined") return;
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
-  } catch {
-    /* storage full or blocked */
+  } catch (err) {
+    console.error("Failed to persist settings to localStorage:", err);
   }
 }
 

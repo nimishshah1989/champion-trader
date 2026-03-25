@@ -17,7 +17,7 @@ class TradeCreate(BaseModel):
     avg_entry_price: Decimal
     trp_at_entry: Decimal
     sl_price: Decimal
-    sl_pct: float
+    sl_pct: Decimal
     rpt_amount: Decimal
     target_2r: Optional[Decimal] = None
     target_ne: Optional[Decimal] = None

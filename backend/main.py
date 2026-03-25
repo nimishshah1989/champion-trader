@@ -27,6 +27,7 @@ from backend.routers import (
 )
 from backend.routers.alerts_app import router as alerts_app_router
 from backend.routers.intelligence import router as intelligence_router
+from backend.routers.intelligence_strategy import router as intelligence_strategy_router
 
 
 # ── APScheduler Setup ────────────────────────────────────────────────
@@ -309,8 +310,9 @@ app.include_router(alerts_app_router)
 app.include_router(actions.router)
 app.include_router(simulation.router)
 
-# Register intelligence router — v2
+# Register intelligence routers — v2
 app.include_router(intelligence_router)
+app.include_router(intelligence_strategy_router)
 
 
 @app.get("/")

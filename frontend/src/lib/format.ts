@@ -48,7 +48,8 @@ export function formatDateShort(dateStr: string): string {
       month: "short",
       year: "2-digit",
     });
-  } catch {
+  } catch (err) {
+    console.error("Failed to parse date string:", err);
     return dateStr;
   }
 }

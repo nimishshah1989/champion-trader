@@ -144,11 +144,11 @@ def act_on_alert(
             trade.status = "CLOSED"
             if trade.avg_entry_price and trade.total_qty:
                 trade.gross_pnl = ((exit_price - trade.avg_entry_price) * trade.total_qty).quantize(TWO_PLACES, rounding=ROUND_HALF_UP)
-                trade.pnl_pct = round(float((exit_price - trade.avg_entry_price) / trade.avg_entry_price) * 100, 2)
+                trade.pnl_pct = ((exit_price - trade.avg_entry_price) / trade.avg_entry_price * 100).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
                 if trade.trp_at_entry:
                     trp_value = trade.avg_entry_price * (Decimal(str(trade.trp_at_entry)) / Decimal("100"))
                     if trp_value > 0:
-                        trade.r_multiple = round(float((exit_price - trade.avg_entry_price) / trp_value), 2)
+                        trade.r_multiple = ((exit_price - trade.avg_entry_price) / trp_value).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
             trade.remaining_qty = 0
             trade.exit_notes = notes or f"SL hit — auto-closed from alert #{alert.id}"
         else:
@@ -157,7 +157,7 @@ def act_on_alert(
             if trade.avg_entry_price and trade.trp_at_entry:
                 trp_value = trade.avg_entry_price * (Decimal(str(trade.trp_at_entry)) / Decimal("100"))
                 if trp_value > 0:
-                    r_multiple = round(float((exit_price - trade.avg_entry_price) / trp_value), 2)
+                    r_multiple = ((exit_price - trade.avg_entry_price) / trp_value).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
             pnl = ((exit_price - (trade.avg_entry_price or Decimal("0"))) * exit_qty).quantize(TWO_PLACES, rounding=ROUND_HALF_UP)
 

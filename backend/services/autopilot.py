@@ -24,7 +24,7 @@ IST = ZoneInfo("Asia/Kolkata")
 
 # Risk guardrails — hardcoded, never overridden
 VIRTUAL_CAPITAL = Decimal("100000")       # ₹1,00,000
-RPT_PCT = 0.50                            # 0.5% risk per trade
+RPT_PCT = Decimal("0.50")                 # 0.5% risk per trade
 MAX_OPEN_RISK_PCT = Decimal("10.0")       # 10% of capital = ₹10,000
 MAX_POSITIONS = 5                         # max simultaneous open trades
 MIN_TRP = Decimal("2.0")                  # minimum TRP to be tradeable
@@ -85,8 +85,8 @@ def post_scan_populate(db: Session) -> int:
             continue
 
         # TRP must be above minimum
-        trp_val = float(scan.trp) if scan.trp else 0
-        if trp_val < float(MIN_TRP):
+        trp_val = Decimal(str(scan.trp)) if scan.trp else Decimal("0")
+        if trp_val < MIN_TRP:
             continue
 
         # Create watchlist entry
@@ -182,7 +182,7 @@ def auto_execute_buys(db: Session) -> int:
 
         # Validate TRP
         trp_pct = alert.trp_pct
-        if not trp_pct or trp_pct < float(MIN_TRP):
+        if not trp_pct or Decimal(str(trp_pct)) < MIN_TRP:
             logger.warning(
                 f"[AUTOPILOT] Skipping {alert.symbol}: TRP {trp_pct}% below minimum {MIN_TRP}%"
             )
@@ -337,8 +337,8 @@ def auto_execute_sells(db: Session) -> int:
             # Calculate R-multiple
             risk = entry_price - (trade.sl_price or entry_price)
             if risk > 0:
-                trade.r_multiple = float(pnl_per_share / risk)
-                trade.pnl_pct = float(pnl_per_share / entry_price * 100)
+                trade.r_multiple = (pnl_per_share / risk).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                trade.pnl_pct = (pnl_per_share / entry_price * 100).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
         else:
             trade.status = "PARTIAL"
 

@@ -19,8 +19,8 @@ export function AlertBell() {
     try {
       const data = await getUnreadAlertCount();
       setUnreadCount(data.count);
-    } catch {
-      // Silently fail — alerts are not critical
+    } catch (err) {
+      console.error("Failed to fetch unread alert count:", err);
     }
   }, []);
 
@@ -40,7 +40,8 @@ export function AlertBell() {
     try {
       const data = await getAlerts();
       setAlerts(data);
-    } catch {
+    } catch (err) {
+      console.error("Failed to fetch alerts:", err);
       setAlerts([]);
     } finally {
       setLoading(false);
@@ -52,8 +53,8 @@ export function AlertBell() {
       await markAlertRead(id);
       setAlerts((prev) => prev.map((a) => (a.id === id ? { ...a, is_read: true } : a)));
       setUnreadCount((prev) => Math.max(0, prev - 1));
-    } catch {
-      // ignore
+    } catch (err) {
+      console.error("Failed to mark alert as read:", err);
     }
   }
 
@@ -62,8 +63,8 @@ export function AlertBell() {
       await markAllAlertsRead();
       setAlerts((prev) => prev.map((a) => ({ ...a, is_read: true })));
       setUnreadCount(0);
-    } catch {
-      // ignore
+    } catch (err) {
+      console.error("Failed to mark all alerts as read:", err);
     }
   }
 

@@ -227,7 +227,8 @@ export default function ShadowPage() {
       } else {
         setError("Failed to load shadow portfolio data.");
       }
-    } catch {
+    } catch (err) {
+      console.error("Failed to fetch shadow portfolio data:", err);
       setError("Failed to load shadow portfolio data.");
     } finally {
       setLoading(false);

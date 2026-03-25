@@ -18,6 +18,7 @@ Output: structured Telegram message with setup cards and recommendation.
 import json
 import logging
 from datetime import datetime
+from decimal import Decimal
 
 from anthropic import Anthropic
 
@@ -36,14 +37,15 @@ logger = logging.getLogger(__name__)
 _latest_brief = None
 
 
-def _format_inr(amount: float) -> str:
+def _format_inr(amount: float | Decimal) -> str:
     """Format amount in Indian Rupee notation."""
-    if abs(amount) >= 1e7:
-        return f"₹{amount / 1e7:.2f}Cr"
-    elif abs(amount) >= 1e5:
-        return f"₹{amount / 1e5:.2f}L"
+    amt = float(amount)  # safe for display formatting only
+    if abs(amt) >= 1e7:
+        return f"₹{amt / 1e7:.2f}Cr"
+    elif abs(amt) >= 1e5:
+        return f"₹{amt / 1e5:.2f}L"
     else:
-        return f"₹{amount:,.0f}"
+        return f"₹{amt:,.0f}"
 
 
 def _get_open_positions() -> list[dict]:
@@ -120,7 +122,7 @@ def _get_overnight_summary() -> str:
     return summary
 
 
-async def generate_brief(account_value: float = None) -> dict:
+async def generate_brief(account_value: float | Decimal | None = None) -> dict:
     """
     Generate the CIO Daily Brief.
 
@@ -129,7 +131,7 @@ async def generate_brief(account_value: float = None) -> dict:
     global _latest_brief
 
     if account_value is None:
-        account_value = float(settings.default_account_value)  # Decimal → float
+        account_value = Decimal(str(settings.default_account_value))
 
     logger.info("Generating CIO Daily Brief...")
     today = datetime.now().strftime("%Y-%m-%d")

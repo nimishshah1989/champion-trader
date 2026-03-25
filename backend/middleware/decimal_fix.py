@@ -1,18 +1,22 @@
-"""Middleware to convert Pydantic v2 Decimal-as-string back to JSON floats.
+"""Middleware to convert Pydantic v2 Decimal-as-string back to JSON numbers.
 
 Pydantic v2 serialises ``Decimal`` fields as strings (``"4.24"``).  The
 frontend expects plain numbers (calls ``.toFixed()`` etc.).  This middleware
 intercepts every ``application/json`` response, walks the parsed JSON tree,
 and converts any string value that matches a pure numeric pattern back to a
-``float``.
+JSON number.
 
 Non-numeric strings (dates, symbols, text) are never touched because the
 regex requires the *entire* value to be a bare number.
+
+Precision note: JSON numbers are IEEE 754 doubles.  For values up to 15
+significant digits (covers all INR amounts), the round-trip is exact.
 """
 
 import json as _json
 import logging
 import re as _re
+from decimal import Decimal
 from typing import Any, Union
 
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
@@ -26,6 +30,15 @@ logger = logging.getLogger(__name__)
 _NUMERIC_RE = _re.compile(r"^-?\d+(\.\d+)?$")
 
 
+class _DecimalEncoder(_json.JSONEncoder):
+    """JSON encoder that serialises Decimal as a JSON number, not a string."""
+
+    def default(self, o: Any) -> Any:
+        if isinstance(o, Decimal):
+            return float(o)
+        return super().default(o)
+
+
 def _convert_strings_to_numbers(obj: Any) -> Any:
     """Recursively convert string-encoded numbers in a parsed JSON object."""
     if isinstance(obj, dict):
@@ -34,8 +47,9 @@ def _convert_strings_to_numbers(obj: Any) -> Any:
         return [_convert_strings_to_numbers(i) for i in obj]
     if isinstance(obj, str) and _NUMERIC_RE.match(obj):
         try:
-            return float(obj)
-        except (ValueError, OverflowError):
+            # Preserve precision through Decimal intermediate
+            return float(Decimal(obj))
+        except Exception:
             return obj
     return obj
 
@@ -62,7 +76,7 @@ class DecimalFixMiddleware(BaseHTTPMiddleware):
             data = _json.loads(body)
             fixed = _convert_strings_to_numbers(data)
             new_body = _json.dumps(
-                fixed, ensure_ascii=False, separators=(",", ":")
+                fixed, cls=_DecimalEncoder, ensure_ascii=False, separators=(",", ":")
             ).encode("utf-8")
         except (ValueError, TypeError):
             logger.debug("DecimalFixMiddleware: could not parse JSON body, passing through")

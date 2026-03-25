@@ -27,33 +27,33 @@ def get_virtual_portfolio_summary() -> dict:
             .all()
         )
 
-        open_risk = sum(float(t.rpt_amount or 0) for t in open_trades)
-        total_pnl = sum(float(t.gross_pnl or 0) for t in closed_trades)
+        open_risk = sum((t.rpt_amount or Decimal("0")) for t in open_trades)
+        total_pnl = sum((t.gross_pnl or Decimal("0")) for t in closed_trades)
         wins = sum(1 for t in closed_trades if (t.gross_pnl or 0) > 0)
         losses = len(closed_trades) - wins
         win_rate = (wins / len(closed_trades) * 100) if closed_trades else 0
 
         return {
-            "virtual_capital": float(VIRTUAL_CAPITAL),
+            "virtual_capital": VIRTUAL_CAPITAL,
             "open_positions": len(open_trades),
             "open_trades": [
                 {
                     "symbol": t.symbol,
-                    "entry_price": float(t.avg_entry_price or 0),
+                    "entry_price": t.avg_entry_price or Decimal("0"),
                     "qty": t.remaining_qty,
-                    "sl_price": float(t.sl_price or 0),
-                    "risk": float(t.rpt_amount or 0),
+                    "sl_price": t.sl_price or Decimal("0"),
+                    "risk": t.rpt_amount or Decimal("0"),
                 }
                 for t in open_trades
             ],
             "open_risk": open_risk,
-            "max_risk": float(VIRTUAL_CAPITAL * MAX_OPEN_RISK_PCT / Decimal("100")),
+            "max_risk": VIRTUAL_CAPITAL * MAX_OPEN_RISK_PCT / Decimal("100"),
             "closed_trades": len(closed_trades),
             "total_pnl": total_pnl,
             "wins": wins,
             "losses": losses,
             "win_rate": round(win_rate, 1),
-            "capital_after_pnl": float(VIRTUAL_CAPITAL) + total_pnl,
+            "capital_after_pnl": VIRTUAL_CAPITAL + total_pnl,
         }
     finally:
         db.close()

@@ -96,8 +96,8 @@ export default function PipelinePage() {
           setScanDate(data[0].scan_date);
         }
       }
-    } catch {
-      // No cached results — acceptable on first visit
+    } catch (err) {
+      console.error("Failed to fetch latest scan results:", err);
     } finally {
       setLoadingScan(false);
     }
@@ -167,8 +167,8 @@ export default function PipelinePage() {
           notes: `Auto-added from ${result.scan_type} scan on ${result.scan_date}`,
         });
         addedCount++;
-      } catch {
-        // Individual add failure is non-blocking
+      } catch (err) {
+        console.error(`Failed to auto-add ${result.symbol} to watchlist:`, err);
       }
     }
 

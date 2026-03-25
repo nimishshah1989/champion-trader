@@ -8,15 +8,15 @@ from pydantic import BaseModel, Field
 class PositionCalcRequest(BaseModel):
     symbol: str
     account_value: Decimal = Field(gt=0)
-    rpt_pct: float = Field(gt=0, le=1.0)  # 0.2% to 1.0%
+    rpt_pct: Decimal = Field(gt=0, le=Decimal("1.0"))  # 0.2% to 1.0%
     entry_price: Decimal = Field(gt=0)
-    trp_pct: float = Field(gt=0)  # e.g. 3.18 for 3.18%
+    trp_pct: Decimal = Field(gt=0)  # e.g. 3.18 for 3.18%
 
 
 class PositionCalcResponse(BaseModel):
     rpt_amount: Decimal
     sl_price: Decimal
-    sl_pct: float
+    sl_pct: Decimal
     sl_amount: Decimal
     position_value: Decimal
     position_size: int  # shares
@@ -48,10 +48,10 @@ class PositionCalcSessionResponse(BaseModel):
     calc_date: date
     symbol: str
     account_value: Decimal
-    rpt_pct: float
+    rpt_pct: Decimal
     rpt_amount: Decimal
     entry_price: Decimal
-    sl_pct: float
+    sl_pct: Decimal
     sl_amount: Decimal
     sl_price: Decimal
     position_value: Decimal

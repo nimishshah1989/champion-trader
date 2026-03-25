@@ -292,8 +292,8 @@ export default function AttributionPage() {
     try {
       const [result] = await Promise.allSettled([getAttribution()]);
       if (result.status === "fulfilled") setRows(result.value);
-    } catch {
-      // Attribution data not available yet
+    } catch (err) {
+      console.error("Failed to fetch attribution data:", err);
     } finally {
       setLoading(false);
     }

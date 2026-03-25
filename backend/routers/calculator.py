@@ -62,7 +62,7 @@ def calc_position(request: PositionCalcRequest, db: Session = Depends(get_db)):
 def calc_pyramid(request: PyramidCalcRequest):
     """
     Calculate pyramid add sizing for an existing winning trade.
-    TODO: Full implementation in Phase 2.
+    Stub — full implementation planned for Phase 2.
     """
     # Stub: basic pyramid calculation
     # In a real pyramid, you add to a winning position with reduced risk
@@ -75,6 +75,6 @@ def calc_pyramid(request: PyramidCalcRequest):
         add_position_value=add_value.quantize(TWO_PLACES, rounding=ROUND_HALF_UP),
         new_avg_price=request.current_price.quantize(TWO_PLACES, rounding=ROUND_HALF_UP),
         new_total_qty=request.current_qty + add_qty,
-        new_sl_price=Decimal("0"),  # TODO: calculate proper trailing SL
+        new_sl_price=Decimal("0"),  # Phase 2: calculate proper trailing SL
         notes="Pyramid calculation is a stub — full implementation in Phase 2",
     )

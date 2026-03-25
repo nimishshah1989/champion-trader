@@ -22,7 +22,8 @@ function parseTargets(dataStr: string | null): ParsedTargets | null {
   if (!dataStr) return null;
   try {
     return JSON.parse(dataStr) as ParsedTargets;
-  } catch {
+  } catch (err) {
+    console.error("Failed to parse alert targets JSON:", err);
     return null;
   }
 }

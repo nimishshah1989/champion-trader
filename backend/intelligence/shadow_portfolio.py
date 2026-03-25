@@ -9,6 +9,7 @@ to measure human alpha (or lack thereof).
 
 import logging
 from datetime import date as date_type
+from decimal import Decimal
 
 import yfinance as yf
 
@@ -110,10 +111,10 @@ def _evaluate_shadow_exit(shadow: ShadowTrade) -> None:
     """Check a single shadow trade against live price for stop/target."""
     try:
         ticker = yf.Ticker(f"{shadow.symbol}.NS")
-        price = ticker.info.get("regularMarketPrice") or ticker.info.get(
+        raw_price = ticker.info.get("regularMarketPrice") or ticker.info.get(
             "previousClose", 0
         )
-        price = float(price)
+        price = Decimal(str(raw_price))
     except Exception as e:
         logger.warning(f"Price fetch failed for shadow {shadow.symbol}: {e}")
         return
@@ -121,10 +122,10 @@ def _evaluate_shadow_exit(shadow: ShadowTrade) -> None:
     if price <= 0:
         return
 
-    entry = shadow.entry_price or 0
-    stop = shadow.stop_price or 0
-    target = shadow.target_price or 0
-    risk = entry - stop if entry and stop else 1
+    entry = Decimal(str(shadow.entry_price or 0))
+    stop = Decimal(str(shadow.stop_price or 0))
+    target = Decimal(str(shadow.target_price or 0))
+    risk = entry - stop if entry and stop else Decimal("1")
 
     # Stop hit
     if price <= stop:
