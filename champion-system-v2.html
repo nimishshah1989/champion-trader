@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Champion System v2 — Methodology &amp; System Design</title>
+<style>
+  :root{
+    --ink:#14171a; --muted:#5b6168; --line:#e3e6ea; --bg:#fff;
+    --accent:#1f5fbf; --good:#1b7f4b; --warn:#9a6700; --bad:#a4232c; --soft:#f6f8fa; --soft2:#eef3fb;
+  }
+  *{box-sizing:border-box}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    color:var(--ink);background:var(--bg);line-height:1.55;margin:0}
+  .wrap{max-width:940px;margin:0 auto;padding:44px 28px 110px}
+  h1{font-size:31px;line-height:1.18;margin:0 0 4px}
+  h2{font-size:21px;margin:46px 0 10px;padding-top:16px;border-top:2px solid var(--line);scroll-margin-top:16px}
+  h3{font-size:16px;margin:22px 0 6px;color:var(--accent)}
+  h4{margin:0 0 6px;font-size:13px;text-transform:uppercase;letter-spacing:.05em}
+  p,li{font-size:15px}
+  .sub{color:var(--muted);font-size:14px;margin:0 0 2px}
+  code{background:var(--soft);padding:1px 5px;border-radius:4px;font-size:13px}
+  table{border-collapse:collapse;width:100%;margin:14px 0;font-size:14px}
+  th,td{border:1px solid var(--line);padding:7px 10px;text-align:left;vertical-align:top}
+  th{background:var(--soft)}
+  .box{border:1px solid var(--line);border-left:4px solid var(--accent);background:var(--soft);padding:12px 16px;border-radius:6px;margin:14px 0}
+  .box.risk{border-left-color:var(--bad)} .box.keep{border-left-color:var(--good)} .box.assume{border-left-color:var(--warn)}
+  .tag{display:inline-block;font-size:11px;padding:2px 8px;border-radius:20px;background:var(--soft);border:1px solid var(--line);color:var(--muted);margin-left:6px;vertical-align:middle}
+  .status{background:#fff8e6;border:1px solid #f0d98a;border-radius:8px;padding:14px 18px;margin:16px 0 8px;font-size:14px}
+  ul,ol{margin:8px 0;padding-left:22px} li{margin:3px 0}
+  hr{border:0;border-top:1px solid var(--line);margin:30px 0}
+  .small{font-size:13px;color:var(--muted)}
+  .toc{background:var(--soft2);border:1px solid var(--line);border-radius:8px;padding:14px 20px;margin:18px 0}
+  .toc ol{columns:2;-webkit-columns:2;column-gap:32px} .toc a{color:var(--accent);text-decoration:none}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px} @media(max-width:680px){.grid2{grid-template-columns:1fr}.toc ol{columns:1}}
+  .lead{font-size:16px}
+  .star{color:var(--warn)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>Champion System v2</h1>
+<p class="sub">Methodology &amp; System Design — the main document behind the build · NSE first, multi-market by design</p>
+
+<div class="status">
+  <strong>Status: BUILD SPEC (post-council).</strong> This document is the authoritative design for Champion System v2.
+  It supersedes the v2 review blueprint and folds in the verdicts of a four-seat independent review council (§13).
+  Numeric thresholds are <em>not</em> hand-set here — they are produced by the <a href="#cal"><strong>Baseline Calibration</strong></a> (§10),
+  which derives "today's levels" from 10 years of history, optimizing for <strong>maximization</strong> and <strong>predictability</strong>.
+</div>
+
+<div class="toc">
+<h4>Contents</h4>
+<ol>
+<li><a href="#phil">Philosophy &amp; Objective</a></li>
+<li><a href="#mkt">Market-Agnostic Design</a></li>
+<li><a href="#arch">System Architecture — Three Planes</a></li>
+<li><a href="#edge">The Edge — Modules</a></li>
+<li><a href="#sig">Signal Definitions (PPC/NPC/…)</a></li>
+<li><a href="#exec">Entry · Stop · Exit · Sizing</a></li>
+<li><a href="#risk">Risk &amp; Capital Protection</a></li>
+<li><a href="#learn">The Learning System</a></li>
+<li><a href="#regime">Regime Contextualization</a></li>
+<li><a href="#cal">Baseline Calibration ★</a></li>
+<li><a href="#ops">Operating Model (two strategies)</a></li>
+<li><a href="#val">Validation &amp; Go-Live Gates</a></li>
+<li><a href="#council">Council Review &amp; Fixes</a></li>
+<li><a href="#exp">Risks &amp; Return Expectations</a></li>
+</ol>
+</div>
+
+<h2 id="phil">1 · Philosophy &amp; Objective</h2>
+<p class="lead">A <strong>trend-aligned, volatility-contraction breakout system with volatility-normalized risk</strong>, expressed entirely in <strong>R-multiples</strong>. Lineage: Weinstein (stage analysis), Minervini (VCP contraction), O'Neil/Wyckoff (pivotal-candle accumulation), Van Tharp (R-multiple risk). It is a <strong>positive-skew</strong> system — many small fast losses, a few large winners — <strong>not</strong> a high-win-rate system.</p>
+
+<h3>The two design values</h3>
+<div class="grid2">
+  <div class="box keep"><h4>Maximize</h4>The edge, measured as <strong>SQN</strong> = (mean R ÷ std R) × √N — risk- and sample-adjusted return in R. This is Van Tharp's own metric and is mathematically ≈ a deflated Sharpe of the trade R-distribution.</div>
+  <div class="box assume"><h4>Predictability</h4>An edge that is <strong>consistent out-of-sample</strong> — stable across walk-forward folds and regimes. We prefer a high <em>and steady</em> SQN over a lucky in-sample peak. Operationalized in §10.</div>
+</div>
+<p><strong>Objective (locked):</strong> maximize SQN <em>and</em> predictability, subject to a <strong>hard maximum-drawdown ceiling</strong>. <strong>Unit = R-multiples.</strong> Reported diagnostics: expectancy (mean R), total R, win rate, ARR, Calmar, max DD, full R-distribution.</p>
+<div class="box assume">
+  <h4>Why SQN, not raw R or raw Calmar</h4>
+  Raw R-expectancy ignores variance (drawdown) and is dominated by rare tails — it overfits. Raw Calmar is a single-path extremum, statistically unstable as a maximand. SQN keeps Afzal's R-multiple framework intact while making the optimizer immune to variance and small-sample luck. Calmar + the drawdown ceiling become <em>constraints</em>, which is strictly more protective of capital.
+</div>
+<p><strong>Win-rate vs R:</strong> expect ~35–45% win rate with 3–6R average winners. Pushing win rate (early scale-outs) shrinks average R and usually lowers expectancy. We optimize the edge, not the hit-rate.</p>
+<div class="box risk">
+  <h4>Capital protection — and its honest limit</h4>
+  Stops + fixed-fractional risk bound <em>intraday</em> loss. They do <strong>not</strong> cover the <strong>overnight/earnings gap</strong> that opens below the stop — the dominant tail in swing trading. We defend it with gap-aware sizing, the earnings blackout (§6), overnight/cluster caps (§7), a kill-switch, and a backtest that fills stops at the <strong>worse of stop-or-next-open</strong>.
+</div>
+
+<h2 id="mkt">2 · Market-Agnostic Design <span class="tag">NSE now · US later</span></h2>
+<p>"Market" is an abstraction; the logic, learning, and risk are market-independent. Adding the US later is a connector + config addition, not a rewrite.</p>
+<table>
+<tr><th>Abstraction</th><th>India (now)</th><th>US (later)</th></tr>
+<tr><td>Universe</td><td><strong>NIFTY 500</strong></td><td>Broad growth universe <span class="small">(not the S&amp;P 500 — see §13)</span></td></tr>
+<tr><td>Calendar / costs</td><td>NSE · STT+stamp+exch+GST+DP</td><td>US calendar · commission+fees</td></tr>
+<tr><td>Data + execution</td><td><strong>Kite (Zerodha)</strong> — live + 10y historical</td><td>US broker (TBD)</td></tr>
+<tr><td>Currency / benchmarks</td><td>INR · NIFTY family + India VIX</td><td>USD · S&amp;P sectors + VIX</td></tr>
+</table>
+<p class="small"><strong>Data sources:</strong> Kite is the automated feed + 10y historical lab. TradingView is the universal charting/screening cockpit (and the multi-market bridge) — not the automated loop's feed. No external data platform is coupled to the live system. <strong>Universe is NIFTY 500, kept simple</strong>; residual survivorship bias (testing on current membership) is documented, not reconstructed.</p>
+
+<h2 id="arch">3 · System Architecture — Three Planes</h2>
+<p>The governing principle: <strong>agents propose and explain; deterministic code disposes and protects.</strong></p>
+<table>
+<tr><th>Plane</th><th>What lives here</th><th>Why</th></tr>
+<tr><td><strong>1 · Deterministic rails</strong> (code)</td><td>Position-size math, risk caps, stop placement &amp; execution, kill-switch, order management, broker reconciliation.</td><td>Safety-critical &amp; reproducible. An LLM must never decide whether to honor a stop. Final veto on everything.</td></tr>
+<tr><td><strong>2 · Pre-trade council</strong> (agents)</td><td>Before any candidate becomes a trade, a panel vets it: a <em>Setup-quality</em> agent, a <em>Risk</em> agent, a <em>Regime/context</em> agent — returning a structured verdict + reasons.</td><td>This is the standing version of the review council. It <em>gates</em> Strategy S and <em>advises</em> Strategy D — always behind Plane-1 hard checks. EOD cadence makes the latency/cost irrelevant.</td></tr>
+<tr><td><strong>3 · Research / learning</strong> (agents, offline)</td><td>Walk-forward optimization, attribution, post-mortems, calibration.</td><td>Claude orchestrates &amp; interprets; the deterministic engine computes.</td></tr>
+</table>
+<p><strong>Tech stack (lean):</strong> Kite MCP (data + execution) + Claude Skills (the methodology as readable recipes) + a thin deterministic core (a handful of tables: trades, partial_exits, parameters, signals, journal). No 21-table monolith. TradingView MCP optional for charts.</p>
+
+<h2 id="edge">4 · The Edge — four independent modules</h2>
+<table>
+<tr><th>Module</th><th>Question</th><th>Primary lever</th></tr>
+<tr><td>Regime filter</td><td>Trade at all today, and how aggressively?</td><td>Drawdown control</td></tr>
+<tr><td>Candidate selection</td><td>Which stocks are in a real setup?</td><td>Win rate</td></tr>
+<tr><td>Entry timing</td><td>When/how to pull the trigger?</td><td>Win rate + slippage</td></tr>
+<tr><td>Exit policy</td><td>How to harvest R / cut losers?</td><td>R-multiple</td></tr>
+</table>
+<p>Each is tested in isolation (§8 ablation); only what pays after costs survives.</p>
+
+<h2 id="sig">5 · Signal Definitions <span class="tag">parameterized · learned · per-stock-relative</span></h2>
+<div class="box">
+  <h4>Single source of truth</h4>
+  All signals are computed in <strong>deterministic Python</strong> fed by Kite data. The legacy Pine scripts become optional <em>charting aids only</em> — they no longer drive scans, alerts, or trades, and must not diverge from the engine.
+</div>
+<p><strong>Base candle math:</strong> <code>TRP = (High−Low)/Close×100</code>; <code>close_position = (Close−Low)/(High−Low)</code>; volume &amp; TRP ratios vs the stock's own trailing window.</p>
+
+<h3>PPC — Positive Pivotal Candle</h3>
+<p>The legacy definition was four ANDed conditions with <strong>hard-coded</strong> thresholds (TRP-ratio ≥ 1.5×, close ≥ 0.60, volume ≥ 1.5×, green). v2 keeps the structure but changes two things that matter:</p>
+<ul>
+<li><strong>Thresholds are learned, not hard-coded</strong> — set by the Baseline Calibration (§10), re-validated over time.</li>
+<li><strong>Signals are relative to the stock's own baseline</strong> — TRP expansion vs its own history; <strong>delivery-% as a z-score vs the stock's own 50-day delivery distribution</strong> (not a flat ">60"); volume vs its own norm. "Pivotal" adapts to a sleepy large-cap vs. a volatile mid-cap instead of one universal rule.</li>
+<li><strong>Delivery-weighted volume</strong> on the pivot bar is the participation test — real shares changing hands, the NSE-specific institutional tell the US lacks.</li>
+</ul>
+<h3>NPC — Negative Pivotal Candle</h3>
+<p>Bearish mirror. Primary use: <strong>sector-weakness detection</strong> (avoid strong stocks in distributing sectors); short candidates in the US phase. Not forced into the long watchlist.</p>
+<h3>Contraction (the coil)</h3>
+<p>Real volatility compression: ATR declining (<em>regression</em> slope), candle ranges <strong>progressively narrowing</strong> (strict — fixes the legacy inverted tolerance), coiling near resistance. The trigger bar's high becomes the entry trigger.</p>
+<h3>Stage (Weinstein trend filter)</h3>
+<p>Trade only Stage 2 / confirmed Stage-1 breakout. Mutually-exclusive bands (no overlap → no topping-stock-as-buy), with the higher-highs + volume-on-breakout gates restored.</p>
+
+<div class="box keep">
+  <h4>Candle is the trigger; context is the edge</h4>
+  A raw PPC alone is weak. It becomes a <strong>tradeable candidate</strong> only with context:
+  <strong>base structure</strong> (depth, contraction count, base stage/count, prior advance — the Minervini/O'Neil core that was missing),
+  a <strong>relative-strength gate</strong> (RS is a hard pre-filter, not a soft feature — never buy laggard breakouts),
+  <strong>computed sector strength</strong> (PPC-vs-NPC breadth + industry-group leadership),
+  and an <strong>earnings-clear window</strong> (§6).
+</div>
+
+<h2 id="exec">6 · Entry · Stop · Exit · Sizing</h2>
+<h3>Entry</h3>
+<p>Confirmed break of the trigger on the <strong>daily close</strong> (the EOD discipline avoids intraday head-fakes and matches the bar the signals are computed on). A <strong>follow-through / breakout-volume</strong> requirement filters weak breaks. The legacy "always 50/50 split" is dropped to a <em>hypothesis</em> — a single confirmed entry is tested against it (likely wins after costs).</p>
+<h3>Stop</h3>
+<p>Initial stop = entry − TRP value, volatility-normalized per stock, <strong>never widened</strong>, trailed up only. A <strong>tight fixed-% overlay</strong> near entry — <code>stop = min(vol-stop, ~8% from entry)</code> — enforces "small fast loss" discipline on high-ATR names.</p>
+<h3>Exit — ride winners</h3>
+<div class="box assume">
+  <h4>Council-mandated change: collapse the scale-out ladder</h4>
+  The legacy 2R/NE/GE/EE ladder <em>fought</em> the positive-skew thesis (it sold most of the position before the 20R move that makes the year) <strong>and</strong> was cost-suicidal (4–5 fee-bearing legs). v2 default: <strong>ride a single position to a structural trailing exit</strong> (21/50-EMA or base-support violation), with a <strong>climax-detection exit</strong> (acceleration + exhaustion gap + largest-volume bar) to bank parabolic runs. Minimal early de-risk only. <strong>Pyramiding</strong> into confirmed winners is tested as the mirror of scaling out. Exit-leg count is a calibrated parameter with the real cost model attached.
+</div>
+<h3>Sizing <span class="tag">capital-agnostic</span></h3>
+<p>Fixed-fractional <strong>risk-per-trade</strong> (regime-scaled), expressed as % of capital so it works at any pool size. Optional fractional-Kelly cap (validated). The actual capital figure is set later and does not drive the design; the cost model (§7) is applied at whatever ticket size results.</p>
+<h3>Earnings / announcement handling <span class="tag">Afzal rule + gap defense</span></h3>
+<ul>
+<li><strong>No new entry</strong> if a scheduled result/major announcement falls within the next <strong>~10 trading days</strong> (learnable window; Afzal's 1–2 weeks).</li>
+<li><strong>Asymmetric exception:</strong> a clean post-results gap that <em>starts</em> a fresh base is a valid setup — welcome it once uncertainty resolves.</li>
+<li><strong>Holdings:</strong> as a result approaches, reduce/exit based on profit cushion vs. stop distance.</li>
+<li>This is the <strong>#1 gap defense</strong> — earnings are the largest source of overnight gap-throughs. Requires a lightweight earnings/corporate-actions calendar connector.</li>
+</ul>
+
+<h2 id="risk">7 · Risk &amp; Capital Protection</h2>
+<ul>
+<li><strong>Per-trade:</strong> RPT (regime-scaled), volatility-normalized stop, fixed-% overlay.</li>
+<li><strong>Portfolio:</strong> a <strong>gap-stressed, correlation-aware</strong> open-risk cap (apply a learned adverse gap to all correlated positions simultaneously — not the naive sum of stop distances). Hard <strong>single-name</strong> and <strong>sector/cluster</strong> caps (the only defense against a limit-down/circuit on one name).</li>
+<li><strong>Drawdown governor:</strong> explicit equity-peak definition + cadence, a graduated de-risk ladder, and a <strong>written unfreeze rule</strong> (human sign-off <em>and</em> an objective regime-recovery condition — not either alone).</li>
+<li><strong>Ruin test:</strong> block-bootstrap that preserves correlation and resamples <em>real</em> overnight-gap/circuit sequences; a numeric ruin threshold and a numeric pass bar.</li>
+<li><strong>Circuits/halts:</strong> price-band screen at selection; consecutive-circuit sequences modeled in the ruin test.</li>
+</ul>
+
+<h2 id="learn">8 · The Learning System — two loops</h2>
+<p>Keeping the loops separate is what makes this <em>learning</em>, not curve-fitting — but only if Loop 2 cannot fit the test set (below).</p>
+<h3>Loop 1 — Parameter learning (offline, validated)</h3>
+<p>Every threshold (§5–6) is a knob. For each candidate set, the <strong>honest backtest</strong> (real costs incl. the per-scrip DP charge + STT asymmetry, an ADT-keyed slippage <em>distribution</em>, worse-of-stop-or-gap fills) reports the R-distribution. A Bayesian search maximizes the §1 objective. Discipline:</p>
+<ul>
+<li><strong>Combinatorial Purged CV</strong> with purge + embargo sized to the holding period (no overlap leakage).</li>
+<li>Report <strong>PBO</strong> (probability of backtest overfitting); gate &lt; ~5%.</li>
+<li><strong>Power analysis</strong> per parameter and per regime cell; underpowered cells are not promoted.</li>
+<li>Deflate by the <strong>true effective trial count</strong> (logged in a monotonic experiment ledger).</li>
+<li><strong>Placebo test:</strong> run the whole pipeline on synthetic/shuffled price series — it must find <em>no</em> edge.</li>
+<li>Winners → <strong>dated, versioned configs</strong>, promoted to live only with human sign-off. Re-run quarterly, not nightly.</li>
+</ul>
+<h3>Loop 2 — Attribution (continuous)</h3>
+<p>Every signal/trade is tagged with features (stage, base quality, sector strength, <strong>delivery-% anomaly</strong>, contraction tightness, regime) and realized R, building a per-(signal×regime×sector) evidence table. It <strong>biases live ranking</strong> via Bayesian shrinkage (strong prior toward backtest expectancy; small weight at low N) and acts as a <strong>drift detector</strong>.</p>
+<div class="box risk">
+  <h4>Loop 2 is HALT-ONLY</h4>
+  The drift detector may throttle, de-risk, or flatten — a safety action. It may <strong>never seed or bias the next optimization</strong> with live-P&amp;L-conditioned priors; that would be fitting the test set one quarter at a time. Re-optimization always runs on the frozen historical lab with the pre-registered protocol.
+</div>
+<p class="small"><strong>Reality check (from the quant seat):</strong> at ~5–20 live trades/month, detecting a 50–60% edge decay takes years of live data — so the live loop is a <em>safety net</em>, not the primary learner. The edge is learned from a decade of history; live results confirm and de-risk.</p>
+
+<h2 id="regime">9 · Regime Contextualization <span class="tag">"how markets are doing today"</span></h2>
+<p>A <strong>measured</strong> regime, not a vibe: index trend (price vs rising 150-DMA), <strong>breadth</strong> (% of universe in Stage 2), volatility (India VIX, ATR percentile), factor leadership, <strong>distribution-day count</strong> (O'Neil's institutional-selling tell), and — critically — a <strong>tactical breakout-failure-rate monitor</strong> on the system's own recent triggers (the best anti-chop defense: when breakouts are failing fast, throttle regardless of what the slow 150-DMA says). The regime scales three dials: <strong>RPT, max positions, selectivity</strong>; in weak regimes the system de-risks automatically or goes flat.</p>
+
+<h2 id="cal">10 · Baseline Calibration — getting to the right levels for today <span class="star">★</span></h2>
+<p class="lead">This is how we set "today's levels" — the actual PPC/NPC thresholds, contraction/stage bands, exit parameters, regime dials — <strong>from historical data, not by hand.</strong></p>
+<ol>
+<li><strong>Run the honest backtest over 10 years of Kite history</strong> for each candidate parameter set, producing its R-distribution across <strong>K walk-forward folds</strong> and across <strong>regimes</strong>.</li>
+<li><strong>Score for maximization AND predictability.</strong> We do <em>not</em> pick the highest in-sample config. We maximize a mean-variance objective on the edge itself:
+  <div class="box"><code>score = mean(OOS&nbsp;SQN) − λ · std(OOS&nbsp;SQN)</code> &nbsp; subject to &nbsp; <code>maxDD ≤ ceiling</code> and <code>PBO &lt; 5%</code></div>
+  High <strong>mean OOS SQN</strong> = the edge (maximization). Low <strong>dispersion of OOS SQN</strong> across folds/regimes = the edge is <strong>consistent and repeatable</strong> (predictability). A lucky in-sample peak with wild fold-to-fold swings is rejected even if its average looks great.</li>
+<li><strong>Emit a dated "Baseline Card"</strong> — the chosen levels + their expected behavior (expectancy, SQN, Calmar, max DD, each with confidence intervals) + the regimes where they work and where they don't.</li>
+<li><strong>Forward-confirm by simulation</strong> — paper/shadow + Monte-Carlo before the levels go live.</li>
+<li><strong>Re-calibrate quarterly</strong> (or on a drift trigger) so the baseline tracks how the market is behaving now, while staying validated.</li>
+</ol>
+<div class="box keep">
+  <h4>What runs "as of today" during development</h4>
+  The first thing we build and execute is this calibration on 10y of Kite data. Its output is the system's live baseline — the levels that define PPC/NPC and everything else <em>right now</em> — chosen because they were both <strong>profitable</strong> and <strong>predictable</strong> out-of-sample, not because someone typed "1.5×".
+</div>
+
+<h2 id="ops">11 · Operating Model — two strategies <span class="tag">paper-first</span></h2>
+<div class="grid2">
+  <div class="box"><h4>Strategy S — Systematic</h4>Claude-operated on the rails; trades only calibrated, council-vetted signals; all guardrails enforced. The machine.</div>
+  <div class="box"><h4>Strategy D — Discretionary</h4>You take the calls; the system supplies vetted setup cards, sizing, risk, and the journal. The human.</div>
+</div>
+<p>Run in parallel = a live, honest systematic-vs-discretionary comparison. Capital is a free variable set later; <strong>both start as paper/shadow</strong> and go live only after the gates pass, at a viable size. <strong>AI guardrails for Strategy S:</strong> heartbeat/dead-man's switch (escalate on broker/token loss while exposed), post-fill risk reconciliation (re-derive risk from filled qty), rate-limiting distinct from idempotency, max-notional ceiling, and a kill-switch defined as flatten-or-freeze with a stated latency.</p>
+
+<h2 id="val">12 · Validation Plan &amp; Go-Live Gates</h2>
+<table>
+<tr><th>Stage</th><th>Output</th></tr>
+<tr><td>R-0 Objective &amp; baselines</td><td>Lock SQN+predictability objective + drawdown ceiling; pull buy-and-hold + momentum/quality factor benchmark curves.</td></tr>
+<tr><td>R-1 Honest evaluator</td><td>One backtest engine (real costs, slippage distribution, gap-aware fills) on 10y Kite data — the shared yardstick.</td></tr>
+<tr><td>R-2 Ablation</td><td>Marginal edge of each rule/feature (base structure, RS, delivery anomaly, sector); prune what doesn't pay.</td></tr>
+<tr><td>R-3 Exit policy</td><td>Trail-vs-scale-vs-pyramid resolved empirically (the R-multiple question).</td></tr>
+<tr><td>R-4 Regime &amp; sizing</td><td>Regime dials + fractional-Kelly cap, validated on the drawdown distribution.</td></tr>
+<tr><td>R-5 Walk-forward + robustness</td><td>CPCV + PBO + power + placebo; the Baseline Card.</td></tr>
+</table>
+<p><strong>Go-live gates (in order):</strong> (1) after-cost SQN beats both baselines, OOS, with stable parameters and PBO &lt; 5%; (2) Monte-Carlo ruin negligible at chosen sizing; (3) paper/shadow reproduces backtest within tolerance; (4) guardrails tested under injected gap/flash-crash; (5) then micro-size live, scaling as live tracks expectation. <strong>"No-go / return capital" is an acceptable outcome</strong> if the edge doesn't survive honest costs.</p>
+
+<h2 id="council">13 · Council Review &amp; How It's Addressed</h2>
+<p>Four independent reviewers red-teamed the v2 blueprint. Consensus: <em>"The risk &amp; learning machinery is genuinely good; the edge engine and honest measurement weren't there yet — winnable conditional on fixing them."</em></p>
+<table>
+<tr><th>Seat</th><th>Score</th><th>Key finding → fix in this spec</th></tr>
+<tr><td>Risk</td><td>5.5</td><td>Calmar isn't a constraint; stop-based portfolio risk is fiction across gaps → SQN+drawdown ceiling (§1), gap-stressed correlation-aware caps (§7), AI guardrails (§11).</td></tr>
+<tr><td>Quant</td><td>5.5</td><td>Small-sample/overfitting; "two loops" can leak → CPCV+PBO+power+deflation, placebo test, Loop 2 halt-only (§8); predictability objective (§10).</td></tr>
+<tr><td>Execution</td><td>3.5</td><td>Un-costed; fee drag ~half the edge; daily bars can't validate the entry → real cost model incl. DP charge + slippage distribution (§8), EOD-close entry / intraday for the entry day, ADT gates.</td></tr>
+<tr><td>Practitioner</td><td>6.5</td><td>Exit ladder fights the thesis; missing base structure / RS-gate / delivery-as-anomaly → ride-winners exits (§6), base taxonomy + RS gate + delivery z-score (§5); US ≠ S&amp;P 500 (§2).</td></tr>
+</table>
+
+<h2 id="exp">14 · Honest Risks &amp; Return Expectations</h2>
+<p><strong>Risks:</strong> overfitting (mitigated, never eliminated); gap/tail risk (stops don't cover gaps); regime death in prolonged chop; edge decay; execution gap vs backtest; AI-autonomy bugs; multi-market non-transfer (re-validate, never assume).</p>
+<div class="box assume">
+  <h4>Return expectation — no quota</h4>
+  We target the <em>process</em> (max SQN + predictability under a drawdown cap), not a monthly number. Returns will be <strong>lumpy and regime-dependent</strong>: strong in trending years, flat/negative in chop. <strong>2–3%/month (~27–43% annualized) is a good-regime aspiration, not a sustained monthly guarantee</strong> — and chasing it as a quota requires more risk, which fights capital protection. The credible figure comes from the Baseline Calibration backtest; any system that <em>promises</em> 2–3%/month is lying.
+</div>
+
+<hr>
+<p class="small">Living document. The numbers that define the system are produced by the Baseline Calibration (§10), not hand-set here. This spec is the product of an adversarial four-seat review (§13) and supersedes the v2 review blueprint.</p>
+
+</div>
+</body>
+</html>
