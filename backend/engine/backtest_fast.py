@@ -53,6 +53,7 @@ def _fast_simulate(
     symbol, bars, df, *, exit_mode, target_r, chandelier_mult, slippage, min_trp,
     start_date=None, use_regime=False, regime_map=None, use_52w=False, max_pct_52w=15.0,
     use_rs=False, ret_map=None, rs_min=0.0, skip_circuit_locked=False,
+    vol_dryup=False, vol_dryup_ratio=0.8, vol_breakout_k=0.0,
 ) -> list[RawTrade]:
     stages = df["stage"].to_numpy()
     contr = df["is_contraction"].to_numpy()
@@ -61,6 +62,8 @@ def _fast_simulate(
     atr = df["atr"].to_numpy()
     pct52 = df["pct_from_52w_high"].to_numpy()
     ret126 = df["ret_126"].to_numpy()
+    vol_sma50 = df["vol_sma50"].to_numpy() if (vol_dryup or vol_breakout_k > 0) else None
+    vol_sma10 = df["vol_sma10"].to_numpy() if vol_dryup else None
     cm_mult = Decimal(str(chandelier_mult))
 
     trades: list[RawTrade] = []
@@ -175,8 +178,19 @@ def _fast_simulate(
             sr = ret126[j]
             if ir is None or not (sr == sr) or (sr - ir) < rs_min:
                 continue
+        if vol_dryup:
+            # Minervini/Wyckoff: volume should dry up in the base (supply exhausted).
+            # recent 10d avg volume < ratio * 50d avg volume, at the signal bar.
+            v10, v50 = vol_sma10[j], vol_sma50[j]
+            if not (v10 == v10 and v50 == v50) or v50 <= 0 or v10 >= vol_dryup_ratio * v50:
+                continue
         if not analyze_base(bars[max(0, j - BASE_TAIL + 1): j + 1]).is_valid_base:
             continue
+        if vol_breakout_k > 0:
+            # O'Neil/Weinstein: breakout bar volume >= K * prior-50d average (conviction).
+            v50 = vol_sma50[i]
+            if not (v50 == v50) or v50 <= 0 or bars[i].volume < vol_breakout_k * v50:
+                continue
         if skip_circuit_locked:
             # A breakout that locks at the upper price band is not fillable (no sellers):
             # a fully frozen bar (high==low), or a >=19.5% surge that closed on its high

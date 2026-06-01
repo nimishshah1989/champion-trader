@@ -107,4 +107,8 @@ def precompute_features(
         df["pct_from_52w_high"] = np.where(h252.to_numpy() > 0, (h252 - c) / h252 * 100, np.nan)
         df["ret_126"] = (c / c.shift(126) - 1).to_numpy()
 
+        # --- volume features (prior-window means, shift(1) => exclude current bar, no look-ahead) ---
+        df["vol_sma50"] = v.rolling(50).mean().shift(1).to_numpy()
+        df["vol_sma10"] = v.rolling(10).mean().shift(1).to_numpy()
+
     return df
