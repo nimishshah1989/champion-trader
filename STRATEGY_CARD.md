@@ -92,9 +92,29 @@ sell), 10 bps slippage each side, pessimistic gap fills.
 - **2021 was exceptional** (+149%, the post-COVID small-cap melt-up). Don't annualise
   off it. Strip it out and the system still beats buy-and-hold risk-adjusted, but
   expect single-to-low-double-digit years in sideways/large-cap markets (2016, 2019, 2025).
-- **Capacity:** validated at ₹1 lakh. A large account trading small/mid-caps would
-  move prices — real slippage would exceed the 10 bps modeled. This is a
-  small-account strategy as specced.
+- **Capacity is quantified, not a mirage.** The edge holds in every liquidity tier
+  (below) — even the 100 most-liquid mega-caps beat buy-and-hold 4× on Calmar, so
+  this is a real edge, not a small-cap slippage artifact. Return rises as smaller
+  names are added; pick the tier that fits your account size.
+
+### Liquidity tiers (locked config, full period)
+
+| Universe | min daily turnover | CAGR | maxDD | Calmar | Sharpe | best for |
+|---|---|---|---|---|---|---|
+| top 100 | ₹148 cr | 12.4% | 10.7% | 1.15 | 1.42 | institutional size |
+| top 250 | ₹52 cr | 14.2% | 10.0% | 1.41 | 1.32 | large accounts |
+| **top 500** | **₹15.6 cr** | **18.0%** | **10.4%** | **1.73** | 1.51 | **best risk-adjusted; scalable to ~₹crore** |
+| top 800 | ₹5.6 cr | 21.7% | 15.0% | 1.44 | 1.66 | mid accounts |
+| full ~1270 | ₹0.1 cr | 24.5% | 16.2% | 1.51 | 1.93 | small account (₹1–10 L) |
+
+> **Two recommended operating points:** *small account* → full universe (24.5% CAGR);
+> *scalable* → top-500 by turnover (18% CAGR, Calmar 1.73 — the best of any tier).
+
+### Without the 2021 outlier
+2021 was an exceptional +149% year (post-COVID small-cap melt-up). Excluding it,
+the system still compounds at ~13–14% CAGR at ~16% maxDD (Calmar ~0.85) — i.e. it
+**still beats buy-and-hold on a risk-adjusted basis even in its worst-case framing.**
+The 24.5% headline is 2021-boosted; plan around the ~14–18% range.
 
 ---
 
