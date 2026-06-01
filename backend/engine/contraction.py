@@ -1,13 +1,13 @@
-"""Volatility-contraction detector (A3c) — the coil before the breakout.
+"""Volatility-contraction detector (A3c, robust v2).
 
-Fixes two legacy bugs:
-  * the ATR "slope" was a 2-point endpoint ratio  ->  now a least-squares slope;
-  * the "narrowing" counter used an inverted +tolerance that counted WIDER bars
-    as narrowing  ->  now strict (a bar's range must be <= the prior bar's).
+v1 required K strictly-consecutive non-widening bars ending on the latest bar --
+too brittle (fired ~0.5% on real data, so READY was ~0%). v2 gates on volatility
+COMPRESSION: the current ATR sits in the low percentile of its own trailing
+distribution AND the recent ATR slope is non-positive (not expanding) AND price
+is near resistance. Robust to daily noise; faithful to "the coil".
 
-A contraction = ATR declining (regression slope < 0) AND >= N consecutive
-non-widening bars AND price coiling near resistance. trigger_level = the high to
-break (max high of the last few bars).
+The least-squares slope and the consecutive-narrowing count are retained as
+reported diagnostics (not gates).
 """
 from __future__ import annotations
 
@@ -24,6 +24,7 @@ class ContractionResult:
     atr_slope_pct: float
     narrowing_count: int
     near_resistance: bool
+    atr_percentile: float      # fraction of trailing ATRs <= current (low = compressed)
     trigger_level: Decimal
 
 
@@ -64,19 +65,25 @@ def detect_contraction(
     *,
     atr_period: int = 14,
     slope_lookback: int = 10,
-    min_narrowing: int = 3,
+    compression_lookback: int = 60,
+    max_compression_pct: float = 0.35,
     narrowing_window: int = 10,
     resistance_lookback: int = 60,
     resistance_pct: float = 3.0,
     trigger_lookback: int = 5,
 ) -> ContractionResult:
     if len(bars) < atr_period + slope_lookback + 1:
-        return ContractionResult(False, 0.0, 0, False, Decimal("0"))
+        return ContractionResult(False, 0.0, 0, False, 1.0, Decimal("0"))
 
     atr = _atr_series(bars, atr_period)
     recent = atr[-slope_lookback:]
     mean_atr = fmean(recent)
     slope_pct = (_linreg_slope(recent) / mean_atr * 100) if mean_atr else 0.0
+
+    # Volatility-compression percentile: current ATR vs its trailing distribution.
+    win = atr[-compression_lookback:] if len(atr) >= compression_lookback else atr
+    current = atr[-1]
+    atr_percentile = (sum(1 for a in win if a <= current) / len(win)) if win else 1.0
 
     ranges = [float(b.high - b.low) for b in bars[-narrowing_window:]]
     narrowing = _consecutive_narrowing(ranges)
@@ -87,5 +94,5 @@ def detect_contraction(
     near = ((hi - close) / hi * 100 <= resistance_pct) if hi else False
 
     trigger = max(b.high for b in bars[-trigger_lookback:])
-    is_c = slope_pct < 0 and narrowing >= min_narrowing and near
-    return ContractionResult(is_c, slope_pct, narrowing, near, trigger)
+    is_c = (atr_percentile <= max_compression_pct) and (slope_pct <= 0) and near
+    return ContractionResult(is_c, slope_pct, narrowing, near, atr_percentile, trigger)

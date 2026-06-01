@@ -48,17 +48,19 @@ def test_detects_contraction():
     assert r.narrowing_count >= 3
     assert r.near_resistance is True
     assert r.atr_slope_pct < 0
+    assert r.atr_percentile <= 0.35          # current ATR is compressed vs its own range
     assert r.is_contraction is True
     assert r.trigger_level > Decimal("100")
 
 
-def test_no_contraction_when_expanding():
-    bars = [bar(i, 105, 95, 100) for i in range(25)]
-    for j in range(15):
-        rng = 0.5 + 0.25 * j                               # EXPANDING ranges
-        bars.append(bar(25 + j, 103 + rng / 2, 103 - rng / 2, 103))
+def test_no_contraction_when_volatility_elevated():
+    # long quiet region, then a recent volatility blow-up: current ATR sits HIGH
+    # in its own range -> not compressed -> not a contraction.
+    bars = [bar(i, 100.5, 99.5, 100) for i in range(40)]   # quiet, range 1
+    for j in range(12):
+        bars.append(bar(40 + j, 108, 92, 100))             # recent blow-up, range 16
     r = detect_contraction(bars)
-    assert r.narrowing_count < 3
+    assert r.atr_percentile > 0.35
     assert r.is_contraction is False
 
 
