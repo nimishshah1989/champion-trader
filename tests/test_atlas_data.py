@@ -63,3 +63,15 @@ def test_instrument_id_cached():
     a.daily_bars("RELIANCE", date(2010, 1, 1), date(2099, 1, 1))
     a.daily_bars("RELIANCE", date(2010, 1, 1), date(2099, 1, 1))
     assert f.instrument_calls == 1
+
+
+def test_symbol_with_ampersand_is_url_encoded():
+    seen = []
+
+    def fake(url, headers):
+        seen.append(url)
+        return json.dumps([{"id": "IID-MM"}]).encode()
+
+    a = AtlasOHLCVAdapter("http://x", "key", http_get=fake)
+    assert a.instrument_id("M&M") == "IID-MM"
+    assert "eq.M%26M" in seen[0]        # '&' encoded, not a raw query separator

@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from datetime import date
 from decimal import Decimal
@@ -59,7 +60,8 @@ class AtlasOHLCVAdapter:
 
     def instrument_id(self, symbol: str) -> str:
         if symbol not in self._iid_cache:
-            rows = self._req(f"de_instrument?symbol=eq.{symbol}&select=id&limit=1")
+            sym = urllib.parse.quote(symbol, safe="")   # encode '&' etc. (M&M, J&KBANK)
+            rows = self._req(f"de_instrument?symbol=eq.{sym}&select=id&limit=1")
             if not rows:
                 raise KeyError(f"{symbol} not in de_instrument")
             self._iid_cache[symbol] = rows[0]["id"]
