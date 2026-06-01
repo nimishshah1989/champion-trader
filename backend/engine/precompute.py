@@ -102,4 +102,9 @@ def precompute_features(
         )
         df["trigger_level"] = h.rolling(trigger_lookback).max()
 
+        # --- leadership features ---
+        h252 = h.rolling(252).max()
+        df["pct_from_52w_high"] = np.where(h252.to_numpy() > 0, (h252 - c) / h252 * 100, np.nan)
+        df["ret_126"] = (c / c.shift(126) - 1).to_numpy()
+
     return df
