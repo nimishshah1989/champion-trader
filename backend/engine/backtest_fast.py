@@ -67,8 +67,9 @@ def _fast_simulate(
     long = False
     entry = stop = target = stopdist = hh = Decimal(0)
     entry_date = None
-    realized_r = remaining = Decimal(0)   # ladder: R already booked, open fraction
+    realized_r = remaining = Decimal(0)   # ladder/hybrid: R booked, open fraction
     lvl_idx = 0                            # ladder: next LADDER rung to test
+    booked = False                         # hybrid: has the first half been booked?
 
     for i in range(WARMUP, len(bars)):
         b = bars[i]
@@ -126,6 +127,30 @@ def _fast_simulate(
                     fp = fill_stop(stop, b.close, b.close, slippage)
                     trades.append(RawTrade(symbol, entry_date, b.date, entry, fp, stopdist))
                     long = False
+            elif exit_mode == "hybrid":
+                # Afzal 50/50: book HALF at target_r (stop -> breakeven), then trail
+                # the other half on a wide chandelier. Win-rate of a target + the
+                # runner's upside. Close-based stop; gap-down exits at open.
+                if gapped_stop or closed_stop:
+                    fill_px = b.open if gapped_stop else b.close
+                    fp = fill_stop(stop, fill_px, fill_px, slippage)
+                    rem_r = (fp - entry) / stopdist
+                    total_r = realized_r + remaining * rem_r
+                    synth = entry + total_r * stopdist
+                    trades.append(RawTrade(symbol, entry_date, b.date, entry, synth, stopdist))
+                    long = False
+                else:
+                    if not booked and b.high >= entry + Decimal(str(target_r)) * stopdist:
+                        realized_r += remaining / 2 * Decimal(str(target_r))   # half at target
+                        remaining = remaining / 2
+                        booked = True
+                        stop = max(stop, entry)                                # rest to breakeven
+                    if booked:                                                 # trail the runner
+                        if b.high > hh:
+                            hh = b.high
+                        a = atr[i]
+                        if a == a:
+                            stop = _chandelier_stop(stop, hh, Decimal(str(round(float(a), 4))), cm_mult)
             else:
                 f = resolve_open_bar(b.open, b.high, b.low, stop, target, slippage)
                 if f is not None:
@@ -162,7 +187,7 @@ def _fast_simulate(
                 target = ent + Decimal(str(target_r)) * sd
                 hh = b.high
                 entry_date = b.date
-                realized_r, remaining, lvl_idx = Decimal(0), Decimal(1), 0
+                realized_r, remaining, lvl_idx, booked = Decimal(0), Decimal(1), 0, False
                 long = True
     return trades
 
