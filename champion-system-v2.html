@@ -170,6 +170,17 @@
 <li>This is the <strong>#1 gap defense</strong> — earnings are the largest source of overnight gap-throughs. Requires a lightweight earnings/corporate-actions calendar connector.</li>
 </ul>
 
+<h3>Costs &amp; taxes <span class="tag">modeled at true ticket size</span></h3>
+<p>Two distinct layers, both required for honest net returns:</p>
+<ul>
+<li><strong>Per-transaction trading costs</strong> (reduce each trade's R): brokerage, <strong>STT</strong> (0.1% buy + 0.1% sell on delivery — the single largest line), exchange transaction charge, SEBI fee, stamp duty (buy side), GST, and the <strong>flat per-scrip DP/demat charge on every sell day</strong> (punishing on small tickets and multi-leg exits), plus a modeled <strong>slippage</strong> distribution keyed to spread/ADT. Applied at the real ₹ ticket size, never scale-free percentages.</li>
+<li><strong>Capital-gains tax</strong> (on net <em>realized</em> gains, per financial year): holding ≤ 12 months → <strong>STCG ≈ 20%</strong> (listed equity, post-Jul-2024); &gt; 12 months → <strong>LTCG 12.5%</strong> above the ₹1.25 L/yr exemption. Because the system holds ~1–4 weeks, <strong>nearly all gains are STCG</strong> — a large, turnover-driven haircut. Model loss set-off (STCL offsets STCG/LTCG, 8-yr carry-forward) and the annual exemption.</li>
+</ul>
+<div class="box assume">
+  <h4>Where each layer enters</h4>
+  Per-trade trading costs go <em>inside</em> the R-multiple — they decide which setups are even worth taking. <strong>Capital-gains tax is an annual, portfolio-level overlay</strong> — it depends on net offsets and the exemption, so it can't live in a single trade's R. The optimizer ranks on <strong>pre-tax SQN</strong> (tax is ~proportional and doesn't change the ranking); we <strong>report post-tax net returns</strong> for honest expectations and the go-live decision.
+</div>
+
 <h2 id="risk">7 · Risk &amp; Capital Protection</h2>
 <ul>
 <li><strong>Per-trade:</strong> RPT (regime-scaled), volatility-normalized stop, fixed-% overlay.</li>
