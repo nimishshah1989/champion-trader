@@ -61,3 +61,4 @@ champion_cache*.sqlite
 # analysis artifacts
 ic_signals.pkl
 *.pkl
+equity_curve.csv
