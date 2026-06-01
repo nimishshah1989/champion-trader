@@ -88,10 +88,13 @@ class AtlasOHLCVAdapter:
                 d = date.fromisoformat(r["date"][:10])
                 if as_of is not None and d > as_of:        # leakage guard (belt-and-suspenders)
                     continue
+                if r.get("close") is None or r.get("open") is None:   # skip malformed bar
+                    continue
                 dp = float(r["delivery_pct"]) if r.get("delivery_pct") is not None else None
+                vol = int(r["volume"]) if r.get("volume") is not None else 0
                 bars.append(
                     Bar(d, Decimal(str(r["open"])), Decimal(str(r["high"])), Decimal(str(r["low"])),
-                        Decimal(str(r["close"])), int(r["volume"]), dp)
+                        Decimal(str(r["close"])), vol, dp)
                 )
             if len(rows) < PAGE:
                 break
