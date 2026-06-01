@@ -57,3 +57,7 @@ build/
 champion_cache.sqlite
 champion_cache*.sqlite
 *.sqlite
+
+# analysis artifacts
+ic_signals.pkl
+*.pkl

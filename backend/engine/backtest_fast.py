@@ -20,7 +20,7 @@ from typing import Optional
 from backend.engine.backtest import BacktestResult, RawTrade, replay_trades
 from backend.engine.base import analyze_base
 from backend.engine.costs import CostModel
-from backend.engine.fills import DEFAULT_SLIPPAGE, fill_entry, fill_stop, resolve_open_bar
+from backend.engine.fills import DEFAULT_SLIPPAGE, fill_entry, fill_stop, fill_target, resolve_open_bar
 from backend.engine.kite_data import Bar
 from backend.engine.precompute import precompute_features
 from backend.engine.regime import load_regime
@@ -110,6 +110,22 @@ def _fast_simulate(
                         remaining -= Decimal(str(frac))
                         stop = entry + Decimal(str(stop_after)) * stopdist
                         lvl_idx += 1
+            elif exit_mode == "target_close":
+                # Fixed bracket: resting limit at target (fills intraday on the high),
+                # EOD close-based stop, overnight gap-down fills at the open. This is
+                # the clean 2R-target / 1R-stop system the hit_2R base rate measured.
+                if b.open <= stop:
+                    fp = fill_stop(stop, b.open, b.open, slippage)
+                    trades.append(RawTrade(symbol, entry_date, b.date, entry, fp, stopdist))
+                    long = False
+                elif b.high >= target:
+                    fp = fill_target(target, b.open, b.high, slippage)
+                    trades.append(RawTrade(symbol, entry_date, b.date, entry, fp, stopdist))
+                    long = False
+                elif b.close < stop:
+                    fp = fill_stop(stop, b.close, b.close, slippage)
+                    trades.append(RawTrade(symbol, entry_date, b.date, entry, fp, stopdist))
+                    long = False
             else:
                 f = resolve_open_bar(b.open, b.high, b.low, stop, target, slippage)
                 if f is not None:

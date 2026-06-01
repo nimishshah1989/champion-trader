@@ -130,16 +130,18 @@ for s in symbols:
 con.close()
 
 D = pd.DataFrame(rows)
+D.to_pickle("/home/user/champion-trader/ic_signals.pkl")   # save early — scan is the expensive part
 print(f"  {len(D)} signals collected in {time.time()-t0:.0f}s\n")
 print(f"Base rates: hit_2R_first={D['hit_2R_first'].mean():.1%}  "
       f"mean mfe_R_40={D['mfe_R_40'].mean():.2f}  mean fwd_R_20={D['fwd_R_20'].mean():+.2f}\n")
 
 # ── IC table (full period) ───────────────────────────────────────────────────
 def ic(frame, feat, label):
+    """Spearman = Pearson on ranks (avoids the scipy dependency)."""
     sub = frame[[feat, label]].dropna()
     if len(sub) < 30:
         return np.nan
-    return sub[feat].corr(sub[label], method="spearman")
+    return sub[feat].rank().corr(sub[label].rank())  # pearson-on-ranks
 
 print("=" * 76)
 print("INFORMATION COEFFICIENT  (Spearman rank corr, feature vs forward outcome)")
