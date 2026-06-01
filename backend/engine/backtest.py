@@ -1,17 +1,13 @@
-"""Event-driven backtest loop (A5b) — the honest evaluator.
+"""Event-driven backtest loop (A5b) + shared trade replay.
 
 Per symbol: a FLAT/LONG state machine that enters on a READY trigger-break (via
 the A4 fill engine) and exits on stop/target with pessimistic intrabar
-resolution. Trades are then replayed with real position sizing + costs to build
-net-of-cost R-multiples and an equity curve, scored with the A5a metrics.
+resolution. `replay_trades` then sizes + costs the raw trades into net-of-cost
+R-multiples + an equity curve, scored with the A5a metrics. Shared by the slow
+(`run_backtest`, injectable signal) and fast (backtest_fast) paths.
 
-The signal is INJECTED (`signal_fn`) so the loop is tested independently of the
-detectors. signal_fn(history) -> (trigger, stop_distance) | None, computed only
-on closed bars (leakage-safe).
-
-v1 simplifications (documented, to be lifted later):
-  * trades replayed sequentially — true concurrency / max-positions is R-4;
-  * exit = stop + a fixed R target — ride-winners / trailing / climax is R-3.
+v1 simplifications: trades replayed sequentially (concurrency=R-4); exit = stop
++ fixed R target (ride-winners/trailing=R-3).
 """
 from __future__ import annotations
 
@@ -76,7 +72,7 @@ def _simulate_symbol(
                 trades.append(RawTrade(symbol, entry_date, b.date, entry, f.price, stopdist))
                 long = False
         else:
-            setup = signal_fn(bars[:i])               # closed bars only (leakage-safe)
+            setup = signal_fn(bars[:i])
             if setup is not None:
                 trig, sd = setup
                 if sd > 0:
@@ -90,29 +86,22 @@ def _simulate_symbol(
     return trades
 
 
-def run_backtest(
-    data: dict[str, list[Bar]],
-    signal_fn: SignalFn,
+def replay_trades(
+    raw: list[RawTrade],
     *,
     starting_capital: Decimal = Decimal("1000000"),
     rpt_pct: float = 0.5,
-    target_r: float = 2.0,
-    slippage: Decimal = DEFAULT_SLIPPAGE,
     cost_model: Optional[CostModel] = None,
-    warmup: int = 1,
 ) -> BacktestResult:
+    """Size each trade by current equity, apply real costs, build the equity curve."""
     cm = cost_model or CostModel()
-    raw: list[RawTrade] = []
-    for sym, bars in data.items():
-        raw += _simulate_symbol(sym, bars, signal_fn, target_r, slippage, warmup)
-    raw.sort(key=lambda t: t.exit_date)
-
+    ordered = sorted(raw, key=lambda t: t.exit_date)
     equity = starting_capital
     curve: list[float] = [float(equity)]
     rs: list[float] = []
     rpt = Decimal(str(rpt_pct))
 
-    for t in raw:
+    for t in ordered:
         shares = int((equity * rpt / Decimal(100)) / t.stopdist)
         if shares <= 0:
             continue
@@ -136,3 +125,20 @@ def run_backtest(
         num_trades=len(rs),
         final_equity=float(equity),
     )
+
+
+def run_backtest(
+    data: dict[str, list[Bar]],
+    signal_fn: SignalFn,
+    *,
+    starting_capital: Decimal = Decimal("1000000"),
+    rpt_pct: float = 0.5,
+    target_r: float = 2.0,
+    slippage: Decimal = DEFAULT_SLIPPAGE,
+    cost_model: Optional[CostModel] = None,
+    warmup: int = 1,
+) -> BacktestResult:
+    raw: list[RawTrade] = []
+    for sym, bars in data.items():
+        raw += _simulate_symbol(sym, bars, signal_fn, target_r, slippage, warmup)
+    return replay_trades(raw, starting_capital=starting_capital, rpt_pct=rpt_pct, cost_model=cost_model)
