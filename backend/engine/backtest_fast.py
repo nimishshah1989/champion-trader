@@ -29,6 +29,10 @@ TRADEABLE = ("S1B", "S2")
 WARMUP = 171
 BASE_TAIL = 100
 
+# Champion R-ladder: (level in R, fraction of TOTAL booked, stop raised to this R after).
+# 20% at 2R, then 20% / 40% / 80% of the REMAINDER at 4R / 8R / 12R; stop trails up.
+LADDER = [(2.0, 0.20, 0.0), (4.0, 0.16, 2.0), (8.0, 0.256, 4.0), (12.0, 0.3072, 8.0)]
+
 
 def _chandelier_stop(prev_stop: Decimal, highest_high: Decimal, atr: Decimal, mult: Decimal) -> Decimal:
     return max(prev_stop, highest_high - mult * atr)
@@ -63,6 +67,8 @@ def _fast_simulate(
     long = False
     entry = stop = target = stopdist = hh = Decimal(0)
     entry_date = None
+    realized_r = remaining = Decimal(0)   # ladder: R already booked, open fraction
+    lvl_idx = 0                            # ladder: next LADDER rung to test
 
     for i in range(WARMUP, len(bars)):
         b = bars[i]
@@ -78,6 +84,26 @@ def _fast_simulate(
                     a = atr[i]
                     if a == a:
                         stop = _chandelier_stop(stop, hh, Decimal(str(round(float(a), 4))), cm_mult)
+            elif exit_mode == "ladder":
+                # Stop FIRST (pessimistic). The stop ratchets up as rungs book, so
+                # the position always closes on the (rising) stop — never partially
+                # orphaned. R booked at each rung + the open fraction's stop-out R.
+                if b.low <= stop:
+                    fp = fill_stop(stop, b.open, b.low, slippage)
+                    rem_r = (fp - entry) / stopdist
+                    total_r = realized_r + remaining * rem_r
+                    synth = entry + total_r * stopdist
+                    trades.append(RawTrade(symbol, entry_date, b.date, entry, synth, stopdist))
+                    long = False
+                else:
+                    # Book every rung whose target the bar's high reached; raise the
+                    # stop per the rung's trail. New stop applies from the NEXT bar.
+                    while lvl_idx < len(LADDER) and b.high >= entry + Decimal(str(LADDER[lvl_idx][0])) * stopdist:
+                        lvl_r, frac, stop_after = LADDER[lvl_idx]
+                        realized_r += Decimal(str(frac)) * Decimal(str(lvl_r))
+                        remaining -= Decimal(str(frac))
+                        stop = entry + Decimal(str(stop_after)) * stopdist
+                        lvl_idx += 1
             else:
                 f = resolve_open_bar(b.open, b.high, b.low, stop, target, slippage)
                 if f is not None:
@@ -114,6 +140,7 @@ def _fast_simulate(
                 target = ent + Decimal(str(target_r)) * sd
                 hh = b.high
                 entry_date = b.date
+                realized_r, remaining, lvl_idx = Decimal(0), Decimal(1), 0
                 long = True
     return trades
 
