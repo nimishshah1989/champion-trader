@@ -73,9 +73,17 @@ def _fast_simulate(
     for i in range(WARMUP, len(bars)):
         b = bars[i]
         if long:
+            # Close-based stop: a gap through the stop on open still exits immediately
+            # (real overnight risk); an intraday wick that closes above the stop does NOT
+            # exit — Afzal reviews at EOD and only exits if the close is below his level.
+            # Upside targets (rungs) still fire on intraday high — those are real fills.
+            gapped_stop = b.open <= stop     # overnight gap through stop
+            closed_stop = b.close < stop     # EOD close below stop
+
             if exit_mode == "chandelier":
-                if b.low <= stop:
-                    fp = fill_stop(stop, b.open, b.low, slippage)
+                if gapped_stop or closed_stop:
+                    fill_px = b.open if gapped_stop else b.close
+                    fp = fill_stop(stop, fill_px, fill_px, slippage)
                     trades.append(RawTrade(symbol, entry_date, b.date, entry, fp, stopdist))
                     long = False
                 else:
@@ -85,11 +93,9 @@ def _fast_simulate(
                     if a == a:
                         stop = _chandelier_stop(stop, hh, Decimal(str(round(float(a), 4))), cm_mult)
             elif exit_mode == "ladder":
-                # Stop FIRST (pessimistic). The stop ratchets up as rungs book, so
-                # the position always closes on the (rising) stop — never partially
-                # orphaned. R booked at each rung + the open fraction's stop-out R.
-                if b.low <= stop:
-                    fp = fill_stop(stop, b.open, b.low, slippage)
+                if gapped_stop or closed_stop:
+                    fill_px = b.open if gapped_stop else b.close
+                    fp = fill_stop(stop, fill_px, fill_px, slippage)
                     rem_r = (fp - entry) / stopdist
                     total_r = realized_r + remaining * rem_r
                     synth = entry + total_r * stopdist
