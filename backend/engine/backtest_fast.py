@@ -52,7 +52,7 @@ def load_bars(con: sqlite3.Connection, symbol: str) -> list[Bar]:
 def _fast_simulate(
     symbol, bars, df, *, exit_mode, target_r, chandelier_mult, slippage, min_trp,
     start_date=None, use_regime=False, regime_map=None, use_52w=False, max_pct_52w=15.0,
-    use_rs=False, ret_map=None, rs_min=0.0,
+    use_rs=False, ret_map=None, rs_min=0.0, skip_circuit_locked=False,
 ) -> list[RawTrade]:
     stages = df["stage"].to_numpy()
     contr = df["is_contraction"].to_numpy()
@@ -177,6 +177,14 @@ def _fast_simulate(
                 continue
         if not analyze_base(bars[max(0, j - BASE_TAIL + 1): j + 1]).is_valid_base:
             continue
+        if skip_circuit_locked:
+            # A breakout that locks at the upper price band is not fillable (no sellers):
+            # a fully frozen bar (high==low), or a >=19.5% surge that closed on its high
+            # (a 20%-band upper lock). Assuming we filled these overstates returns.
+            pc = bars[j].close
+            gain = (b.close - pc) / pc if pc > 0 else Decimal(0)
+            if b.high == b.low or (gain >= Decimal("0.195") and (b.high - b.close) <= b.close * Decimal("0.003")):
+                continue
         trigger = Decimal(str(round(float(trig[j]), 2)))
         sd = trigger * Decimal(str(round(float(avgtrp[j]), 4))) / Decimal(100)
         if sd > 0:
