@@ -30,6 +30,7 @@ class Bar:
     low: Decimal
     close: Decimal
     volume: int
+    delivery_pct: Optional[float] = None   # NSE delivery %, when available (Atlas); None for Kite
 
 
 def _default_http_get(url: str, api_key: str, access_token: str, timeout: int = 120) -> bytes:
