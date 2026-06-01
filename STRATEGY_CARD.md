@@ -134,13 +134,50 @@ The 24.5% headline is 2021-boosted; plan around the ~14–18% range.
 
 ---
 
-## 6. Next steps
+## 6. Post-research refinements (v2) — three validated tracks
 
+After a cited volume/momentum research review (`RESEARCH_VOLUME_MOMENTUM.md`), three
+tracks were implemented and A/B walk-forward tested. Scripts: `run_track1_honesty.py`,
+`run_track2_momentum.py`, `run_track3_volume.py`.
+
+**Track 1 — honest frictions (ADOPTED).** Replaced flat 10bps slippage with a
+liquidity-tiered model (10/25/50/100 bps by daily turnover) and added a circuit-lock
+skip (a breakout that locks at the upper price band is unfillable). **The edge
+*survived* — FULL Calmar 1.70 vs the optimistic 1.51.** It also exposed that, when
+capacity-bound (~7 slots), same-day trade selection was *arbitrary* (alphabetical),
+giving a **~5% CAGR noise band (22.7–27.9%)**. So quote a *range*, not a point.
+
+**Track 2 — momentum-rank selection (ADOPTED for determinism, NOT edge).** Ranking
+same-day candidates by the NSE risk-adjusted momentum score `0.5·z(6m/σ)+0.5·z(12m/σ)`
+performed no better than ranking them in *reverse* — the entry filter already screens
+for momentum, so re-ranking adds no edge (a 3rd confirmation that selection ≠ edge
+here). Adopted only to replace arbitrary alphabetical tie-breaking → reproducible.
+
+**Track 3 — volume filters.** Volume **dry-up HURT** (reject it). But a **strong
+breakout-volume gate (≥2× the 50-day average)** raised the **win rate 27% → 35%**,
+per-trade edge **+1.39R → +2.23R**, lowered maxDD to 13.2%, and improved blind-TEST
+Calmar 1.93 → 2.42 — grounded in O'Neil/Weinstein. It cuts trades ~64%, but
+**redeploying at RPT 0.35 recovers the CAGR**:
+
+| Variant | win% | FULL CAGR | maxDD | FULL Calmar | TEST Calmar |
+|---|---|---|---|---|---|
+| v1 baseline (RPT 0.25) | 27% | ~27% | 15.8% | 1.75 | 1.93 |
+| **v2: breakout ≥2× + RPT 0.35** | **35%** | **26.5%** | **14.8%** | **1.79** | **2.34** |
+
+> **v2 is the more *tradeable* configuration** (35% win rate is far easier to hold than
+> 27%; lower DD; better recent/OOS performance), at the cost of fewer trades.
+> **Caveat:** the ≥2× filter *underperformed* in 2016-20 (TRAIN Calmar 1.09 vs 1.20) —
+> its edge is regime-dependent and post-2021-weighted. It's an *option*, not a strict
+> dominator. The ≥2× threshold is pre-registered from O'Neil/Weinstein (not data-mined).
+
+## 7. Next steps
+
+- [ ] Decide v1 (max trades) vs v2 (higher win rate, fewer trades) as the live default.
 - [ ] Wire live signals on Kite (universe scan → entry/stop/size → alerts).
 - [ ] Forward paper-trade 10–15 days; reconcile fills vs backtest assumptions.
-- [ ] Earnings/announcement blackout (avoid holding through scheduled results) —
-      may trim the −1.5R close-stop tail.
-- [ ] Re-confirm capacity at the intended account size.
+- [ ] NSE **delivery-%** conviction filter — needs bhavcopy ingest (`delivery_pct` empty).
+- [ ] Earnings/announcement blackout; re-confirm capacity at the intended account size.
 
-*Reproduce:* `python scripts/run_final_strategy.py` (locked config + per-year + equity curve).
-*Engine:* `backend/engine/backtest_fast.py` (exit_mode="chandelier", chandelier_mult=5.0).
+*Reproduce:* `python scripts/run_final_strategy.py` (v1) · `run_track3_volume.py` (v2).
+*Engine:* `backend/engine/backtest_fast.py` — `exit_mode="chandelier", chandelier_mult=5.0`,
+plus `skip_circuit_locked`, `vol_breakout_k`, `vol_dryup` toggles; tiered slippage in the harness.

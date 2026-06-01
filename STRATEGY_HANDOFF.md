@@ -44,18 +44,16 @@ Champion Trend System, ₹1,00,000, 2016–2026, **after NSE costs + 10bps slipp
 
 Ordered by expected value. **#1 is the most promising and uses your own intuition.**
 
-1. **VOLUME + MOMENTUM-RANK — researched; see `RESEARCH_VOLUME_MOMENTUM.md`.** The entry
-   uses only price/ATR. The research (5-agent lit/repo/Indian-market review) says volume
-   is **not** a magic win-rate booster (naive volume-on-breakout filters test as noise;
-   OBV/CMF/A-D are debunked — **do not add them**), but three things have real,
-   corroborated support and are pre-registered for an A/B walk-forward test:
-   (a) **base volume dry-up** (Minervini + Lee-Swaminathan low-turnover persistence),
-   (b) a **strong** breakout-volume gate (≥2×, not weak +10%), used to confirm/select,
-   (c) **risk-adjusted momentum rank** (the NSE index formula `0.5·z(6m/σ)+0.5·z(12m/σ)`)
-   to pick which breakouts to take when signals > capacity — best-grounded, attacks
-   2021-dependence. Validate with Deflated Sharpe (count trials) on full + top-500 tiers.
-   Expect a *modest* lift, not a step-change. Plus a fast-follow: NSE **delivery-%**
-   conviction filter (needs bhavcopy ingest — `delivery_pct` column is empty).
+1. **VOLUME + MOMENTUM — RESEARCHED *and* TESTED (3 tracks done; see Strategy Card §6).**
+   Research in `RESEARCH_VOLUME_MOMENTUM.md`; results in `run_track{1,2,3}_*.py`. Outcome:
+   - **Honesty (adopted):** tiered slippage + circuit-lock skip → edge *survives* (Calmar
+     1.70). Exposed a ~5% CAGR selection-noise band → quote a range.
+   - **Momentum-rank (adopted for determinism only):** no selection edge (rank ≈ reverse).
+   - **Volume (the answer):** dry-up *hurts*; **breakout ≥2× + RPT 0.35 → win rate 27%→35%,
+     DD 14.8%, TEST Calmar 2.34** = the v2 "higher win rate AND return" config (regime-
+     dependent caveat: weaker in 2016-20). **Do NOT add OBV/CMF/A-D (debunked).**
+   - **Open fast-follow:** NSE **delivery-%** conviction filter (needs bhavcopy ingest —
+     `delivery_pct` column is empty).
 
 2. **Kill the 2021 dependence.** The 24.5% headline leans on 2021's +149% (small-cap
    melt-up); ex-2021 it's ~13–14% CAGR. Re-validate with (a) multiple train/test split
