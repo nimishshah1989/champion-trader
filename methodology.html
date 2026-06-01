@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Personal Trading System — Methodology v2 (Design Blueprint)</title>
+<style>
+  :root{
+    --ink:#1a1c20; --muted:#5b6168; --line:#e3e6ea; --bg:#ffffff;
+    --accent:#1f5fbf; --good:#1b7f4b; --warn:#9a6700; --bad:#a4232c;
+    --soft:#f6f8fa;
+  }
+  *{box-sizing:border-box}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    color:var(--ink);background:var(--bg);line-height:1.55;margin:0}
+  .wrap{max-width:920px;margin:0 auto;padding:48px 28px 96px}
+  h1{font-size:30px;line-height:1.2;margin:0 0 6px}
+  h2{font-size:21px;margin:42px 0 10px;padding-top:14px;border-top:2px solid var(--line)}
+  h3{font-size:16px;margin:24px 0 6px;color:var(--accent)}
+  p,li{font-size:15px}
+  .sub{color:var(--muted);font-size:14px;margin:0 0 4px}
+  code{background:var(--soft);padding:1px 5px;border-radius:4px;font-size:13px}
+  table{border-collapse:collapse;width:100%;margin:14px 0;font-size:14px}
+  th,td{border:1px solid var(--line);padding:7px 10px;text-align:left;vertical-align:top}
+  th{background:var(--soft)}
+  .box{border:1px solid var(--line);border-left:4px solid var(--accent);background:var(--soft);
+    padding:12px 16px;border-radius:6px;margin:14px 0}
+  .box.risk{border-left-color:var(--bad)}
+  .box.keep{border-left-color:var(--good)}
+  .box.assume{border-left-color:var(--warn)}
+  .box h4{margin:0 0 6px;font-size:14px;text-transform:uppercase;letter-spacing:.04em}
+  .tag{display:inline-block;font-size:11px;padding:2px 8px;border-radius:20px;
+    background:var(--soft);border:1px solid var(--line);color:var(--muted);margin-left:6px}
+  .lever{font-weight:600}
+  .status{background:#fff8e6;border:1px solid #f0d98a;border-radius:8px;padding:14px 18px;margin:18px 0 8px}
+  ul{margin:8px 0 8px 0;padding-left:22px}
+  .toc a{color:var(--accent);text-decoration:none}
+  .toc li{margin:2px 0}
+  hr{border:0;border-top:1px solid var(--line);margin:32px 0}
+  .small{font-size:13px;color:var(--muted)}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media(max-width:680px){.grid2{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>Personal Trading System — Methodology v2</h1>
+<p class="sub">Design blueprint · prepared for independent council review · India (NSE) first, multi-market by design</p>
+
+<div class="status">
+  <strong>Status: DESIGN BLUEPRINT (not yet empirically validated).</strong>
+  This document specifies the <em>logic, learning system, risk framework, and operating model</em>.
+  Every numeric threshold here is a <strong>starting hypothesis</strong> — the actual values are
+  produced and validated by the Learning System (§7) against 10 years of Kite historical data.
+  This blueprint is what the review council should pressure-test <em>before</em> we build.
+</div>
+
+<h2>1 · Philosophy &amp; Objective</h2>
+<p>This is a <strong>trend-aligned, volatility-contraction breakout system with volatility-normalized
+risk</strong>. Its lineage is established momentum/trend work: Weinstein stage analysis (trade only
+uptrends), Minervini-style volatility contraction (the "coil"), O'Neil/Wyckoff institutional-footprint
+candles, and Van Tharp position sizing. It is <strong>not</strong> a high-win-rate system; it is a
+<strong>positive-skew</strong> system — many small, fast losses and a few large winners.</p>
+
+<h3>The objective function (locked)</h3>
+<p>We optimize for <strong>Calmar</strong> — annualized return ÷ maximum drawdown — i.e.
+<strong>expectancy per unit of drawdown</strong>, computed <strong>after costs</strong>. Win rate is a
+<em>diagnostic</em>, never a target.</p>
+<p style="text-align:center;font-size:15px"><code>Expectancy = (WinRate × Avg&nbsp;Win&nbsp;R) − (LossRate × Avg&nbsp;Loss&nbsp;R)</code></p>
+<div class="box assume">
+  <h4>Why not maximize win rate</h4>
+  Pushing win rate (scaling out early, taking 2R fast) shrinks average R and usually <em>lowers</em>
+  total expectancy. Breakout edges live on the right tail: ~35–45% win rate, but average winners of
+  3–6R. Optimizing Calmar keeps the system from "learning" its way into a fragile high-win-rate
+  configuration that blows up in a bad streak.
+</div>
+
+<h3>Capital-protection model — and its honest limit</h3>
+<p>Risk is controlled by two deterministic dials on every trade: a <strong>hard stop-loss</strong> and a
+<strong>fixed-fractional risk-per-trade (RPT)</strong>. Position size is set so a stop-out costs a fixed,
+small fraction of capital.</p>
+<div class="box risk">
+  <h4>Critical truth: stops bound intraday loss, NOT gap loss</h4>
+  In swing trading the dominant tail is the <strong>overnight / earnings gap</strong> that opens
+  <em>below</em> your stop — the stop then fills at the worse gap price, not your level. "We cannot lose
+  more than X%" is true <em>intraday</em> and <strong>false across gaps</strong>. We mitigate gap risk by:
+  (1) sizing that assumes a plausible adverse gap; (2) a hard <strong>earnings blackout</strong>;
+  (3) caps on overnight and sector/correlated exposure; (4) a portfolio-level daily-loss
+  <strong>kill-switch</strong>; (5) avoiding illiquid names where gaps are largest. The backtest must fill
+  stops at the <strong>worse of stop-or-next-open</strong> so Calmar reflects this honestly.
+</div>
+
+<h2>2 · Market-Agnostic Design <span class="tag">India now · US later</span></h2>
+<p>"Market" is an abstraction. The signal logic, learning loop, and risk framework are
+market-independent; only the connectors and constants change. Adding the S&amp;P 500 later is a
+configuration + connector addition, <strong>not</strong> a rewrite.</p>
+<table>
+<tr><th>Abstraction</th><th>India (now)</th><th>US (later)</th></tr>
+<tr><td>Universe provider</td><td>Kite — NIFTY 500</td><td>S&amp;P 500</td></tr>
+<tr><td>Trading calendar</td><td>NSE</td><td>NYSE/Nasdaq</td></tr>
+<tr><td>Cost model</td><td>brokerage + STT + stamp + exchange + GST</td><td>commission + SEC/TAF fees</td></tr>
+<tr><td>Execution</td><td>Kite (Zerodha)</td><td>US broker (TBD)</td></tr>
+<tr><td>Currency / benchmark</td><td>INR · NIFTY family</td><td>USD · S&amp;P + sector ETFs</td></tr>
+<tr><td>Regime &amp; sector inputs</td><td>NIFTY indices, India VIX</td><td>S&amp;P sectors, VIX</td></tr>
+</table>
+<p><strong>Data sources.</strong> <span class="lever">Kite</span> is the automated data + execution feed
+for India (and 10y of clean historical for the lab). <span class="lever">TradingView</span> is the
+<em>universal charting / screening / discretionary cockpit</em> across both markets — not an automated
+feed for the live loop.</p>
+
+<h2>3 · The Edge — hypotheses, not commandments</h2>
+<p>The strategy is decomposed into four <strong>independent, separately testable</strong> modules. Most
+strategies fail because these are tangled; we test each in isolation and keep only what pays after costs.</p>
+<table>
+<tr><th>Module</th><th>Question it answers</th><th>Primary lever</th></tr>
+<tr><td><strong>Regime filter</strong></td><td>Should we be trading at all today, and how aggressively?</td><td>Drawdown control</td></tr>
+<tr><td><strong>Candidate selection</strong></td><td>Which stocks are in a tradeable setup?</td><td>Win rate</td></tr>
+<tr><td><strong>Entry timing</strong></td><td>When/how do we pull the trigger?</td><td>Win rate + slippage</td></tr>
+<tr><td><strong>Exit policy</strong></td><td>How do we harvest R from winners and cut losers?</td><td>R-multiple</td></tr>
+</table>
+
+<h2>4 · Signal Definitions <span class="tag">parameterized &amp; learnable</span></h2>
+<p>Every definition is a set of <strong>numbers with bounds</strong>. These are the knobs the Learning
+System tunes (§7). Values below are <em>starting hypotheses</em>.</p>
+
+<h3>Stage / trend filter (Weinstein)</h3>
+<p>Trade only <strong>Stage 2</strong> (price above a rising long MA, higher highs) or confirmed Stage-1
+breakouts. Reject Stage 3 (topping) and Stage 4 (declining). Long MA ≈ 30-week / 150-day, slope and
+distance thresholds learnable. <em>Fixes vs. legacy: mutually-exclusive stage bands (no overlap), and
+the "higher highs" + volume gate restored.</em></p>
+
+<h3>PPC — Positive Pivotal Candle (institutional accumulation footprint)</h3>
+<ul>
+<li>Range expansion: candle TRP ≥ <code>k₁</code> × its own average TRP</li>
+<li>Bullish close: close in the upper <code>k₂</code> of the range</li>
+<li>Participation: volume ≥ <code>k₃</code> × 20-day average <strong>and</strong> high
+  <strong>delivery&nbsp;%</strong> (real delivery, not intraday squaring — a far better institutional
+  signal than raw volume)</li>
+<li>Net green candle</li>
+</ul>
+<h3>NPC — Negative Pivotal Candle</h3>
+<p>Bearish mirror of PPC. Primary use: <strong>sector-weakness detection</strong> (avoid strong stocks in
+distributing sectors) and short candidates in the US phase — <em>not</em> forced into the long watchlist.</p>
+<h3>Contraction (the coil)</h3>
+<p>True volatility compression before expansion: ATR declining (regression slope, not a 2-point ratio),
+candle ranges <strong>progressively narrowing</strong> (strict — fixes the legacy inverted tolerance),
+price coiling near resistance. The trigger bar's high becomes the entry trigger.</p>
+
+<div class="box keep">
+  <h4>New features the data now supports</h4>
+  <strong>Delivery %</strong> (institutional conviction), <strong>relative-strength rank</strong>
+  (candidate vs index/sector — a well-documented momentum edge), and <strong>computed sector strength</strong>
+  (PPC-vs-NPC breadth per sector). These are added as <em>features whose marginal edge is measured</em>
+  in the ablation study (§7), not assumed.
+</div>
+
+<h2>5 · Entry, Stop, Exit &amp; Sizing</h2>
+<h3>Entry</h3>
+<p>Trigger = high of the trigger bar. Enter on a confirmed break (the methodology's "last 30 minutes"
+discipline reduces intraday-noise whipsaws). Entry split 50/50 is itself a hypothesis to test vs. a
+single confirmed entry. Hard <strong>earnings blackout</strong> before entry.</p>
+<h3>Stop</h3>
+<p>Initial stop = entry − (TRP value). Stop is <strong>volatility-normalized</strong> per stock, never
+widened, trailed up only (breakeven → 2R → low-of-day method) as the trade extends.</p>
+<h3>Exit ladder (R-multiple)</h3>
+<table>
+<tr><th>Level</th><th>Trigger</th><th>Starting action</th></tr>
+<tr><td>Mathematical</td><td>2R</td><td>scale out a portion (learnable %)</td></tr>
+<tr><td>Normal Extension</td><td>~4× TRP</td><td>scale out</td></tr>
+<tr><td>Great Extension</td><td>~8× TRP</td><td>scale out more</td></tr>
+<tr><td>Extreme Extension</td><td>~12× TRP</td><td>scale out most; trail remainder</td></tr>
+<tr><td>Final</td><td>close below lower of 50-DMA / base support</td><td>full exit</td></tr>
+</table>
+<p class="small">The scale-out points and percentages are the single biggest R-multiple lever and are
+resolved <em>empirically</em> (scale-out vs. full-trail vs. hybrid) — not assumed.</p>
+<h3>Sizing</h3>
+<p>Base: fixed-fractional <strong>RPT</strong> (default 0.5%, regime-scaled). Optional, to be validated:
+a <strong>fractional-Kelly cap</strong> overlay for near-optimal growth with an explicit drawdown ceiling.</p>
+
+<h2>6 · Risk &amp; Capital Protection</h2>
+<ul>
+<li><strong>Per-trade:</strong> RPT 0.2–1.0% (default 0.5%), regime-scaled.</li>
+<li><strong>Portfolio:</strong> max total open risk ≤ 10% of capital; sector/correlation concentration caps.</li>
+<li><strong>Drawdown governor:</strong> auto de-risk (fewer/smaller positions) as month drawdown rises;
+  hard <strong>freeze</strong> on new entries past a threshold.</li>
+<li><strong>Gap defense:</strong> earnings blackout, overnight-exposure cap, liquidity floor (avoid names
+  where gaps are largest), resting stop orders at the broker (GTT), not just software stops.</li>
+<li><strong>Ruin control:</strong> sizing keeps the probability of a terminal drawdown negligible across
+  Monte-Carlo trade-order simulations.</li>
+</ul>
+
+<h2>7 · The Learning System <span class="tag">the core of the rebuild</span></h2>
+<p>Two distinct loops. Keeping them separate is what makes this <em>learning</em> rather than curve-fitting.</p>
+
+<h3>Loop 1 — Parameter learning ("threshold → outcome"), offline &amp; validated</h3>
+<p>Every threshold in §4–5 is a knob. For each candidate set the <strong>honest backtest</strong>
+(costs, slippage, worse-of-stop-or-gap fills) reports win rate, avg R, after-cost expectancy, and max
+drawdown. A Bayesian search (Optuna) maps the surface and maximizes Calmar. <strong>The discipline that
+makes it real:</strong> optimize on a training window, then <strong>validate on a later window it has
+never seen</strong>; keep only thresholds that generalize; <strong>walk forward</strong> across 10 years to
+confirm stability. Winners become <strong>dated, versioned configs</strong>, promoted to live
+<strong>only with human sign-off</strong>. Re-runs <strong>quarterly</strong> (not nightly) — at ~5–20 live
+trades/month you learn from a decade of history, not last week.</p>
+<table>
+<tr><th>PPC volume threshold</th><th>Trades</th><th>Win rate</th><th>Avg R</th><th>Expectancy</th><th>Max DD</th></tr>
+<tr><td>1.3×</td><td>1,240</td><td>41%</td><td>2.1</td><td>+0.28R</td><td>18%</td></tr>
+<tr><td>1.5×</td><td>880</td><td>44%</td><td>2.4</td><td>+0.41R</td><td>14%</td></tr>
+<tr><td><strong>1.8× ✓</strong></td><td><strong>520</strong></td><td><strong>47%</strong></td><td><strong>2.6</strong></td><td><strong>+0.52R</strong></td><td><strong>12%</strong></td></tr>
+<tr><td>2.2×</td><td>240</td><td>49%</td><td>2.5</td><td>+0.49R</td><td>15%</td></tr>
+</table>
+<p class="small">Illustrative. The loop picks the <em>validated</em> sweet spot, never the in-sample max.</p>
+
+<h3>Loop 2 — Attribution learning ("what's working now"), continuous</h3>
+<p>Every signal and trade (paper + live) is tagged with its features — stage, base quality,
+<strong>sector strength, delivery %</strong>, contraction tightness, regime — and its realized R. Over time
+this builds the evidence table (e.g., <em>"PPC + delivery% &gt; 60 + strong sector + trending regime →
++1.4R over 80 trades; same in a weak sector → −0.2R"</em>). It (a) <strong>biases live ranking</strong>
+toward what's paying, and (b) acts as a <strong>drift detector</strong> — when live results fall outside
+the backtest's expected band, it flags edge decay and triggers re-optimization.</p>
+
+<h3>Statistical guards (anti-self-deception)</h3>
+<ul>
+<li>Walk-forward / out-of-sample mandatory; no in-sample promotion.</li>
+<li>Minimum trade counts; significance &amp; minimum-improvement gates before any change.</li>
+<li>Deflated performance metrics (penalize for the number of configurations tried).</li>
+<li>Parameter-stability checks (drifting "best" values ⇒ noise, not edge).</li>
+<li>Honest baselines: must beat buy-and-hold NIFTY <em>and</em> a plain momentum-factor index.</li>
+</ul>
+
+<h2>8 · Regime Contextualization <span class="tag">"how markets are doing today"</span></h2>
+<p>The system reads current conditions via a <strong>measured regime</strong>, not a vibe:
+index trend (price vs. rising 150-DMA), <strong>breadth</strong> (% of universe in Stage 2 / above key MAs),
+<strong>volatility</strong> (India VIX, ATR percentile), and momentum-factor leadership. The regime scales
+three dials — <strong>RPT %, max concurrent positions, and signal selectivity</strong>. In weak/bearish
+regimes the system de-risks automatically (smaller, fewer, more selective — or flat). The regime mapping
+is itself learnable and validated, not hand-tuned.</p>
+
+<h2>9 · Operating Model — two real-money strategies <span class="tag">₹25k + ₹25k</span></h2>
+<div class="grid2">
+  <div class="box">
+    <h4>Strategy S — Systematic (Claude-operated)</h4>
+    ₹25,000. Trades only validated signals, fully rules-based, all guardrails enforced in deterministic
+    code. This is the machine.
+  </div>
+  <div class="box">
+    <h4>Strategy D — Discretionary (you)</h4>
+    ₹25,000. You take the calls; the system provides decision support (setup cards, sizing, risk, journal).
+    This is the human.
+  </div>
+</div>
+<p>Run in parallel, they form a <strong>live, real-money systematic-vs-discretionary comparison</strong> —
+the honest "human alpha" test, properly separated into two real pools.</p>
+<div class="box risk">
+  <h4>Guardrails for Strategy S (AI trading real money)</h4>
+  <ul style="margin-bottom:0">
+    <li>Hard <strong>per-trade risk cap</strong> and <strong>max position size</strong>; <strong>max open positions</strong> (e.g. 3–5).</li>
+    <li><strong>Daily and total loss kill-switch</strong> — halts new entries past −X%, full stop past −Y%.</li>
+    <li>Stop-loss <strong>always resting at the broker</strong> (GTT), never software-only.</li>
+    <li><strong>Idempotent</strong> order handling + broker reconciliation (no double-fire, no drift).</li>
+    <li><strong>Shadow / micro-size proving period</strong> before any unsupervised autonomy; human-approval
+      gate on entries in phase 1.</li>
+    <li>Risk-freeze and earnings-blackout checks block live entries automatically.</li>
+  </ul>
+</div>
+
+<h2>10 · Validation Plan (before real money)</h2>
+<table>
+<tr><th>Stage</th><th>What it produces</th></tr>
+<tr><td>R-0 · Objective &amp; baselines</td><td>Lock Calmar/expectancy metrics; pull buy-and-hold + momentum-factor benchmark curves.</td></tr>
+<tr><td>R-1 · Honest evaluator</td><td>One backtest engine (costs, slippage, gap-aware fills) on 10y Kite data — the shared yardstick.</td></tr>
+<tr><td>R-2 · Ablation</td><td>Marginal edge of each rule/feature; prune folklore that doesn't pay.</td></tr>
+<tr><td>R-3 · Exit policy</td><td>Resolve scale-out vs. trail vs. hybrid (the R-multiple question).</td></tr>
+<tr><td>R-4 · Regime &amp; sizing</td><td>Regime dials + fractional-Kelly cap, validated on the drawdown distribution.</td></tr>
+<tr><td>R-5 · Walk-forward + robustness</td><td>Out-of-sample proof, parameter stability, Monte-Carlo ruin test.</td></tr>
+</table>
+
+<h2>11 · Honest Risks &amp; Open Questions</h2>
+<ul>
+<li><strong>Overfitting</strong> — the perennial enemy; mitigated by walk-forward + deflation + stability checks, never eliminated.</li>
+<li><strong>Gap / tail risk</strong> — stops don't cover gaps (§1); residual tail remains.</li>
+<li><strong>Regime death</strong> — breakout edges bleed in prolonged chop/bear; the regime governor reduces but doesn't remove this.</li>
+<li><strong>Edge decay &amp; capacity</strong> — published edges erode; small personal capital helps, but monitoring is required.</li>
+<li><strong>Execution gap</strong> — backtest fills vs. live fills, especially in NSE small/midcaps.</li>
+<li><strong>AI-autonomy risk</strong> — bugs/edge-cases in an autonomous money loop; mitigated by deterministic guardrails + kill-switch + shadow-first.</li>
+<li><strong>Multi-market transfer</strong> — the India edge may differ in the US; re-validate per market, don't assume.</li>
+</ul>
+
+<h2>12 · Go-Live Gates (must pass, in order)</h2>
+<ol>
+<li>Honest backtest shows after-cost Calmar that beats both baselines, out-of-sample, with stable parameters.</li>
+<li>Monte-Carlo ruin probability negligible at chosen sizing.</li>
+<li>Paper / shadow period reproduces backtest behavior within tolerance.</li>
+<li>Guardrails (caps, kill-switch, resting stops, reconciliation) tested and proven.</li>
+<li>Then — and only then — micro-size live, scaling up as live tracks expectation.</li>
+</ol>
+
+<hr>
+<p class="small">Living document. Numeric thresholds are hypotheses pending the Learning System.
+Prepared for independent council review — soundness, probability of a durable edge, statistical rigor,
+risk/gap adequacy, execution realism, and multi-market portability.</p>
+
+</div>
+</body>
+</html>
