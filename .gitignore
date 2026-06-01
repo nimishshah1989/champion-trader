@@ -52,3 +52,6 @@ qa_config.yaml
 # Build
 dist/
 build/
+
+# local research data cache (git-ignored)
+champion_cache.sqlite
