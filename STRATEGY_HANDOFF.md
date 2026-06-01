@@ -44,12 +44,18 @@ Champion Trend System, ₹1,00,000, 2016–2026, **after NSE costs + 10bps slipp
 
 Ordered by expected value. **#1 is the most promising and uses your own intuition.**
 
-1. **VOLUME — currently unused.** You said "there is price and there is volume" — but the
-   entry signal uses only price/ATR/contraction. **Volume is the biggest untested lever.**
-   Test: (a) breakout bar on ≥1.5–2× average volume (conviction filter), (b) volume
-   **dry-up** inside the base (classic accumulation tell), (c) up/down-volume ratio.
-   Hypothesis: volume confirmation **raises win rate AND avoids false breakouts**, the
-   one thing that could improve the 27% win rate without killing the runners.
+1. **VOLUME + MOMENTUM-RANK — researched; see `RESEARCH_VOLUME_MOMENTUM.md`.** The entry
+   uses only price/ATR. The research (5-agent lit/repo/Indian-market review) says volume
+   is **not** a magic win-rate booster (naive volume-on-breakout filters test as noise;
+   OBV/CMF/A-D are debunked — **do not add them**), but three things have real,
+   corroborated support and are pre-registered for an A/B walk-forward test:
+   (a) **base volume dry-up** (Minervini + Lee-Swaminathan low-turnover persistence),
+   (b) a **strong** breakout-volume gate (≥2×, not weak +10%), used to confirm/select,
+   (c) **risk-adjusted momentum rank** (the NSE index formula `0.5·z(6m/σ)+0.5·z(12m/σ)`)
+   to pick which breakouts to take when signals > capacity — best-grounded, attacks
+   2021-dependence. Validate with Deflated Sharpe (count trials) on full + top-500 tiers.
+   Expect a *modest* lift, not a step-change. Plus a fast-follow: NSE **delivery-%**
+   conviction filter (needs bhavcopy ingest — `delivery_pct` column is empty).
 
 2. **Kill the 2021 dependence.** The 24.5% headline leans on 2021's +149% (small-cap
    melt-up); ex-2021 it's ~13–14% CAGR. Re-validate with (a) multiple train/test split
