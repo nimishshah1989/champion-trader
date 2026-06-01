@@ -17,6 +17,11 @@ class Settings(BaseSettings):
     dhan_client_id: str = ""
     dhan_access_token: str = ""
 
+    # Zerodha Kite Connect
+    kite_api_key: str = ""
+    kite_api_secret: str = ""
+    kite_access_token: str = ""
+
     # TradingView Webhook
     webhook_secret: str = ""
 
