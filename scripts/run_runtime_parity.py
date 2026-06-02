@@ -23,11 +23,11 @@ sys.path.insert(0, "/home/user/champion-trader")
 from backend.engine.backtest_fast import _fast_simulate, load_bars            # noqa: E402
 from backend.engine.precompute import precompute_features                     # noqa: E402
 from backend.engine.runtime import exit_service, signal_service              # noqa: E402
+from backend.engine.runtime.config import STRATEGY_V2                         # noqa: E402
 from backend.engine.runtime.signal_service import WARMUP, context_from_df    # noqa: E402
 
 CACHE = "/home/user/champion-trader/champion_cache.sqlite"
 START = date(2016, 4, 7)
-MULT = Decimal("5.0")
 N = int(sys.argv[1]) if len(sys.argv) > 1 else 150
 
 
@@ -52,12 +52,11 @@ def runtime_sim(bars, df, slippage):
             continue
         if b.date < START:
             continue
-        sig = signal_service.entry_at(ctx, i, min_trp=2.0, vol_breakout_k=2.0,
-                                      skip_circuit_locked=True, slippage=slippage)
+        sig = signal_service.entry_at(ctx, i, params=STRATEGY_V2, slippage=slippage)
         if sig is None:
             continue
         entry, stopdist, entry_date = sig.entry, sig.stopdist, b.date
-        trail = exit_service.init_trail(entry, stopdist, b.high, MULT)
+        trail = exit_service.init_trail(entry, stopdist, b.high)
         long = True
     return out
 
@@ -76,9 +75,11 @@ for s in symbols:
     df = precompute_features(bars)
     tnv = sorted(float(b.close) * b.volume for b in bars[-1000:])
     sl = slip(median(tnv) / 1e7 if tnv else 0)
-    eng = _fast_simulate(s, bars, df, exit_mode="chandelier", target_r=2.0, chandelier_mult=5.0,
-                         slippage=sl, min_trp=2.0, start_date=START, use_regime=False,
-                         skip_circuit_locked=True, vol_breakout_k=2.0)
+    eng = _fast_simulate(s, bars, df, exit_mode="chandelier", target_r=2.0,
+                         chandelier_mult=float(STRATEGY_V2.chandelier_mult), slippage=sl,
+                         min_trp=STRATEGY_V2.min_trp, start_date=START, use_regime=False,
+                         skip_circuit_locked=STRATEGY_V2.skip_circuit_locked,
+                         vol_breakout_k=STRATEGY_V2.vol_breakout_k)
     rt = runtime_sim(bars, df, sl)
     checked += 1
     eng_t = [(t.entry_date, t.exit_date, t.entry, t.exit, t.stopdist) for t in eng]

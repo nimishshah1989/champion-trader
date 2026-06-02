@@ -21,8 +21,7 @@ from typing import Optional
 
 from backend.engine.fills import DEFAULT_SLIPPAGE, fill_stop
 from backend.engine.kite_data import Bar
-
-DEFAULT_MULT = Decimal("5.0")
+from backend.engine.runtime.config import STRATEGY_V2, StrategyParams
 
 
 def chandelier_stop(prev_stop: Decimal, highest_high: Decimal, atr: Decimal, mult: Decimal) -> Decimal:
@@ -36,7 +35,7 @@ class TrailState:
     stopdist: Decimal        # initial 1R distance (entry - stop at entry)
     stop: Decimal            # current (ratcheting) stop level
     highest_high: Decimal    # running peak since entry
-    mult: Decimal = DEFAULT_MULT
+    mult: Decimal = STRATEGY_V2.chandelier_mult
 
 
 @dataclass
@@ -47,9 +46,10 @@ class ExitDecision:
 
 
 def init_trail(entry: Decimal, stopdist: Decimal, breakout_high: Decimal,
-               mult: Decimal = DEFAULT_MULT) -> TrailState:
+               params: StrategyParams = STRATEGY_V2) -> TrailState:
+    """Open the trail at entry: stop = entry - 1R, peak = the breakout bar's high."""
     return TrailState(entry=entry, stopdist=stopdist, stop=entry - stopdist,
-                      highest_high=breakout_high, mult=mult)
+                      highest_high=breakout_high, mult=params.chandelier_mult)
 
 
 def step(trail: TrailState, bar: Bar, atr: Optional[float],

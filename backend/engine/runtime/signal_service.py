@@ -6,8 +6,8 @@ Mirrors the entry gate inside `backtest_fast._fast_simulate` for the validated v
     AND breakout-day volume >= vol_breakout_k * 50d-avg  AND  not circuit-locked,
     then fill the break of the 5-day-high trigger (pessimistic gap-up fill).
 
-The thresholds are pre-registered v2 defaults (NOT data-mined per regime/cap) and are
-exposed as parameters so they can be changed deliberately + re-validated — never auto-tuned.
+The thresholds come from a typed, versioned `StrategyParams` (config.py) — never literals
+here — so a change is deliberate, auditable, and re-validated; never auto-tuned.
 
 Two entry points:
   * entry_at(ctx, i, ...)        — array-driven (engine/backtest + parity harness)
@@ -25,6 +25,7 @@ from backend.engine.base import analyze_base
 from backend.engine.fills import DEFAULT_SLIPPAGE, fill_entry
 from backend.engine.kite_data import Bar
 from backend.engine.precompute import precompute_features
+from backend.engine.runtime.config import STRATEGY_V2, StrategyParams
 
 TRADEABLE = ("S1B", "S2")
 WARMUP = 171          # matches backtest_fast.WARMUP (stage filter needs ~170 bars)
@@ -59,15 +60,15 @@ def _circuit_locked(prev_close: Decimal, bar: Bar) -> bool:
     return bar.high == bar.low or (gain >= Decimal("0.195") and (bar.high - bar.close) <= bar.close * Decimal("0.003"))
 
 
-def entry_at(ctx: EntryContext, i: int, *, min_trp: float = 2.0, vol_breakout_k: float = 2.0,
-             skip_circuit_locked: bool = True, slippage: Decimal = DEFAULT_SLIPPAGE) -> Optional[EntrySignal]:
+def entry_at(ctx: EntryContext, i: int, *, params: StrategyParams = STRATEGY_V2,
+             slippage: Decimal = DEFAULT_SLIPPAGE) -> Optional[EntrySignal]:
     """Is bar `i` a v2 entry? Signal bar is j=i-1; breakout/fill is bar i. Same order as the engine."""
     if i < WARMUP:
         return None
     j = i - 1
     bars = ctx.bars
     # per-stock strength + base + tradeability (evaluated on the signal bar j)
-    if not (ctx.stages[j] in TRADEABLE and bool(ctx.contr[j]) and ctx.avgtrp[j] >= min_trp):
+    if not (ctx.stages[j] in TRADEABLE and bool(ctx.contr[j]) and ctx.avgtrp[j] >= params.min_trp):
         return None
     if not analyze_base(bars[max(0, j - BASE_TAIL + 1): j + 1]).is_valid_base:
         return None
@@ -77,10 +78,10 @@ def entry_at(ctx: EntryContext, i: int, *, min_trp: float = 2.0, vol_breakout_k:
     v50 = ctx.vol_sma50[i]
     if v50 == v50 and v50 > 0:
         vol_ratio = bars[i].volume / v50
-    if vol_breakout_k > 0:
-        if not (v50 == v50) or v50 <= 0 or bars[i].volume < vol_breakout_k * v50:
+    if params.vol_breakout_k > 0:
+        if not (v50 == v50) or v50 <= 0 or bars[i].volume < params.vol_breakout_k * v50:
             return None
-    if skip_circuit_locked and _circuit_locked(bars[j].close, b):
+    if params.skip_circuit_locked and _circuit_locked(bars[j].close, b):
         return None
     # trigger + TRP-based stop distance (same rounding as the engine)
     trigger = Decimal(str(round(float(ctx.trig[j]), 2)))
@@ -105,12 +106,11 @@ def context_from_df(bars: list[Bar], df) -> EntryContext:
     )
 
 
-def evaluate_entry(history: list[Bar], *, min_trp: float = 2.0, vol_breakout_k: float = 2.0,
-                   skip_circuit_locked: bool = True, slippage: Decimal = DEFAULT_SLIPPAGE) -> Optional[EntrySignal]:
+def evaluate_entry(history: list[Bar], *, params: StrategyParams = STRATEGY_V2,
+                   slippage: Decimal = DEFAULT_SLIPPAGE) -> Optional[EntrySignal]:
     """Live API: given a symbol's recent bars (newest last), is TODAY a v2 entry?"""
     if len(history) <= WARMUP:
         return None
     df = precompute_features(history)
     ctx = context_from_df(history, df)
-    return entry_at(ctx, len(history) - 1, min_trp=min_trp, vol_breakout_k=vol_breakout_k,
-                    skip_circuit_locked=skip_circuit_locked, slippage=slippage)
+    return entry_at(ctx, len(history) - 1, params=params, slippage=slippage)

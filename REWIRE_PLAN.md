@@ -288,6 +288,9 @@ No tables need deleting. No destructive migrations.
 - [x] **Parity harness PASSED** (`scripts/run_runtime_parity.py`): full universe, 1,272
       symbols, **293 v2 trades, 0 mismatches** — the runtime reproduces `backtest_fast`
       v2 trade-for-trade. **GATE GREEN.**
+- [x] **Typed config** (`runtime/config.py`): `StrategyParams`/`RiskParams`, frozen &
+      versioned (`v2`), with the tiered-slippage model; `signal_service`/`exit_service`
+      now read it — **no magic numbers**. Parity **re-confirmed 293/293** post-refactor.
 - [ ] Extract `risk_manager` (RPT 0.35, max 15, bear-sizing, DD breaker) from the
       research `portfolio()` overlay; add a portfolio-level parity check.
 - [ ] Add the trailing-stop schema (§5).
