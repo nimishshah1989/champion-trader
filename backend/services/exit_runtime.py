@@ -83,7 +83,7 @@ def _close_trade(trade: Trade, fill_price: Decimal, exit_date: date, reason: str
 def run_eod_exits(db: Session, con: sqlite3.Connection, *, as_of: Optional[date] = None,
                   params: StrategyParams = STRATEGY_V2, risk: RiskParams = RISK_V2) -> dict:
     """Post-close pass: exit on a close-below, else ratchet + persist each open trail."""
-    summary = {"checked": 0, "exited": 0, "trailed": 0}
+    summary = {"checked": 0, "exited": 0, "trailed": 0, "closed": []}
     for trade in db.query(Trade).filter(Trade.status.in_(_OPEN)).all():
         bars = _bars_as_of(con, trade.symbol, as_of)
         trail = _trail_for(trade, params)
@@ -95,6 +95,8 @@ def run_eod_exits(db: Session, con: sqlite3.Connection, *, as_of: Optional[date]
         if dec.exited:
             _close_trade(trade, dec.fill_price, bar.date, dec.reason, trail.stopdist)
             summary["exited"] += 1
+            summary["closed"].append({"symbol": trade.symbol, "fill": dec.fill_price,
+                                      "reason": dec.reason, "r_multiple": trade.r_multiple})
         else:
             trade.current_stop = trail.stop          # persist the ratcheted trail
             trade.highest_high = trail.highest_high
@@ -106,7 +108,7 @@ def run_eod_exits(db: Session, con: sqlite3.Connection, *, as_of: Optional[date]
 def run_morning_gap_exits(db: Session, con: sqlite3.Connection, *, as_of: Optional[date] = None,
                           params: StrategyParams = STRATEGY_V2, risk: RiskParams = RISK_V2) -> dict:
     """09:15 pass: exit any open position that gaps open below its stop."""
-    summary = {"checked": 0, "exited": 0}
+    summary = {"checked": 0, "exited": 0, "closed": []}
     for trade in db.query(Trade).filter(Trade.status.in_(_OPEN)).all():
         bars = _bars_as_of(con, trade.symbol, as_of)
         trail = _trail_for(trade, params)
@@ -117,5 +119,7 @@ def run_morning_gap_exits(db: Session, con: sqlite3.Connection, *, as_of: Option
         if dec is not None and dec.exited:
             _close_trade(trade, dec.fill_price, bars[-1].date, dec.reason, trail.stopdist)
             summary["exited"] += 1
+            summary["closed"].append({"symbol": trade.symbol, "fill": dec.fill_price,
+                                      "reason": dec.reason, "r_multiple": trade.r_multiple})
     db.commit()
     return summary

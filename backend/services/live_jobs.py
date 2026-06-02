@@ -14,6 +14,7 @@ ticks (strategy_runtime.evaluate_live_entry); the validated decision logic is un
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import sqlite3
 from datetime import date
@@ -23,9 +24,18 @@ from backend.config import settings
 from backend.database import ScanResult, SessionLocal
 from backend.services import entry_runtime, exit_runtime
 from backend.services.autopilot import run_post_scan_automation
+from backend.services.notifications import send_entry_fills, send_exit_fills
 from backend.services.scanner_engine import run_v2_scan
 
 logger = logging.getLogger(__name__)
+
+
+def _notify(coro) -> None:
+    """Best-effort Telegram send from a sync job (no-op when the bot isn't configured)."""
+    try:
+        asyncio.run(coro)
+    except Exception as exc:                          # never let a notification break the job
+        logger.warning(f"[v2 NOTIFY] skipped: {exc}")
 
 
 def _store_con() -> sqlite3.Connection:
@@ -80,6 +90,8 @@ def run_entry_pass(as_of: Optional[date] = None,
                                             halted=halted)
         logger.info(f"[v2 ENTRY] checked {summary['checked']}, entered {summary['entered']}, "
                     f"blocked {summary['blocked']}")
+        if summary.get("opened"):
+            _notify(send_entry_fills(summary["opened"]))
         return summary
     except Exception as exc:
         logger.error(f"[v2 ENTRY] failed: {exc}")
@@ -98,6 +110,8 @@ def run_exit_pass(as_of: Optional[date] = None) -> dict:
         summary = exit_runtime.run_eod_exits(db, con, as_of=as_of)
         logger.info(f"[v2 EXIT] checked {summary['checked']}, exited {summary['exited']}, "
                     f"trailed {summary['trailed']}")
+        if summary.get("closed"):
+            _notify(send_exit_fills(summary["closed"]))
         return summary
     except Exception as exc:
         logger.error(f"[v2 EXIT] failed: {exc}")
@@ -115,6 +129,8 @@ def run_morning_gap_pass(as_of: Optional[date] = None) -> dict:
     try:
         summary = exit_runtime.run_morning_gap_exits(db, con, as_of=as_of)
         logger.info(f"[v2 GAP] checked {summary['checked']}, exited {summary['exited']}")
+        if summary.get("closed"):
+            _notify(send_exit_fills(summary["closed"]))
         return summary
     except Exception as exc:
         logger.error(f"[v2 GAP] failed: {exc}")
