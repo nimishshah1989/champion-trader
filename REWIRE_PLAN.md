@@ -291,10 +291,22 @@ No tables need deleting. No destructive migrations.
 - [x] **Typed config** (`runtime/config.py`): `StrategyParams`/`RiskParams`, frozen &
       versioned (`v2`), with the tiered-slippage model; `signal_service`/`exit_service`
       now read it — **no magic numbers**. Parity **re-confirmed 293/293** post-refactor.
-- [ ] Extract `risk_manager` (RPT 0.35, max 15, bear-sizing, DD breaker) from the
-      research `portfolio()` overlay; add a portfolio-level parity check.
-- [ ] Add the trailing-stop schema (§5).
-- [ ] Stand up the Kite-adjusted `bars`/`index_bars` ingest (retire the yfinance scan feed).
+- [x] **Extracted `risk_manager`** (`runtime/risk_manager.py`): `simulate_portfolio` +
+      live primitives (`position_size`, `bear_multiplier`, `update_halt`). Portfolio
+      parity (`scripts/run_portfolio_parity.py`) **curve-for-curve, 0/2503 mismatches**,
+      headline reproduced (26.5% / 14.8% / 1.79 / 19.5%). `run_v2_deployable_tiers.py`
+      now calls it (inline copy deleted).
+- [x] **Trailing-stop schema** (§5): `current_stop`/`highest_high`/`atr_at_entry` +
+      attribution + `strategy_version` on `trades` (+ trail trio on `simulation_trades`);
+      idempotent migration `scripts/migrate_add_v2_trail_columns.py`.
+- [x] **Kite `bars`/`index_bars` ingest** (`backend/engine/market_store.py` +
+      `scripts/ingest_kite_daily.py`): incremental, leakage-safe, retry/backoff; the
+      engine's `load_bars`/`load_regime` read it back identically (8 tests, fake adapter).
+      `build_cache_kite.py` now shares the same fetch code. *(Retiring the yfinance scan
+      feed is the Phase-1 scanner rewire.)*
+
+> **Phase 0 complete.** The validated brain is extracted, config-driven, and parity-gated
+> (per-symbol + portfolio); the trailing-stop blocker is cleared; the Kite feed is stood up.
 
 ### Phase 1 — Live paper-trading on the validated engine (handoff backlog #1)
 - [ ] Run the full pipeline of §3 in **paper mode** on live Kite data: scan → watchlist →
