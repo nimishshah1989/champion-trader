@@ -309,6 +309,18 @@ No tables need deleting. No destructive migrations.
 > (per-symbol + portfolio); the trailing-stop blocker is cleared; the Kite feed is stood up.
 
 ### Phase 1 — Live paper-trading on the validated engine (handoff backlog #1)
+- [x] **Runtime bridge** (`backend/services/strategy_runtime.py`): the ONE seam the live
+      jobs call — `scan_symbol`/`scan_universe` (→ signal_service), `evaluate_live_entry`
+      (trigger-break + **projected last-30-min volume gate** + `live_position_size`),
+      `open_trail`/`trail_from_db` + `morning_gap_exit`/`eod_exit` (→ exit_service). Pure
+      (no FastAPI); 16 unit tests. Encodes the two live decisions (volume projection; exit
+      once-daily-close + 09:15 gap-check).
+- [ ] Re-point `daily_scanner` + watchlist to `scan_universe` (PPC/NPC → labels only).
+- [ ] Re-point `entry_monitor` (last 30 min) to `evaluate_live_entry`; persist the trail.
+- [ ] Replace `exit_monitor` with `eod_exit` (post-close) + `morning_gap_exit` (09:15);
+      delete the 2R/4R/8R/12R ladder + 2-min intraday-touch loop.
+- [ ] Promote `risk_guardian` to enforce caps / DD halt / bear-sizing (via risk_manager).
+- [ ] Wire Telegram entry/exit + brief; run in SHADOW, then paper.
 - [ ] Run the full pipeline of §3 in **paper mode** on live Kite data: scan → watchlist →
       last-30-min entry → `risk_manager` sizing → **close-based chandelier** exit
       monitoring → `trades`/`partial_exits` → Telegram.
@@ -369,8 +381,13 @@ No tables need deleting. No destructive migrations.
    (18% CAGR, best Calmar, scalable)? Recommend top-500 for real money.
 3. **Legacy PPC/NPC scanners:** delete, or retain as non-gating labels alongside v2?
 4. **AutoOptimize:** freeze (recommended) or repoint at the validated backtester?
-5. **`exit_monitor` cadence:** pure once-daily post-close, or a non-binding intraday
-   watch + binding EOD decision?
+5. ~~`exit_monitor` cadence~~ **DECIDED:** pure **once-daily post-close** evaluation
+   (`eod_exit`) + a **09:15 gap-down check** (`morning_gap_exit`). The 2-min intraday
+   loop is removed (it caused the 78%-premature-exit failure v2 was built to avoid).
+6. ~~Entry volume-gate timing~~ **DECIDED:** since the >=2x gate finalises only at the
+   close but entries fire in the last 30 min, **project full-day volume** from
+   volume-so-far and require the projection >= 2x the 50-day average (`breakout_volume_ok`).
+   Reconcile the projection vs realised full-day volume in the Phase-1 paper run.
 
 ---
 
