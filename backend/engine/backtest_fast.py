@@ -53,7 +53,7 @@ def _fast_simulate(
     symbol, bars, df, *, exit_mode, target_r, chandelier_mult, slippage, min_trp,
     start_date=None, use_regime=False, regime_map=None, use_52w=False, max_pct_52w=15.0,
     use_rs=False, ret_map=None, rs_min=0.0, skip_circuit_locked=False,
-    vol_dryup=False, vol_dryup_ratio=0.8, vol_breakout_k=0.0,
+    vol_dryup=False, vol_dryup_ratio=0.8, vol_breakout_k=0.0, vol_filter_dates=None,
 ) -> list[RawTrade]:
     stages = df["stage"].to_numpy()
     contr = df["is_contraction"].to_numpy()
@@ -186,8 +186,11 @@ def _fast_simulate(
                 continue
         if not analyze_base(bars[max(0, j - BASE_TAIL + 1): j + 1]).is_valid_base:
             continue
-        if vol_breakout_k > 0:
+        if vol_breakout_k > 0 and (vol_filter_dates is None or b.date in vol_filter_dates):
             # O'Neil/Weinstein: breakout bar volume >= K * prior-50d average (conviction).
+            # vol_filter_dates (optional) restricts the filter to specific regimes, so
+            # entries are correctly re-derived (a skipped low-vol breakout frees the stock
+            # to enter on a later high-vol breakout) rather than post-filtered.
             v50 = vol_sma50[i]
             if not (v50 == v50) or v50 <= 0 or bars[i].volume < vol_breakout_k * v50:
                 continue
