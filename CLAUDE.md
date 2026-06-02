@@ -4,6 +4,10 @@
 Swing trading intelligence platform based on Afzal Lokhandwala's Champion Trader methodology.
 Full specification: `README.md` (1336 lines — the source of truth for all trading rules).
 
+> **Strategy R&D / backtesting work:** read **`STRATEGY_HANDOFF.md` first** to resume.
+> It captures the validated strategy (v2), what's been tested & concluded (4 research
+> tracks — don't redo them), and the open backlog. Spec: `STRATEGY_CARD.md`.
+
 ## Tech Stack
 - **Backend**: Python FastAPI + SQLite (SQLAlchemy ORM)
 - **Frontend**: Next.js 14+ (App Router) + TypeScript + Tailwind CSS + shadcn/ui

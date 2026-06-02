@@ -52,3 +52,13 @@ qa_config.yaml
 # Build
 dist/
 build/
+
+# local research data cache (git-ignored)
+champion_cache.sqlite
+champion_cache*.sqlite
+*.sqlite
+
+# analysis artifacts
+ic_signals.pkl
+*.pkl
+equity_curve.csv
