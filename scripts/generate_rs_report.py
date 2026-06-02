@@ -6,8 +6,9 @@ Writes /home/user/champion-trader/docs/rs_crossover_research.html
 import json
 from datetime import datetime
 
-with open("/tmp/rs_results_5cr_v2.json")  as f: data5  = json.load(f)
-with open("/tmp/rs_results_15cr_v2.json") as f: data15 = json.load(f)
+with open("/tmp/rs_results_5cr_v2.json")  as f: data5     = json.load(f)
+with open("/tmp/rs_results_15cr_v2.json") as f: data15    = json.load(f)
+with open("/tmp/rs_yearwise.json")         as f: yearwise  = json.load(f)
 
 def get_r(data, scenario, regime, volume):
     for r in data["results"]:
@@ -130,6 +131,95 @@ trading_days = data5["trading_days_in_sim"]
 regime_days  = data5["regime_days_in_sim"]
 regime_pct   = 100 * regime_days / trading_days
 report_date  = datetime.today().strftime("%B %d, %Y")
+
+
+def color_ret(v):
+    if v >= 25: return "#16a34a"
+    if v >= 10: return "#22c55e"
+    if v >=  0: return "#f59e0b"
+    return "#ef4444"
+
+
+def build_yearwise_html():
+    rows = ""
+    YEARS = ["2021","2022","2023","2024","2025","2026*"]
+    for yr in YEARS:
+        yd = yearwise.get(yr)
+        if not yd:
+            continue
+        s5  = yd["s5"]
+        s15 = yd["s15"]
+        n   = yd["nifty"]
+        label = yr
+        partial_note = " <span style='font-size:10px;color:#475569'>(Jan–May)</span>" if "*" in yr else ""
+
+        def beat(s, nret):
+            return "↑" if s and s["yr_ret"] > nret else "↓"
+
+        def cell5():
+            if not s5: return "<td>—</td>"*8
+            b = beat(s5, n["ret"])
+            bc = "#22c55e" if b == "↑" else "#ef4444"
+            return (
+                f'<td style="color:{color_ret(s5["yr_ret"])};font-weight:700">{s5["yr_ret"]:+.1f}%'
+                f' <span style="color:{bc};font-size:11px">{b}</span></td>'
+                f'<td style="color:{color_dd(s5["mdd"])}">{s5["mdd"]:.1f}%</td>'
+                f'<td>{s5["trades"]}</td>'
+                f'<td>{s5["wr"]:.0f}%</td>'
+                f'<td class="pos">{s5["avg_w"]:+.1f}%</td>'
+                f'<td class="neg">{s5["avg_l"]:+.1f}%</td>'
+            )
+
+        def cell15():
+            if not s15: return "<td>—</td>"*6
+            b = beat(s15, n["ret"])
+            bc = "#22c55e" if b == "↑" else "#ef4444"
+            return (
+                f'<td style="color:{color_ret(s15["yr_ret"])};font-weight:700">{s15["yr_ret"]:+.1f}%'
+                f' <span style="color:{bc};font-size:11px">{b}</span></td>'
+                f'<td style="color:{color_dd(s15["mdd"])}">{s15["mdd"]:.1f}%</td>'
+                f'<td>{s15["trades"]}</td>'
+                f'<td>{s15["wr"]:.0f}%</td>'
+                f'<td class="pos">{s15["avg_w"]:+.1f}%</td>'
+                f'<td class="neg">{s15["avg_l"]:+.1f}%</td>'
+            )
+
+        nifty_ret_col  = f'<td style="color:{color_ret(n["ret"])}">{n["ret"]:+.1f}%</td>' if n else "<td>—</td>"
+        nifty_dd_col   = f'<td style="color:{color_dd(n["mdd"])}">{n["mdd"]:.1f}%</td>'   if n else "<td>—</td>"
+
+        rows += f"""<tr>
+  <td class="left"><strong>{label}</strong>{partial_note}</td>
+  {cell5()}
+  {cell15()}
+  {nifty_ret_col}
+  {nifty_dd_col}
+</tr>\n"""
+
+    return f"""
+<div class="card" style="padding:0">
+<div class="tbl-wrap">
+<table class="main">
+  <thead>
+    <tr>
+      <th class="left" rowspan="2">Year</th>
+      <th colspan="6" style="border-bottom:1px solid #334155;color:#93c5fd">Universe A — ADT ≥ ₹5 Cr &nbsp;(429 stocks)</th>
+      <th colspan="6" style="border-bottom:1px solid #334155;color:#fbbf24">Universe B — ADT ≥ ₹15 Cr &nbsp;(388 stocks)</th>
+      <th colspan="2" style="border-bottom:1px solid #334155;color:#94a3b8">Nifty 50</th>
+    </tr>
+    <tr>
+      <th>Return</th><th>Max DD</th><th>Trades</th><th>Win%</th><th>Avg Win</th><th>Avg Loss</th>
+      <th>Return</th><th>Max DD</th><th>Trades</th><th>Win%</th><th>Avg Win</th><th>Avg Loss</th>
+      <th>Return</th><th>Max DD</th>
+    </tr>
+  </thead>
+  <tbody>
+{rows}
+  </tbody>
+</table>
+</div>
+</div>"""
+
+yearwise_html = build_yearwise_html()
 
 html = f"""<!DOCTYPE html>
 <html lang="en">
@@ -412,6 +502,16 @@ tr.benchmark td {{ background: #172554; color: #93c5fd; font-style: italic; }}
     maximum per-trade loss and keeps drawdown bounded — an important structural advantage
     versus buy-and-hold during sharp market corrections.</p>
   </div>
+</section>
+
+<!-- ═══════════════════════════════ YEAR-WISE ═══════════════════════════════ -->
+<section>
+  <h2>Year-by-Year Performance — RS Only (No Filter)</h2>
+  <p>Breakdown by calendar year for the baseline RS Only scenario across both ADT universes.
+  <span class="star">↑</span> = strategy beats Nifty that year.
+  Win% and Avg Win/Loss reflect trades <em>closed</em> within that calendar year.</p>
+
+  {yearwise_html}
 </section>
 
 <!-- ═══════════════════════════════ KEY FINDINGS ═══════════════════════════════ -->
