@@ -32,6 +32,14 @@ class Settings(BaseSettings):
     app_port: int = 8000
     environment: str = "development"
 
+    # Bar store (Kite-adjusted daily OHLCV) — the SAME feed the backtest reads, so the
+    # live v2 scan/entry/exit are parity-faithful. Path to the sqlite written by the Kite
+    # ingest (scripts/ingest_kite_daily.py). The legacy yfinance scan feed is retired.
+    bars_db_path: str = "./champion_cache.sqlite"
+
+    # Paper engine — virtual account the validated v2 strategy trades until go-live.
+    paper_capital: Decimal = Decimal("100000")
+
     # Defaults
     default_account_value: Decimal = Decimal("1000000")
     default_rpt_pct: Decimal = Decimal("0.50")
