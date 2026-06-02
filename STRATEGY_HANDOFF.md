@@ -2,89 +2,79 @@
 
 **Branch:** `claude/sweet-babbage-zGNuM`  ·  **PR:** #1  ·  **Full spec:** `STRATEGY_CARD.md`
 
-This is the continuation point. We took the system from "loses money on bad data"
-to a **walk-forward-validated swing strategy that beats NIFTY 500 buy-and-hold on
-every axis.** You're not fully convinced and want to push further — Section 4 is
-the backlog to do exactly that.
-
----
-
-## 1. Where we landed (the result)
-
-Champion Trend System, ₹1,00,000, 2016–2026, **after NSE costs + 10bps slippage:**
-
-| | CAGR | maxDD | Calmar | Sharpe |
-|---|---|---|---|---|
-| **The system** | **24.5%** | **16.2%** | **1.51** | **1.93** |
-| NIFTY 500 buy & hold | 13.4% | 44.8% | 0.30 | 0.55 |
-
-- **Out-of-sample** (params chosen on 2016-20, applied blind to 2021-26): 20.9% CAGR, 11% DD, Calmar 1.89.
-- ₹1L → ₹9.2L (vs buy-and-hold ₹3.6L). Positive 8 of 11 years; worst year −9.4%.
-- Edge holds in every liquidity tier — top-500 (₹15cr+ turnover) is the scalable sweet spot: 18% CAGR, 10% DD, **Calmar 1.73**.
-
-## 2. The exact locked config (reproducible)
-
-- **Universe:** ~1,270 NSE names with data (or top-500 by turnover for scale).
-- **Entry (all must hold):** Stage S1B/S2 uptrend · volatility contraction true · avgTRP ≥ 2.0 · valid base (≥20 bars) · buy on break above 5-day high. **No index-regime gate.**
-- **Stop:** entry − 1×TRP, **close-based** (exit only on a close below stop, or gap-down at open; intraday wicks don't exit).
-- **Exit:** `exit_mode="chandelier"`, **5×ATR trailing stop** (ratchets up only). No fixed target — let winners run.
-- **Sizing:** RPT **0.25%** · max **15** concurrent · **bear-scaled 0.25×** when NIFTY 500 < rising 50-DMA · **15% portfolio DD circuit-breaker** (halt new entries, resume <7.5%) · idle cash @ 6.5%.
-- Engine: `backend/engine/backtest_fast.py::_fast_simulate`. Reproduce: `python scripts/run_final_strategy.py`.
-
-## 3. Why it works (the 4 findings)
-
-1. **Data was the hidden bug** — Atlas prices were only partly split/bonus-adjusted → phantom −20R losses. Rebuilt from Kite (fully adjusted). Edge appeared.
-2. **Exit discipline > setup-selection** — close-based stops + wide trail made the edge; a composite "pick better setups" score **failed OOS** (feature IC 0.03–0.08).
-3. **Capital efficiency = the return lever** — lower RPT → ~7 diversified positions → deployment 22%→83% AND smoother curve. CAGR 11%→24.5%.
-4. **Not a micro-cap mirage** — works even in the 100 most-liquid mega-caps (Calmar 1.15).
-
----
-
-## 4. Where to push next (the "not convinced / improve more" backlog)
-
-Ordered by expected value. **#1 is the most promising and uses your own intuition.**
-
-1. **VOLUME + MOMENTUM — RESEARCHED *and* TESTED (3 tracks done; see Strategy Card §6).**
-   Research in `RESEARCH_VOLUME_MOMENTUM.md`; results in `run_track{1,2,3}_*.py`. Outcome:
-   - **Honesty (adopted):** tiered slippage + circuit-lock skip → edge *survives* (Calmar
-     1.70). Exposed a ~5% CAGR selection-noise band → quote a range.
-   - **Momentum-rank (adopted for determinism only):** no selection edge (rank ≈ reverse).
-   - **Volume (the answer):** dry-up *hurts*; **breakout ≥2× + RPT 0.35 → win rate 27%→35%,
-     DD 14.8%, TEST Calmar 2.34** = the v2 "higher win rate AND return" config (regime-
-     dependent caveat: weaker in 2016-20). **Do NOT add OBV/CMF/A-D (debunked).**
-   - **Open fast-follow:** NSE **delivery-%** conviction filter (needs bhavcopy ingest —
-     `delivery_pct` column is empty).
-
-2. **Kill the 2021 dependence.** The 24.5% headline leans on 2021's +149% (small-cap
-   melt-up); ex-2021 it's ~13–14% CAGR. Re-validate with (a) multiple train/test split
-   years, (b) a rolling 3-yr-in/1-yr-out walk-forward, (c) report median annual return
-   not just CAGR. If it survives without 2021, that's the conviction you're missing.
-
-3. **Win rate without wrecking returns.** Exits to raise win-rate already tested and
-   FAILED (ladder/hybrid → Calmar 0.27–0.57). So the lever must be **entry quality**:
-   volume (#1), RS vs index, distance-from-MA (avoid extended entries), sector breadth.
-   Goal: 27% → 35%+ win while keeping the 5×ATR runners.
-
-4. **Entry-parameter robustness.** The base/contraction/trigger params are legacy
-   defaults, never swept. Sweep them and show a **plateau, not a peak** — strongest
-   anti-overfit evidence. (Exit/sizing params already shown to be a stable plateau.)
-
-5. **Survivorship bias — quantify it.** Universe = symbols with data *today*; delisted
-   failures are absent, which inflates returns. Estimate the haircut (e.g., add a proxy
-   delisting penalty) so the number is honest.
-
-6. **Forward paper-trade on live Kite (the only true OOS).** Wire scan→entry→stop→size
-   →alerts, run 10–15 sessions, reconcile real fills vs the backtest's assumptions.
-
-## 5. File map & reproduce
-
-- `STRATEGY_CARD.md` — full spec + validated metrics + honest caveats + liquidity tiers.
-- `scripts/run_final_strategy.py` — locked config, per-year, equity curve.
-- `scripts/run_strategy_wf.py` — walk-forward train/test. `run_exit_shootout.py` — exit comparison.
-- `scripts/run_strategy_search.py` — risk-overlay grid. `run_liquidity_robustness.py` — capacity tiers. `run_deploy_test.py` — index-gate on/off.
-- Engine change this arc: `backend/engine/backtest_fast.py` (close-based stop + `chandelier`/`hybrid`/`target_close` exits). 77 engine tests pass.
+Continuation point. We took the system from "loses money on bad data" to a
+**walk-forward-validated swing strategy that beats NIFTY 500 buy-and-hold on every
+risk-adjusted axis**, then stress-tested it across four research tracks. The
+deployable answer is **v2** (Section 1). Section 5 is what's genuinely still open.
 
 > ⚠️ **Rebuild data first.** `champion_cache.sqlite` (~231 MB, Kite-adjusted) is
-> git-ignored, so a fresh clone won't have it. Before running any script:
-> `python scripts/build_cache_kite.py` then `python scripts/build_index_cache.py`
-> (needs Kite API credentials in `.env`). Without it, every script will error on load.
+> git-ignored. On a fresh clone: `python scripts/build_cache_kite.py` then
+> `python scripts/build_index_cache.py` (needs Kite creds in `.env`). Without it,
+> every backtest script errors on load.
+
+---
+
+## 1. Where we landed — two configs, v2 recommended
+
+₹1,00,000 · 2016–2026 · **after NSE costs + liquidity-tiered slippage (10–100bps) + circuit-lock skip** (the honest cost model — the edge survives it):
+
+| Config | win% | CAGR | maxDD | Calmar | OOS TEST Calmar | ex-2021 CAGR |
+|---|---|---|---|---|---|---|
+| v1 (no volume filter, RPT 0.25%) | 27% | ~24–27%* | 15.8% | 1.75 | 1.93 | 13.5% |
+| **v2 (breakout ≥2× vol, RPT 0.35%)** | **35%** | **26.5%** | **14.8%** | **1.79** | **2.34** | **19.5%** |
+| NIFTY 500 buy & hold | — | 13.4% | 44.8% | 0.30 | — | 12.0% |
+
+\* v1's CAGR sits in a **~5% selection-noise band** (22.7–27.9%) — see Track 1. Quote a range, not a point.
+
+**v2 is the recommended deployable config:** higher win rate (far easier to hold than 27%), lower drawdown, better out-of-sample Calmar, and **less 2021-dependent** (ex-2021 19.5% vs v1's 13.5%). Positive in **10 of 11 years** (only 2018, −5.9%).
+
+## 2. The exact config (reproducible)
+
+- **Universe:** ~1,270 NSE names with data (or top-500 by turnover for scale/large accounts).
+- **Entry (all must hold):** Stage S1B/S2 uptrend · volatility contraction true · avgTRP ≥ 2.0 · valid base (≥20 bars) · buy on break above 5-day high. **No index-regime gate.** **v2 adds: breakout-day volume ≥ 2× the 50-day average.**
+- **Stop (loss-cut):** entry − 1×TRP, **close-based** (exit only on a *close* below the stop, or a gap-down at the open; intraday wicks don't exit).
+- **Exit (profit):** `exit_mode="chandelier"`, **5×ATR trailing stop** (ratchets up only). **No fixed target** — ride until the trail breaks. Confirmed 100% mechanical, no look-ahead (`run_v2_trace.py` re-derives every exit forward).
+- **Sizing:** RPT **0.35%** (v2) / 0.25% (v1) · max **15** concurrent · **bear-scaled 0.25×** when NIFTY 500 < rising 50-DMA · **15% portfolio DD circuit-breaker** (halt new entries, resume <7.5%) · idle cash @ 6.5%.
+- **Same-day selection** (when signals > slots): highest risk-adjusted momentum rank — for *determinism* only (no edge; see Track 2).
+- Engine: `backend/engine/backtest_fast.py::_fast_simulate` (toggles: `skip_circuit_locked`, `vol_breakout_k`, `vol_dryup`, `vol_filter_dates`). Slippage tiered in the harness.
+- Reproduce v2: `python scripts/run_track3_volume.py` · per-year: `run_v2_yearly.py`.
+
+## 3. Why it works (foundational findings)
+
+1. **Data was the hidden bug** — Atlas prices were only partly split/bonus-adjusted → phantom −20R losses. Rebuilt from Kite (fully adjusted, = live source). Edge appeared.
+2. **Exit discipline > setup-selection** — close-based stops + a wide trail made the edge. *Selection carries no edge* — confirmed THREE ways: a composite alpha-score failed OOS (IC 0.03–0.08), momentum-rank ≈ reverse-rank, and the entry filter already screens for quality. **The money is in the exit, not in picking setups.**
+3. **Capital efficiency = the return lever** — lower RPT → ~7 diversified positions → deployment 22%→83% AND a smoother curve. CAGR 11%→24.5%.
+4. **Not a micro-cap mirage** — works even in the 100 most-liquid mega-caps (Calmar 1.15); top-500 is the scalable sweet spot.
+
+## 4. What we TESTED and CONCLUDED this session — DO NOT REDO
+
+Four tracks, each A/B walk-forward validated. Scripts: `run_track{1,2,3,4}_*.py`, `run_v2_{yearly,diagnose,trace}.py`. Research basis: `RESEARCH_VOLUME_MOMENTUM.md`.
+
+- **Track 1 — honest frictions: ADOPTED.** Tiered slippage + circuit-lock skip → edge *survives* (Calmar 1.70 vs optimistic 1.51). Exposed the ~5% selection-noise band.
+- **Track 2 — momentum-rank selection: NO EDGE** (rank ≈ reverse-rank). Adopted for *determinism* only. Don't expect selection signals to help.
+- **Track 3 — volume: the answer.** Volume **dry-up HURTS** (rejected). **Breakout ≥2× volume = v2** (win 27%→35%, meanR +1.39→+2.23, OOS Calmar 2.34). **Do NOT add OBV/CMF/A-D — debunked.**
+- **Track 4 — regime-conditional filter (≥2× only when weak): DISCIPLINED NEGATIVE.** *Looks* best on full-period (29.2% CAGR) but it's a **2021 mirage** — it rides 2021 like v1 and gives up v2's 2023–25 edge (OOS Calmar 0.46, ex-2021 17.3% < v2's 19.5%). The 50-DMA regime is too crude to tell *easy*-bull (2017/20, filter hurts) from *selective*-bull (23/24, filter helps). **v2 stays.**
+- **Why v2 shines post-2022 (`run_v2_diagnose.py`):** NOT because high-vol breakouts improved — because *low*-vol breakouts **collapsed** (+1.77R in 2016–21 → +0.27R post-2022) as the market got harder/more selective. The filter is a quality screen that only pays when quality matters. **Caveat: if a broad liquidity melt-up returns, expect v2 to lag v1 again** (as in 2020–21).
+- **Honest trade reality (`run_v2_trace.py`):** ~65% of trades lose (median **−1.3R**; ~1-in-5 lose >1.5R because close-based stops let gaps through — losses are NOT capped at 1R). ~35% win (median **+5.2R**). **Top 5 trades = 47% of all profit** → outlier-driven, must take *every* signal. You never sell the top (5×ATR trail gives back ~20–25% from peak).
+
+---
+
+## 5. Open backlog (genuinely unresolved)
+
+Ordered by value. **#1 is the real next step.**
+
+1. **Forward paper-trade on live Kite (the only true OOS).** Wire scan → entry → stop → size → alerts; run 10–15 sessions; reconcile real fills vs the backtest's assumptions (esp. on thin names — the biggest winner ASAL +178R was an illiquid 2021 micro-cap that may not fill at size).
+2. **Survivorship bias — quantify it.** Universe = symbols with data *today*; delisted failures are absent → inflates returns. Estimate the haircut (proxy delisting penalty). The biggest remaining honesty gap.
+3. **NSE delivery-% conviction filter.** The one India-specific signal we couldn't test — `delivery_pct` column is empty; needs a bhavcopy ingester. A natural complement to the volume filter.
+4. **Breadth/dispersion regime — EXPLORATION ONLY.** Track 4 showed the *right* regime lever is breadth (broad melt-up vs narrow leadership), not index trend. But building it now — *because we know 2023–24 needed it* — is textbook overfitting on ~10 years / 2–3 cycles. Only pursue with heavy skepticism and out-of-sample discipline; do not deploy on a backtest alone.
+5. **Entry-parameter robustness.** Base/contraction/trigger params are legacy defaults, never swept. Sweep them; show a **plateau, not a peak** (anti-overfit evidence). Exit/sizing params already shown to be a stable plateau.
+
+## 6. File map
+
+- `STRATEGY_CARD.md` — full spec, metrics, caveats, liquidity tiers, §6 = the v2/research refinements.
+- `RESEARCH_VOLUME_MOMENTUM.md` — cited volume/momentum literature review (what to try, what's debunked).
+- `scripts/run_track1_honesty.py` — frictions + selection-noise. `run_track2_momentum.py` — momentum-rank A/B.
+- `scripts/run_track3_volume.py` — **v2** (volume filters + redeploy). `run_track4_regime.py` — regime-conditional (negative).
+- `scripts/run_v2_yearly.py` — per-year v1/v2. `run_v2_diagnose.py` — why post-2022. `run_v2_trace.py` — mechanical-exit proof + R-distribution.
+- `scripts/run_final_strategy.py` — v1 locked config. `run_strategy_wf.py` — walk-forward. `run_liquidity_robustness.py` — capacity tiers.
+- Engine: `backend/engine/backtest_fast.py` (close-based stop + chandelier exit + circuit/volume/regime toggles). 20+ engine tests pass.
