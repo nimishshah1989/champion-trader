@@ -7,6 +7,8 @@ from backend.database import SimulationRun, SimulationTrade, get_db
 from backend.models.simulation import (
     BacktestRequest,
     PaperStartRequest,
+    RSBacktestRequest,
+    RSBacktestResponse,
     SimulationRunResponse,
     SimulationRunWithTrades,
     SimulationTradeResponse,
@@ -18,6 +20,7 @@ from backend.services.paper_trading import (
     start_paper_session,
     stop_paper_session,
 )
+from backend.services.rs_backtest_engine import run_rs_backtest
 
 router = APIRouter(prefix="/simulation", tags=["Simulation"])
 
@@ -168,6 +171,92 @@ def get_backtest_progress(run_id: int, db: Session = Depends(get_db)):
         "run_id": run_id,
         "status": status,
         **progress,
+    }
+
+
+@router.post("/rs-backtest", response_model=RSBacktestResponse)
+def create_rs_backtest(req: RSBacktestRequest, db: Session = Depends(get_db)):
+    """
+    Launch all three RS crossover backtest scenarios simultaneously.
+
+    Scenarios:
+    - RS_ONLY: Buy/sell based solely on SMA20/SMA200 crossover of RS ratio (stock / Nifty 50)
+    - DUAL_EITHER: Buy when both price AND RS crossovers are bullish; sell when EITHER reverses
+    - DUAL_BOTH: Same dual buy; sell only when BOTH crossovers have reversed
+
+    Returns run IDs for all three scenarios immediately (runs in background).
+    Poll /simulation/backtest/{run_id}/progress to track status.
+    """
+    if req.start_date >= req.end_date:
+        raise HTTPException(status_code=400, detail="start_date must be before end_date")
+
+    runs = run_rs_backtest(
+        db=db,
+        start_date=req.start_date,
+        end_date=req.end_date,
+        starting_capital=float(req.starting_capital),
+        rpt_pct=float(req.rpt_pct),
+        stop_loss_pct=float(req.stop_loss_pct),
+        max_positions=req.max_positions,
+        name=req.name,
+    )
+
+    return RSBacktestResponse(
+        rs_only_run_id=runs["RS_ONLY"].id,
+        dual_either_run_id=runs["DUAL_EITHER"].id,
+        dual_both_run_id=runs["DUAL_BOTH"].id,
+        message=(
+            f"RS backtest started for all 3 scenarios. "
+            f"Run IDs: RS_ONLY={runs['RS_ONLY'].id}, "
+            f"DUAL_EITHER={runs['DUAL_EITHER'].id}, "
+            f"DUAL_BOTH={runs['DUAL_BOTH'].id}. "
+            f"Poll /simulation/backtest/{{run_id}}/progress for status."
+        ),
+    )
+
+
+@router.get("/rs-backtest/comparison")
+def rs_backtest_comparison(
+    rs_only_id: int = Query(..., description="Run ID for RS_ONLY scenario"),
+    dual_either_id: int = Query(..., description="Run ID for DUAL_EITHER scenario"),
+    dual_both_id: int = Query(..., description="Run ID for DUAL_BOTH scenario"),
+    db: Session = Depends(get_db),
+):
+    """
+    Side-by-side comparison of all three RS scenarios.
+    Returns a structured summary table for easy comparison.
+    """
+    ids = {
+        "RS_ONLY":     rs_only_id,
+        "DUAL_EITHER": dual_either_id,
+        "DUAL_BOTH":   dual_both_id,
+    }
+    comparison = {}
+    for scenario, run_id in ids.items():
+        run = db.query(SimulationRun).filter(SimulationRun.id == run_id).first()
+        if not run:
+            raise HTTPException(status_code=404, detail=f"Run {run_id} ({scenario}) not found")
+        comparison[scenario] = {
+            "run_id":           run.id,
+            "status":           run.status,
+            "total_trades":     run.total_trades,
+            "win_rate_pct":     run.win_rate,
+            "avg_win_pct":      run.avg_win_r,
+            "avg_loss_pct":     run.avg_loss_r,
+            "expectancy":       run.expectancy,
+            "total_return_pct": run.total_return_pct,
+            "arr_pct":          run.arr,
+            "max_drawdown_pct": run.max_drawdown_pct,
+            "final_capital":    float(run.final_capital) if run.final_capital else None,
+            "total_pnl":        float(run.total_pnl) if run.total_pnl else None,
+        }
+    return {
+        "comparison": comparison,
+        "hypothesis": (
+            "RS_ONLY = pure relative strength filter | "
+            "DUAL_EITHER = dual entry, aggressive exit | "
+            "DUAL_BOTH = dual entry, conservative exit"
+        ),
     }
 
 

@@ -13,6 +13,23 @@ class BacktestRequest(BaseModel):
     name: Optional[str] = None
 
 
+class RSBacktestRequest(BaseModel):
+    start_date: date
+    end_date: date
+    starting_capital: Decimal = Field(default=Decimal("100000"), description="Starting capital in INR")
+    rpt_pct: Decimal = Field(default=Decimal("0.5"), ge=Decimal("0.2"), le=Decimal("1.0"), description="Risk per trade %")
+    stop_loss_pct: Decimal = Field(default=Decimal("8.0"), ge=Decimal("1.0"), le=Decimal("20.0"), description="Hard stop loss %")
+    max_positions: int = Field(default=10, ge=1, le=50, description="Max simultaneous positions")
+    name: Optional[str] = None
+
+
+class RSBacktestResponse(BaseModel):
+    rs_only_run_id: int
+    dual_either_run_id: int
+    dual_both_run_id: int
+    message: str
+
+
 class PaperStartRequest(BaseModel):
     starting_capital: Decimal = Field(default=Decimal("100000"), description="Starting capital in INR")
     rpt_pct: Decimal = Field(default=Decimal("0.5"), ge=Decimal("0.2"), le=Decimal("1.0"), description="Risk per trade %")
