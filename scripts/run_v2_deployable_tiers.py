@@ -31,12 +31,13 @@ from backend.engine.backtest_fast import _fast_simulate, load_bars   # noqa: E40
 from backend.engine.costs import CostModel                           # noqa: E402
 from backend.engine.precompute import precompute_features            # noqa: E402
 from backend.engine.regime import load_regime                        # noqa: E402
+from backend.engine.runtime import risk_manager                      # noqa: E402
+from backend.engine.runtime.config import RISK_V2, STRATEGY_V2       # noqa: E402
 
 CACHE = "/home/user/champion-trader/champion_cache.sqlite"
 START = date(2016, 4, 7)
 START_CAP = Decimal("100000")
-DAILY_YIELD = (1 + 0.065) ** (1 / 252) - 1
-RPT = 0.35
+RPT = RISK_V2.rpt_pct          # display only; the overlay reads RISK_V2 directly
 CR = 1e7
 cm = CostModel()
 TIERS = [0, 1, 5, 15, 25, 50]   # Rs cr/day turnover floors
@@ -73,9 +74,11 @@ for s in symbols:
         if sc[k] == sc[k]:
             score_lookup[(s, bs[k + 1].date)] = float(sc[k])
     idx_of = {b.date: i for i, b in enumerate(bs)}
-    tr = _fast_simulate(s, bs, df, exit_mode="chandelier", target_r=2.0, chandelier_mult=5.0,
-                        slippage=sl, min_trp=2.0, start_date=START, use_regime=False,
-                        skip_circuit_locked=True, vol_breakout_k=2.0)
+    tr = _fast_simulate(s, bs, df, exit_mode="chandelier", target_r=2.0,
+                        chandelier_mult=float(STRATEGY_V2.chandelier_mult), slippage=sl,
+                        min_trp=STRATEGY_V2.min_trp, start_date=START, use_regime=False,
+                        skip_circuit_locked=STRATEGY_V2.skip_circuit_locked,
+                        vol_breakout_k=STRATEGY_V2.vol_breakout_k)
     for t in tr:
         i = idx_of[t.entry_date]
         win = [float(bs[k].close) * bs[k].volume for k in range(max(0, i - 60), i)]
@@ -90,51 +93,12 @@ TRAIN = [d for d in FULL if d.year < 2021]
 TEST = [d for d in FULL if d.year >= 2021]
 
 
-def lc(sym, d, fb):
-    return close_lookup.get(sym, {}).get(d, fb)
-
-
-def portfolio(trades, cal, *, dd_halt=0.15, bear_frac=0.25, max_pos=15):
-    eo = defaultdict(list)
-    for t in trades:
-        eo[t.entry_date].append(t)
-    for d in eo:
-        eo[d].sort(key=lambda t: score_lookup.get((t.symbol, t.entry_date), -1e9), reverse=True)
-    rpt = Decimal(str(RPT)); resume = dd_halt * 0.5
-    cash = START_CAP; op = []; curve = []; peak = float(START_CAP); halted = False
-    for d in cal:
-        cash *= Decimal(1 + DAILY_YIELD)
-        still = []
-        for p in op:
-            if p["xd"] == d:
-                pr = Decimal(p["sh"]) * p["xp"]; cash += pr - cm.sell_costs(pr)
-            else:
-                still.append(p)
-        op = still
-        for p in op:
-            p["px"] = lc(p["s"], d, p["px"])
-        eq = cash + sum(Decimal(p["sh"]) * p["px"] for p in op)
-        peak = max(peak, float(eq))
-        if float(eq) < peak * (1 - dd_halt):
-            halted = True
-        elif float(eq) > peak * (1 - resume):
-            halted = False
-        if not halted:
-            mult = Decimal("1.0") if regime_map.get(d, False) else Decimal(str(bear_frac))
-            for t in eo.get(d, []):
-                if len(op) >= max_pos:
-                    continue
-                sh = int((eq * rpt * mult / Decimal(100)) / t.stopdist)
-                if sh <= 0:
-                    continue
-                cost = Decimal(sh) * t.entry; tot = cost + cm.buy_costs(cost)
-                if tot > cash:
-                    continue
-                cash -= tot
-                op.append({"s": t.symbol, "sh": sh, "xd": t.exit_date, "xp": t.exit, "px": t.entry})
-        eq = cash + sum(Decimal(p["sh"]) * p["px"] for p in op)
-        curve.append((d, float(eq)))
-    return curve
+def portfolio(trades, cal):
+    """The validated v2 overlay — now the single implementation in runtime.risk_manager."""
+    return risk_manager.simulate_portfolio(
+        trades, cal, params=RISK_V2, regime_on=regime_map, momentum_score=score_lookup,
+        close_on=close_lookup, start_capital=START_CAP, cost_model=cm,
+    )
 
 
 def met(curve, cal):

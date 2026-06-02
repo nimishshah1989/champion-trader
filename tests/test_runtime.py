@@ -9,8 +9,9 @@ from decimal import Decimal
 
 import pytest
 
+from backend.engine.costs import CostModel
 from backend.engine.kite_data import Bar
-from backend.engine.runtime import exit_service
+from backend.engine.runtime import exit_service, risk_manager
 from backend.engine.runtime.config import (
     RISK_V2,
     STRATEGY_V2,
@@ -21,9 +22,22 @@ from backend.engine.runtime.signal_service import _circuit_locked
 
 D = Decimal
 
+ZERO_COST = CostModel(stt_pct=D(0), exch_txn_pct=D(0), sebi_pct=D(0),
+                      stamp_pct_buy=D(0), gst_pct=D(0), dp_per_scrip=D(0))
+
 
 def _bar(o, h, l, c, v=1_000_000):
     return Bar(date(2024, 1, 2), D(str(o)), D(str(h)), D(str(l)), D(str(c)), v)
+
+
+@dataclasses.dataclass(frozen=True)
+class _Trade:
+    symbol: str
+    entry_date: date
+    exit_date: date
+    entry: Decimal
+    exit: Decimal
+    stopdist: Decimal
 
 
 # --- config: the single source of validated v2 tunables -------------------------------
@@ -138,3 +152,44 @@ def test_circuit_locked_allows_normal_breakout():
 
 def test_circuit_locked_guards_nonpositive_prev_close():
     assert _circuit_locked(D(0), _bar(110, 110, 110, 110)) is False
+
+
+# --- risk_manager: sizing, bear-multiplier, DD breaker, overlay -----------------------
+
+def test_position_size_risks_rpt_pct_over_the_stop_distance():
+    # risk 0.35% of Rs10L = Rs3,500 over a Rs10 stop -> 350 shares
+    assert risk_manager.position_size(D(1_000_000), D(10), rpt_pct=0.35, bear_mult=D("1.0")) == 350
+    # quarter-size in a bear regime -> 875/10 = 87.5 truncates to 87
+    assert risk_manager.position_size(D(1_000_000), D(10), rpt_pct=0.35, bear_mult=D("0.25")) == 87
+
+
+def test_position_size_is_zero_for_nonpositive_stop():
+    assert risk_manager.position_size(D(1_000_000), D(0), rpt_pct=0.35, bear_mult=D("1.0")) == 0
+
+
+def test_bear_multiplier_full_size_in_bull_quarter_in_bear():
+    assert risk_manager.bear_multiplier(True) == D("1.0")
+    assert risk_manager.bear_multiplier(False) == RISK_V2.bear_frac
+
+
+def test_update_halt_is_a_15_over_7point5_hysteresis():
+    assert risk_manager.update_halt(False, 84.0, 100.0) is True     # -16% -> halt
+    assert risk_manager.update_halt(False, 90.0, 100.0) is False    # -10% -> still trading
+    assert risk_manager.update_halt(True, 90.0, 100.0) is True      # halted, only -10% recovered -> stay halted
+    assert risk_manager.update_halt(True, 95.0, 100.0) is False     # recovered within -7.5% -> resume
+
+
+def test_simulate_portfolio_books_a_single_winner_cleanly():
+    d0, d1, d2, d3, d4 = (date(2024, 1, i) for i in range(1, 6))
+    trade = _Trade("AAA", d1, d3, D(100), D(150), D(10))
+    params = dataclasses.replace(RISK_V2, idle_yield=0.0)   # no idle drift -> exact arithmetic
+    curve = risk_manager.simulate_portfolio(
+        [trade], [d0, d1, d2, d3, d4], params=params,
+        regime_on={d: True for d in (d0, d1, d2, d3, d4)},
+        momentum_score={}, close_on={"AAA": {d1: D(100), d2: D(130), d3: D(150)}},
+        start_capital=D(100_000), cost_model=ZERO_COST,
+    )
+    assert len(curve) == 5
+    # 35 shares * (150 - 100) = +1,750 booked at exit; flat thereafter
+    assert curve[-1][1] == pytest.approx(101_750.0)
+    assert curve[0][1] == pytest.approx(100_000.0)
