@@ -99,6 +99,55 @@ def test_post_scan_populate_accepts_v2_avg_trp(temp_db):
         db.close()
 
 
+@needs_cache
+def test_full_pipeline_entry_then_exit(temp_db, monkeypatch):
+    """Scheduled seam, end-to-end on real data: a READY watchlist name -> run_entry_pass opens
+    a v2 trade with the trail seeded -> run_exit_pass processes it (ratchets, or a V2 exit)."""
+    from backend.config import settings
+    from backend.database import Trade, Watchlist
+    from backend.engine.backtest_fast import load_bars
+    from backend.engine.precompute import precompute_features
+    from backend.engine.runtime.signal_service import WARMUP, context_from_df, entry_at
+    from backend.services import live_jobs
+
+    monkeypatch.setattr(settings, "paper_capital", Decimal("5000000"))   # size expensive names
+
+    con = sqlite3.connect(CACHE)
+    sym = d = None
+    for s in [r[0] for r in con.execute("select symbol from done where n>0 order by symbol limit 120")]:
+        bars = load_bars(con, s)
+        if len(bars) < 320:
+            continue
+        ctx = context_from_df(bars, precompute_features(bars))
+        for i in range(len(bars) - 30, max(WARMUP, len(bars) - 300), -1):   # leave bars for the exit
+            if entry_at(ctx, i) is not None:
+                sym, d = s, bars[i].date
+                break
+        if sym:
+            break
+    con.close()
+    assert sym is not None, "no v2 breakout with room for an exit bar found"
+
+    db = live_jobs.SessionLocal()
+    db.add(Watchlist(symbol=sym, added_date=d, bucket="READY", status="ACTIVE"))
+    db.commit()
+    db.close()
+
+    entered = live_jobs.run_entry_pass(as_of=d)
+    assert entered["entered"] == 1
+    db = live_jobs.SessionLocal()
+    t = db.query(Trade).filter(Trade.symbol == sym).first()
+    assert t.status == "OPEN" and t.current_stop is not None and t.strategy_version == "v2"
+    db.close()
+
+    live_jobs.run_exit_pass()                                            # as_of=None -> latest bar
+    db = live_jobs.SessionLocal()
+    t = db.query(Trade).filter(Trade.symbol == sym).first()
+    assert (t.status == "OPEN" and t.current_stop is not None) or \
+           (t.status == "CLOSED" and t.exit_method.startswith("V2_"))
+    db.close()
+
+
 def test_run_daily_ingest_skips_when_kite_unconfigured(monkeypatch):
     from backend.config import settings
     from backend.services import live_jobs

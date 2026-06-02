@@ -315,26 +315,36 @@ No tables need deleting. No destructive migrations.
       `open_trail`/`trail_from_db` + `morning_gap_exit`/`eod_exit` (→ exit_service). Pure
       (no FastAPI); 16 unit tests. Encodes the two live decisions (volume projection; exit
       once-daily-close + 09:15 gap-check).
-- [~] **v2 scanner built & tested** (`scanner_engine.run_v2_scan` + runtime `detect_setup`
-      / `setup_at` + bridge `scan_universe`): reads the Kite bars store, emits READY
-      `ScanResult` rows for true v2 setups ≥ the liquidity floor; PPC/NPC retained as
-      non-gating labels. Verified against the real cache (`test_scanner_v2`). *Pending: wire
-      the `daily_scanner` job (main.py) to call it instead of `run_all_scans`.*
-- [ ] Re-point `entry_monitor` (last 30 min) to `evaluate_live_entry`; persist the trail.
-- [~] **v2 exit job built & tested** (`exit_runtime.run_eod_exits` + `run_morning_gap_exits`):
-      close-based 5×ATR chandelier on open trades, persists the ratcheting stop to the new
-      `current_stop`/`highest_high` columns, self-heals legacy trades. In-memory-DB tested.
-      *Pending: wire `exit_monitor` to it (once-daily post-close + 09:15) and delete the
-      2R/4R/8R/12R ladder + 2-min intraday-touch loop.*
-- [ ] Promote `risk_guardian` to enforce caps / DD halt / bear-sizing (via risk_manager).
-- [ ] Wire Telegram entry/exit + brief; run in SHADOW, then paper.
-- [ ] Run the full pipeline of §3 in **paper mode** on live Kite data: scan → watchlist →
-      last-30-min entry → `risk_manager` sizing → **close-based chandelier** exit
-      monitoring → `trades`/`partial_exits` → Telegram.
-- [ ] 10–15 live sessions. **Reconcile real fills vs backtest assumptions** (esp. thin
-      names — the +178R ASAL winner was an illiquid micro-cap that may not fill at size).
+- [x] **v2 SCANNER wired** (`scanner_engine.run_v2_scan` + runtime `detect_setup`/`setup_at`,
+      driven by `live_jobs.run_daily_scan`): reads the Kite bars store (leakage-safe `as_of`),
+      emits READY `ScanResult` rows for true v2 setups ≥ the liquidity floor → watchlist
+      (`post_scan_populate` now accepts the v2 `avg_trp` gate). `daily_scanner` cron repointed
+      off `run_all_scans`; PPC/NPC retained as non-gating labels. (`test_scanner_v2`, `test_live_jobs`.)
+- [x] **ENTRY job wired** (`entry_runtime.run_entries` via `live_jobs.run_entry_pass`,
+      `entry_monitor` cron): the parity-proven `signal_service.evaluate_entry` on the day's bar
+      → `risk_manager` sizing (RPT 0.35 / max-15 / bear-0.25× / DD halt) → opens a Trade with
+      the chandelier trail + attribution seeded, logs a BUY alert. (`test_entry_runtime`.)
+- [x] **EXIT job wired** (`exit_runtime` via `live_jobs.run_exit_pass`/`run_morning_gap_pass`,
+      `exit_monitor` + `morning_gap` crons): close-based 5×ATR chandelier post-close + 09:15
+      gap-down, persists/ratchets the stop, self-heals legacy trades. The 2R/4R/8R/12R ladder
+      + 2-min intraday loop are **off the schedule**. (`test_exit_runtime`.)
+- [x] **`risk_guardian` is the enforcer**: the 15% halt / 7.5% resume drawdown breaker over
+      the realised equity curve gates new entries (`current_dd_halt`); legacy intraday
+      SL/2R/BE/LOD trailing removed from the loop. (`test_risk_guardian_v2`.)
+- [x] **Telegram + ingest wired**: entry/exit fill notifications (`send_entry_fills`/
+      `send_exit_fills`, safe no-op when unconfigured); daily Kite bar-store ingest scheduled
+      at 17:30 ahead of the passes. Dhan stubs deleted; AutoOptimize frozen.
+- [x] **Full pipeline runs in paper mode** end-to-end on the cache (ingest→exit→entry→scan→gap),
+      proven by `test_live_jobs.test_full_pipeline_entry_then_exit`; both parity gates green.
+- [ ] **10–15 paper sessions on live Kite data** (calendar-bound). **Reconcile real fills vs
+      backtest assumptions** (esp. thin names — the +178R ASAL winner was an illiquid micro-cap
+      that may not fill at size). Tune `paper_capital`/liquidity tier (1L rounds expensive names to 0).
 - [ ] Daily live-vs-shadow reconciliation; investigate any divergence > tolerance.
-- [ ] **No real orders.** Exit: paper Calmar/DD/win-rate within the backtest's band.
+- [ ] **No real orders** (Kite client is a kill-switched Phase-2 stub). Exit criterion:
+      paper Calmar/DD/win-rate within the backtest's band.
+
+> **Phase 1 build complete.** The scheduler runs the validated v2 brain end-to-end in paper
+> mode; what remains is the calendar-bound paper run + fill reconciliation before Phase 2.
 
 ### Phase 2 — Dhan live with safeguards
 - [ ] Order execution via **Kite Connect (Zerodha)** — the *same* provider as the data
