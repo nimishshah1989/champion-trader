@@ -18,6 +18,12 @@ export function Section7PositionSizing() {
       <p className="text-sm text-slate-600 leading-relaxed mb-4">
         This answers &quot;How many shares should I buy?&quot; The answer is based on math, not gut feeling.
       </p>
+      <Callout type="tip">
+        v2 note: the live engine risks <strong>0.35%</strong> per trade (not 0.5%) and runs up to 15
+        positions -- smaller, more numerous bets deploy more capital and smooth the equity curve. The
+        worked example below uses the 0.5% manual-calculator default; the method is identical, only the
+        percentage differs.
+      </Callout>
       <div className="bg-slate-50 rounded-xl p-6 mb-6">
         <h4 className="text-sm font-semibold text-slate-800 mb-4">Real Example: Buying &quot;XYZ Ltd&quot;</h4>
         <div className="space-y-3">
@@ -117,50 +123,69 @@ export function Section8StopLoss() {
 }
 
 export function Section9TakingProfits() {
-  const exits = [
-    { level: "12R: Extreme", price: "830.32", pct: "Sell 80% remaining", profit: "+229", color: "bg-emerald-600", w: "100%" },
-    { level: "8R: Great", price: "753.88", pct: "Sell 40%", profit: "+153", color: "bg-emerald-500", w: "75%" },
-    { level: "4R: Normal", price: "677.44", pct: "Sell 20%", profit: "+76", color: "bg-teal-500", w: "50%" },
-    { level: "2R: First Target", price: "639.22", pct: "Sell 20%", profit: "+38", color: "bg-blue-500", w: "30%" },
+  // 5×ATR ≈ ₹61.7 on ASTERDM (ATR ≈ ₹12.34). The stop ratchets up with the highest high
+  // and never moves down. There is no profit ladder — the whole position rides one trail.
+  const trail = [
+    { hh: "605.00", calc: "605.00 − 61.70 = 543.30", stop: "581.89", note: "Initial 1R holds (trail still below it)" },
+    { hh: "648.00", calc: "648.00 − 61.70 = 586.30", stop: "586.30", note: "Trail ratchets above entry — now risk-free" },
+    { hh: "700.00", calc: "700.00 − 61.70 = 638.30", stop: "638.30", note: "Locking in profit as it runs" },
+    { hh: "760.00", calc: "760.00 − 61.70 = 698.30", stop: "698.30", note: "Stop keeps climbing with the high" },
   ];
   return (
-    <SectionCard id="taking-profits" number={9} title="Taking Profits (The Exit Framework)">
+    <SectionCard id="taking-profits" number={9} title="Exits — Riding the Trail (v2)">
       <p className="text-sm text-slate-600 leading-relaxed mb-4">
-        We sell in pieces as the stock goes higher. Targets use &quot;R&quot; -- multiples of risk.
+        v2 takes <strong>no partial profits</strong>. We hold the whole position and let a single
+        trailing stop do the work — cut losers fast, let winners run far. Two rules:
       </p>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+        <div className="border border-red-200 bg-red-50/30 rounded-xl p-4">
+          <p className="text-sm font-semibold text-red-800 mb-1">1. Close-based stop</p>
+          <p className="text-xs text-slate-600 leading-relaxed">
+            Exit only if the day <strong>closes</strong> below the stop (or gaps below at the open).
+            An intraday dip that recovers by close does NOT exit. A hard intraday stop measured 78%
+            premature exits and cut win rate ~10 points — so we wait for the close.
+          </p>
+        </div>
+        <div className="border border-emerald-200 bg-emerald-50/30 rounded-xl p-4">
+          <p className="text-sm font-semibold text-emerald-800 mb-1">2. 5×ATR chandelier trail</p>
+          <p className="text-xs text-slate-600 leading-relaxed">
+            Each day, stop = max(old stop, highest high − 5×ATR). It only ratchets <strong>up</strong>,
+            never down. There is no fixed target — the winner exits only when a close falls through
+            the trail.
+          </p>
+        </div>
+      </div>
       <div className="bg-slate-50 rounded-xl p-6 mb-6">
-        <h4 className="text-xs text-slate-400 font-semibold uppercase tracking-wider mb-4 text-center">
-          Profit-Taking Ladder (Entry &#x20b9;601, Risk &#x20b9;19.11/share)
+        <h4 className="text-xs text-slate-400 font-semibold uppercase tracking-wider mb-4">
+          How the stop ratchets (ASTERDM: entry &#x20b9;601, initial SL &#x20b9;581.89, 5&times;ATR &asymp; &#x20b9;61.70)
         </h4>
-        <div className="space-y-3">
-          {exits.map((e, i) => (
-            <div key={i} className="flex items-center gap-3">
-              <div className="w-28 md:w-40 text-right">
-                <p className="text-xs font-bold text-slate-700">{e.level}</p>
-                <p className="text-xs font-mono text-slate-500">&#x20b9;{e.price}</p>
+        <div className="space-y-2">
+          {trail.map((r, i) => (
+            <div key={i} className="bg-white rounded-lg p-3 border border-slate-200 flex items-center justify-between gap-3">
+              <div className="text-xs">
+                <span className="text-slate-400">Highest high </span>
+                <span className="font-mono font-semibold text-slate-700">&#x20b9;{r.hh}</span>
+                <span className="text-slate-400 font-mono ml-2 hidden sm:inline">({r.calc})</span>
               </div>
-              <div className="flex-1">
-                <div className={`h-8 ${e.color} rounded-lg flex items-center`} style={{ width: e.w }}>
-                  <span className="text-xs text-white font-bold px-3">{e.pct}</span>
-                </div>
+              <div className="text-right">
+                <span className="text-[10px] text-slate-400 uppercase tracking-wide mr-1">stop</span>
+                <span className="font-mono font-bold text-red-600">&#x20b9;{r.stop}</span>
+                <p className="text-[10px] text-slate-500">{r.note}</p>
               </div>
-              <span className="w-14 text-xs font-mono text-emerald-600 font-bold">&#x20b9;{e.profit}</span>
             </div>
           ))}
-          <div className="flex items-center gap-3">
-            <div className="w-28 md:w-40 text-right"><p className="text-xs font-bold text-slate-600">Entry</p><p className="text-xs font-mono text-slate-500">&#x20b9;601.00</p></div>
-            <div className="flex-1 border-t-2 border-dashed border-slate-400" />
-            <span className="w-14 text-xs font-mono text-slate-500">&#x20b9;0</span>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="w-28 md:w-40 text-right"><p className="text-xs font-bold text-red-600">Stop Loss</p><p className="text-xs font-mono text-slate-500">&#x20b9;581.89</p></div>
-            <div className="flex-1 border-t-2 border-dashed border-red-400" />
-            <span className="w-14 text-xs font-mono text-red-600 font-bold">-&#x20b9;19</span>
+          <div className="bg-white rounded-lg p-3 border border-amber-200 bg-amber-50/40">
+            <p className="text-xs text-amber-800">
+              <strong>Exit:</strong> the first day the stock <strong>closes</strong> below the
+              current trail, sell the entire position. No trimming, no targets — one exit.
+            </p>
           </div>
         </div>
       </div>
       <Callout type="tip">
-        You do NOT have to sell at every level. If momentum is strong, hold longer. The ladder gives you a plan.
+        Win rate is only ~35%: most trades lose ~1R, a few win big (avg win ≈ 8R). You cannot pick
+        which — so take every signal and let the trail decide. Booking profits early (the old ladder)
+        is exactly what caps the winners that pay for everything.
       </Callout>
     </SectionCard>
   );
@@ -188,8 +213,14 @@ export function Section10RiskManagement() {
           </div>
         ))}
       </div>
+      <Callout type="warning">
+        v2 portfolio overlay (automatic): risk <strong>0.35%</strong> per trade, at most <strong>15</strong>
+        open positions, <strong>0.25&times;</strong> sizing when the market is below a rising 50-DMA, and a
+        <strong> 15%</strong> drawdown breaker that halts new entries (resuming within 7.5% of the peak).
+        Open winners keep running through a halt.
+      </Callout>
       <Callout type="tip">
-        Risk 0.5% per trade, 10 losses in a row = 5% account loss. Recoverable. Risk 10% per trade? 5 losses wipes half.
+        Risk 0.35% per trade, 10 losses in a row = 3.5% account loss. Recoverable. Risk 10% per trade? 5 losses wipes half.
       </Callout>
     </SectionCard>
   );
@@ -197,10 +228,10 @@ export function Section10RiskManagement() {
 
 export function Section11DailyRoutine() {
   const blocks = [
-    { time: "AM", label: "9:15 AM -- Market Opens", dur: "15 min", clr: "amber", items: ["Wait 10 min for opening chaos", "Check open trades near SL", "Set SL alerts", "Close the app. Go about your day."] },
-    { time: "3PM", label: "3:00 PM -- Last 30 Minutes", dur: "30 min", clr: "teal", items: ["Check READY stocks for trigger breaks", "Use calculator for position size", "Place buy order 3:00-3:30 PM", "Nothing triggered? Do nothing."] },
-    { time: "EVE", label: "3:30 PM -- Post-Market", dur: "1 hour", clr: "blue", items: ["Run PPC, NPC, Contraction scans", "Review results for watchlist additions", "Update watchlist buckets", "Log market stance"] },
-    { time: "SAT", label: "Weekend -- Weekly Review", dur: "2 hours", clr: "slate", items: ["Fill out weekly trading journal", "Review closed trades", "Deeper chart analysis on NEAR/AWAY", "Plan for coming week"] },
+    { time: "EVE", label: "After Close (5:30-5:50 PM) -- Automated", dur: "system", clr: "blue", items: ["Ingest Kite-adjusted bars into the store", "Close-based 5xATR exit check on open trades", "Open breakout entries, sized by the risk overlay", "Run the v2 setup scan -> READY watchlist"] },
+    { time: "AM", label: "9:15 AM -- Gap Check (Automated)", dur: "system", clr: "amber", items: ["System checks open positions for a gap-down through the stop", "Telegram pings you on any fill", "Otherwise there is nothing to do"] },
+    { time: "YOU", label: "Your Daily Glance", dur: "~5 min", clr: "teal", items: ["Open the dashboard: positions + trailing stops", "Check the drawdown-breaker state", "Skim READY setups and any Telegram fills"] },
+    { time: "SAT", label: "Weekend -- Weekly Review", dur: "1 hour", clr: "slate", items: ["Fill out the weekly trading journal", "Review closed trades + the equity curve", "Confirm the system behaved as designed", "Plan for the coming week"] },
   ];
   const cm: Record<string, { ring: string; bg: string; text: string }> = {
     amber: { ring: "border-amber-400", bg: "bg-amber-100", text: "text-amber-700" },
@@ -211,7 +242,8 @@ export function Section11DailyRoutine() {
   return (
     <SectionCard id="daily-routine" number={11} title="The Daily Routine">
       <p className="text-sm text-slate-600 leading-relaxed mb-6">
-        The system runs on a simple daily routine -- about 2 hours total. No all-day screen watching.
+        The v2 system runs itself after the close. Your job is oversight, not manual scanning --
+        a few minutes a day.
       </p>
       <div className="space-y-0 mb-6">
         {blocks.map((b, idx) => {
@@ -239,7 +271,7 @@ export function Section11DailyRoutine() {
           );
         })}
       </div>
-      <Callout type="tip">Total daily time: ~1 hour 45 minutes. Follow the process at specific times.</Callout>
+      <Callout type="tip">The scheduler does the scanning, sizing, and exits. You supervise -- about 5 minutes a day, plus a weekly review.</Callout>
     </SectionCard>
   );
 }
@@ -294,13 +326,14 @@ export function MethodologySummary() {
     <div className="bg-teal-50 border border-teal-200 rounded-xl p-6">
       <h3 className="text-base font-bold text-teal-800 mb-3">The Champion Trader Methodology in One Sentence</h3>
       <p className="text-sm text-teal-700 leading-relaxed">
-        Find Stage 2 stocks building tight bases, buy on breakout with strict position sizing,
-        protect with a stop loss, take profits in steps, never over-risk, and review weekly.
+        Find Stage 2 stocks building tight bases, buy the breakout on &ge; 2&times; volume, ride a
+        5&times;ATR trailing stop (no profit ladder), size at 0.35% with a 15% drawdown breaker, and
+        review weekly.
       </p>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
         {[
-          { val: "Stage 2", sub: "Only buy here" }, { val: "0.5%", sub: "Risk per trade" },
-          { val: "3:00 PM", sub: "Buy in last 30 min" }, { val: ">2R", sub: "Winners beat losers" },
+          { val: "Stage 2", sub: "Only buy here" }, { val: "0.35%", sub: "Risk per trade" },
+          { val: "≥ 2× vol", sub: "Breakout gate" }, { val: "5×ATR", sub: "Trailing exit" },
         ].map((item, i) => (
           <div key={i} className="bg-white rounded-lg p-3 border border-teal-100 text-center">
             <p className="text-lg font-bold text-teal-600">{item.val}</p>

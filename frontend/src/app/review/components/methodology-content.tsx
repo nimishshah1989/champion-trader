@@ -85,6 +85,70 @@ export function StepFlow({ steps }: { steps: { label: string; detail: string }[]
 }
 
 // ---------------------------------------------------------------------------
+// v2 reality — what the live system actually does today (and what it does not)
+// ---------------------------------------------------------------------------
+
+export function SectionV2Reality() {
+  const happening = [
+    { k: "Setup gate", v: "Stage-2 uptrend + volatility contraction + a valid base (≥ 20 bars) + average TRP ≥ 2, then buy the break of the 5-day high." },
+    { k: "Entry confirmation", v: "Breakout-day volume ≥ 2× the 50-day average (projected live in the last 30 minutes)." },
+    { k: "Stop (close-based)", v: "Exit only on a daily CLOSE below the stop, or a gap-down open. An intraday wick through the stop does NOT exit." },
+    { k: "Trail (the edge)", v: "A 5×ATR chandelier that ratchets up with the highest high — there is no fixed profit target; winners ride until the trail is closed through." },
+    { k: "Sizing", v: "Risk 0.35% of equity per trade (RPT); up to 15 concurrent positions; idle cash earns ~6.5%." },
+    { k: "Bear sizing", v: "New positions sized at 0.25× when the NIFTY 500 is below a rising 50-DMA." },
+    { k: "Drawdown breaker", v: "Halt new entries at −15% from the equity peak; resume once back within −7.5%. Open winners keep running." },
+    { k: "Data + schedule", v: "Kite-adjusted daily bars (the feed the backtest validated). Fully automated post-close: ingest 17:30 → exit 17:40 → entry 17:45 → scan 17:50, plus a 09:15 gap-down check." },
+  ];
+  const notHappening = [
+    { k: "No profit-taking ladder", v: "The 2R / 4R / 8R / 12R book-and-trim ladder is gone. v2 takes no partial profits — it rides the chandelier trail." },
+    { k: "No intraday-touch stops", v: "We no longer sell the instant price dips to the stop. (Hard intraday stops measured 78% premature exits and cut win rate ~10 points.)" },
+    { k: "No PPC / NPC / Contraction gating", v: "Those candle patterns are kept only as non-gating labels — they no longer decide what we buy. The v2 setup detector is the gate." },
+    { k: "No yfinance feed", v: "Live signals run on the same Kite-adjusted feed as the backtest, not a separate 9-month yfinance pull." },
+    { k: "No auto param-tuning", v: "AutoOptimize is frozen, so the validated, parity-gated parameters cannot drift overnight." },
+    { k: "No real orders yet", v: "The system is paper-trading behind a kill-switch. Real orders stay gated until a clean 10–15 session paper run reconciles fills." },
+  ];
+
+  return (
+    <SectionCard id="v2-at-a-glance" number={0} title="The v2 System at a Glance (What Happens — and What Does Not)">
+      <p className="text-sm text-slate-600 leading-relaxed mb-2">
+        The live system trades the <strong>validated v2 strategy</strong>: a single, parity-gated
+        brain that the engine, the scheduler, and this app all call. The beginner sections below
+        explain the trading concepts; this card is the precise, current truth of what the machine
+        does today.
+      </p>
+      <Callout type="tip">
+        The edge is in the <strong>exit</strong>, not in picking setups: cut losers on a confirmed
+        close, and let winners run on a wide trailing stop. Everything below serves that.
+      </Callout>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
+        <div className="border border-emerald-200 bg-emerald-50/40 rounded-xl p-5">
+          <h4 className="text-sm font-bold text-emerald-800 mb-3">Happening now (v2)</h4>
+          <div className="space-y-3">
+            {happening.map((row) => (
+              <div key={row.k}>
+                <p className="text-xs font-semibold text-emerald-800">{row.k}</p>
+                <p className="text-xs text-slate-600 leading-relaxed">{row.v}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="border border-slate-300 bg-slate-50 rounded-xl p-5">
+          <h4 className="text-sm font-bold text-slate-700 mb-3">No longer happening (legacy)</h4>
+          <div className="space-y-3">
+            {notHappening.map((row) => (
+              <div key={row.k}>
+                <p className="text-xs font-semibold text-slate-700 line-through decoration-slate-400/70">{row.k}</p>
+                <p className="text-xs text-slate-500 leading-relaxed">{row.v}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </SectionCard>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Sections 1-6
 // ---------------------------------------------------------------------------
 
@@ -186,6 +250,12 @@ export function Section3Scanners() {
         There are thousands of stocks in the market. We use special scans to
         filter down to just a handful that look promising.
       </p>
+      <Callout type="warning">
+        v2 update: the PPC / NPC / Contraction patterns below are kept only as <strong>labels</strong> --
+        they no longer decide what we buy. The real gate is the v2 setup detector: a Stage-2 stock in a
+        valid base (&ge; 20 bars), contracting, with average TRP &ge; 2, that breaks its 5-day high on
+        &ge; 2&times; volume.
+      </Callout>
       <div className="border border-emerald-200 bg-emerald-50/30 rounded-xl p-5 mb-4">
         <div className="flex items-center gap-3 mb-3">
           <span className="bg-emerald-600 text-white text-xs font-bold px-2.5 py-1 rounded">PPC</span>
@@ -317,6 +387,7 @@ export function Section6EntryRules() {
         steps={[
           { label: "Identify the Trigger Level", detail: "The highest point of the last quiet candle in the base. Until the stock crosses this line, we do NOT buy." },
           { label: "Price breaks above the trigger", detail: "When the stock price goes above the trigger level, buy 50% of your planned amount (half your shares)." },
+          { label: "Confirm the breakout volume (>= 2x)", detail: "The break must come on at least 2x the 50-day average volume, projected from volume-so-far in the last 30 minutes. A weak-volume break is skipped -- volume is what separates a real breakout from a fake one." },
           { label: "Wait for market close confirmation", detail: "If the stock closes ABOVE the trigger at 3:30 PM, buy the remaining 50%. If it falls back, do not buy the second half." },
           { label: "Only buy in the LAST 30 minutes (3:00-3:30 PM)", detail: "The first few hours are wild. By 3:00 PM, the smart money has shown its hand. We only act in the calm final stretch." },
           { label: "Check for earnings announcements", detail: "Never buy if the company is announcing earnings within the next 3 days. We do not gamble on news." },
