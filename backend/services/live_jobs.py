@@ -70,13 +70,14 @@ def run_daily_scan(scan_date: Optional[date] = None,
 def run_entry_pass(as_of: Optional[date] = None,
                    symbols: Optional[list[str]] = None) -> dict:
     """Post-close: open v2 trades for watchlist names that broke out on the day's bar."""
-    from backend.intelligence.risk_guardian import is_frozen
+    from backend.intelligence.risk_guardian import current_dd_halt
 
     con = _store_con()
     db = SessionLocal()
     try:
+        halted, _, _ = current_dd_halt(db)          # 15% DD breaker gates new entries
         summary = entry_runtime.run_entries(db, con, as_of=as_of, symbols=symbols,
-                                            halted=is_frozen())
+                                            halted=halted)
         logger.info(f"[v2 ENTRY] checked {summary['checked']}, entered {summary['entered']}, "
                     f"blocked {summary['blocked']}")
         return summary
