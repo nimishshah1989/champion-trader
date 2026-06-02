@@ -123,127 +123,55 @@ def _setup_scheduler():
             name="Shadow Portfolio: Exit Tracker",
         )
 
-        # ── Daily Scanner (post-market) ──────────────────────────────────
-        # Runs all three scans (PPC + NPC + Contraction) automatically at 16:00 IST.
-        # Results are saved to scan_results table.
-        # AUTOPILOT: After scan, auto-populates watchlist from qualifying results.
-
-        async def _daily_scanner_job() -> None:
-            """Auto-run all scans at market close, save to DB, auto-populate watchlist."""
-            from datetime import date as _date
-
-            from sqlalchemy import and_ as _and
-
-            from backend.database import ScanResult, SessionLocal
-            from backend.services.scanner_engine import run_all_scans
-            from backend.services.autopilot import run_post_scan_automation
-
-            scan_date_str = str(_date.today())
-            db = SessionLocal()
-            try:
-                logger.info(f"[SCHEDULER] Daily scan starting for {scan_date_str}")
-                results, all_data = await run_all_scans(scan_date_str)
-
-                # Upsert — delete existing results for today, then insert fresh
-                for result_dict in results:
-                    db.query(ScanResult).filter(
-                        _and(
-                            ScanResult.scan_date == result_dict["scan_date"],
-                            ScanResult.symbol == result_dict["symbol"],
-                            ScanResult.scan_type == result_dict["scan_type"],
-                        )
-                    ).delete()
-                    db.add(ScanResult(**result_dict))
-
-                db.commit()
-                logger.info(
-                    f"[SCHEDULER] Daily scan complete: {len(results)} results saved for {scan_date_str}"
-                )
-
-                # AUTOPILOT: auto-populate watchlist from scan results
-                auto_result = run_post_scan_automation()
-                logger.info(f"[AUTOPILOT] Post-scan result: {auto_result}")
-
-                # A/B BASELINE: run same scans with frozen default params
-                from backend.services.baseline_scanner import (
-                    run_baseline_scans,
-                    save_and_compare,
-                )
-                baseline_results = run_baseline_scans(all_data, scan_date_str)
-                comparison = save_and_compare(baseline_results)
-                logger.info(f"[BASELINE] Comparison result: {comparison}")
-
-            except Exception as exc:
-                logger.error(f"[SCHEDULER] Daily scanner job failed: {exc}")
-                db.rollback()
-            finally:
-                db.close()
-
-        scheduler.add_job(
-            _daily_scanner_job,
-            CronTrigger(day_of_week="mon-fri", hour=16, minute=0, timezone=IST),
-            id="daily_scanner",
-            name="Daily Scanner: Post-Market PPC + NPC + Contraction (16:00 IST)",
+        # ── v2 validated daily pipeline (paper-live) ─────────────────────
+        # Post-close on the day's Kite-adjusted bar — the SAME feed the backtest reads —
+        # so the live scan/entry/exit are parity-faithful. The order mirrors the backtest's
+        # per-day loop (exit, then entry, then refresh the watchlist for tomorrow):
+        #   17:30 ingest (corpus_updater)
+        #   17:40 EXIT   — close-based 5xATR chandelier on open trades
+        #   17:45 ENTRY  — fill breakouts of yesterday's READY watchlist on the day's bar
+        #   17:50 SCAN   — v2 SETUP scan -> ScanResult -> watchlist triggers for tomorrow
+        #   09:15 GAP    — exit any position that gaps open below its stop
+        # Replaces the legacy yfinance scan + the 2-min intraday 2R/4R/8R/12R ladder
+        # (decisions #5/#6: exit once post-close + 09:15 gap; volume gate finalised on the
+        # close). In Phase-2 LIVE the ENTRY pass moves to the last 30 min on intraday ticks.
+        from backend.services.live_jobs import (
+            run_daily_ingest,
+            run_daily_scan,
+            run_entry_pass,
+            run_exit_pass,
+            run_morning_gap_pass,
         )
 
-        # ── Live Market Monitor ───────────────────────────────────────────
-        # Two jobs replace manual "Refresh Prices":
-        #   1. exit_monitor  — every 2 min, full market hours → SL/target checks only
-        #   2. entry_monitor — every 1 min, 15:00–15:30 IST  → trigger-break entries
-        # Both write to AutoCheckLog for a full audit trail.
-
-        from backend.database import SessionLocal
-        from backend.services.price_monitor import run_price_check
-        from backend.services.autopilot import run_post_alert_automation
-
-        def _auto_check_exits() -> None:
-            """Auto check open trades for SL hits and profit targets, then auto-execute."""
-            db = SessionLocal()
-            try:
-                run_price_check(db, check_entries=False, check_exits=True, source="SCHEDULER")
-            except Exception as exc:
-                logger.error(f"exit_monitor job failed: {exc}")
-            finally:
-                db.close()
-            # AUTOPILOT: auto-execute any SELL alerts generated
-            try:
-                result = run_post_alert_automation()
-                if result.get("sells_executed", 0) > 0:
-                    logger.info(f"[AUTOPILOT] Post-exit-check: {result}")
-            except Exception as exc:
-                logger.error(f"[AUTOPILOT] Post-exit automation failed: {exc}")
-
-        def _auto_check_entries() -> None:
-            """Auto check READY watchlist for trigger breaks, then auto-execute."""
-            db = SessionLocal()
-            try:
-                run_price_check(db, check_entries=True, check_exits=False, source="SCHEDULER")
-            except Exception as exc:
-                logger.error(f"entry_monitor job failed: {exc}")
-            finally:
-                db.close()
-            # AUTOPILOT: auto-execute any BUY alerts generated
-            try:
-                result = run_post_alert_automation()
-                if result.get("buys_executed", 0) > 0:
-                    logger.info(f"[AUTOPILOT] Post-entry-check: {result}")
-            except Exception as exc:
-                logger.error(f"[AUTOPILOT] Post-entry automation failed: {exc}")
-
-        # Exit monitor: every 2 min throughout market hours (9:00–15:30 IST)
         scheduler.add_job(
-            _auto_check_exits,
-            CronTrigger(day_of_week="mon-fri", hour="9-15", minute="*/2", timezone=IST),
+            run_daily_ingest,
+            CronTrigger(day_of_week="mon-fri", hour=17, minute=30, timezone=IST),
+            id="kite_ingest",
+            name="v2 Ingest: Kite adjusted bars -> store (17:30 IST)",
+        )
+        scheduler.add_job(
+            run_exit_pass,
+            CronTrigger(day_of_week="mon-fri", hour=17, minute=40, timezone=IST),
             id="exit_monitor",
-            name="Live Monitor: Exit/SL Checker (every 2 min)",
+            name="v2 Exit: post-close close-based chandelier stop (17:40 IST)",
         )
-
-        # Entry monitor: every 1 min during the last 30-min entry window (15:00–15:30 IST)
         scheduler.add_job(
-            _auto_check_entries,
-            CronTrigger(day_of_week="mon-fri", hour="15", minute="0-30", timezone=IST),
+            run_entry_pass,
+            CronTrigger(day_of_week="mon-fri", hour=17, minute=45, timezone=IST),
             id="entry_monitor",
-            name="Live Monitor: Entry Window Checker (every 1 min, 15:00–15:30)",
+            name="v2 Entry: post-close breakout fills (17:45 IST)",
+        )
+        scheduler.add_job(
+            run_daily_scan,
+            CronTrigger(day_of_week="mon-fri", hour=17, minute=50, timezone=IST),
+            id="daily_scanner",
+            name="v2 Scanner: post-close SETUP scan -> watchlist (17:50 IST)",
+        )
+        scheduler.add_job(
+            run_morning_gap_pass,
+            CronTrigger(day_of_week="mon-fri", hour=9, minute=15, timezone=IST),
+            id="morning_gap",
+            name="v2 Exit: 09:15 gap-down check",
         )
 
         logger.info(f"APScheduler configured with {len(scheduler.get_jobs())} jobs")

@@ -172,9 +172,16 @@ export function TradesTab() {
           P&L as multiples of initial risk. +2R = made 2x what you risked. -1R =
           full stop-loss hit.
         </Term>
-        <Term label="Exit Framework">
-          2R = book 20%, NE (4x TRP) = book 20%, GE (8x TRP) = book 40%, EE
-          (12x TRP) = book 80%. Remaining rides with trailing Stop Loss.
+        <Term label="Exit Framework (v2)">
+          No profit-taking ladder. Exit only on a confirmed daily close below the
+          stop (or a gap-down open). The stop is a 5x ATR chandelier trail that
+          ratchets up with the highest high &mdash; winners ride until the trail is
+          closed through.
+        </Term>
+        <Term label="Stop &amp; Trail">
+          Initial SL is the 1R risk (entry &minus; 1x TRP). Current Stop is the live
+          chandelier (max of the initial SL and highest high &minus; 5x ATR); an
+          &uarr; marks a stop that has ratcheted above the initial 1R.
         </Term>
         <Term label="Average Risk-Reward">
           Average winning trade size divided by average losing trade size. Target
@@ -272,7 +279,7 @@ export function TradesTab() {
                     Remaining
                   </th>
                   <th className="px-5 py-2.5 font-medium text-right">
-                    Stop Loss Price
+                    Stop
                   </th>
                   <th className="px-5 py-2.5 font-medium text-right">P&L</th>
                   <th className="px-5 py-2.5 font-medium text-right">

@@ -1,14 +1,15 @@
 """
 broker_client.py — Generic broker abstraction for CTS.
 
-Supports three modes:
-  - paper: simulated orders (default, safe for development)
-  - jhaveri: Jhaveri Securities broker API (future implementation)
-  - dhan: Dhan broker API (legacy, kept for reference)
+Supports:
+  - paper: simulated orders (default, safe — the v2 paper engine fills here)
+  - kite:  Zerodha Kite Connect — the SAME provider as the data feed (Phase-2, scaffold)
+  - jhaveri: Jhaveri Securities broker API (placeholder)
 
-The Risk Guardian uses this interface exclusively for order execution.
-Only SELL orders may be placed autonomously (stop loss execution).
-BUY orders require human approval from Telegram.
+KILL-SWITCH: real-money order routes are gated by settings.broker_live_trading (default
+False). The factory returns a live client ONLY when that flag is True, and the live clients
+refuse to instantiate without it — defense in depth so no real order can fire by accident.
+The v2 paper pipeline never touches this module; wiring live fills through it is Phase 2.
 """
 
 import logging
@@ -189,18 +190,53 @@ class JhaveriBrokerClient(BaseBrokerClient):
         raise NotImplementedError("Jhaveri broker integration pending")
 
 
+class KiteBrokerClient(BaseBrokerClient):
+    """Zerodha Kite Connect execution — the Phase-2 real-money provider (scaffold).
+
+    Matches the data feed (Kite), so feed + execution share one auth/session. The order
+    methods are stubs until the live integration + reconciliation in Phase 2; instantiation
+    is hard-gated on the kill-switch so this can never place an order by accident.
+    """
+
+    def __init__(self):
+        if not settings.broker_live_trading:
+            raise RuntimeError("KiteBrokerClient requires broker_live_trading=True (kill-switch)")
+        if not (settings.kite_api_key and settings.kite_access_token):
+            raise RuntimeError("Kite live trading needs KITE_API_KEY / KITE_ACCESS_TOKEN")
+        logger.warning("KiteBrokerClient initialised — LIVE order routing armed")
+
+    async def place_limit_order(self, symbol: str, qty: int, price: float,
+                                order_type: str = "BUY") -> dict:
+        raise NotImplementedError("Kite live order routing — Phase 2 (paper run must pass first)")
+
+    async def place_market_order(self, symbol: str, qty: int, order_type: str = "SELL") -> dict:
+        raise NotImplementedError("Kite live order routing — Phase 2 (paper run must pass first)")
+
+    async def get_order_status(self, order_id: str) -> dict:
+        raise NotImplementedError("Kite live order routing — Phase 2")
+
+    async def get_live_price(self, symbol: str) -> float:
+        raise NotImplementedError("Kite live quote — Phase 2")
+
+    async def cancel_order(self, order_id: str) -> bool:
+        raise NotImplementedError("Kite live order routing — Phase 2")
+
+    async def get_positions(self) -> list[dict]:
+        raise NotImplementedError("Kite live order routing — Phase 2")
+
+
 def get_broker_client() -> BaseBrokerClient:
-    """Factory: return the appropriate broker client based on config."""
+    """Factory: return a broker client per config. Live clients only when the kill-switch is on."""
     broker_type = settings.broker_type.lower()
 
+    if not settings.broker_live_trading:
+        if broker_type not in ("paper", ""):
+            logger.warning(f"{broker_type} selected but live trading disabled — using paper")
+        return PaperBrokerClient()           # kill-switch OFF -> always paper
+
+    if broker_type == "kite":
+        return KiteBrokerClient()
     if broker_type == "jhaveri":
-        if not settings.broker_live_trading:
-            logger.warning("Jhaveri selected but live trading disabled — using paper")
-            return PaperBrokerClient()
         return JhaveriBrokerClient()
-    elif broker_type == "dhan":
-        # Legacy — redirect to paper for now
-        logger.warning("Dhan broker deprecated — using paper mode")
-        return PaperBrokerClient()
-    else:
-        return PaperBrokerClient()
+    logger.warning(f"Unknown live broker '{broker_type}' — refusing live, using paper")
+    return PaperBrokerClient()

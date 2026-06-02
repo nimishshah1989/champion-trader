@@ -74,6 +74,19 @@ class TradeResponse(BaseModel):
     pnl_pct: Optional[float] = None
     setup_type: Optional[str] = None
 
+    # v2 runtime: trailing chandelier stop + signal attribution (see tables.Trade).
+    # The validated v2 stop MOVES, so current_stop/highest_high/atr_at_entry carry the
+    # live trail (static sl_price above is only the initial 1R). The *_at_entry fields
+    # and strategy_version drive attribution and v2-vs-legacy A/B.
+    current_stop: Optional[Decimal] = None
+    highest_high: Optional[Decimal] = None
+    atr_at_entry: Optional[Decimal] = None
+    signal_type: Optional[str] = None
+    regime_at_entry: Optional[str] = None
+    volume_ratio_at_entry: Optional[Decimal] = None
+    avg_trp_at_entry: Optional[Decimal] = None
+    strategy_version: Optional[str] = None
+
     model_config = {"from_attributes": True}
 
 

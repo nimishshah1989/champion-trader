@@ -170,6 +170,19 @@ class Trade(Base):
     entry_notes = Column(Text)
     exit_notes = Column(Text)
 
+    # v2 runtime: trailing stop + signal attribution.
+    # The validated v2 stop MOVES (5xATR chandelier) — it cannot be represented by the
+    # static write-once sl_price above, so current_stop/highest_high/atr_at_entry carry
+    # the live trail. The *_at_entry fields + strategy_version are for attribution & A/B.
+    current_stop = Column(Numeric(15, 2))            # ratcheting chandelier stop (vs static sl_price)
+    highest_high = Column(Numeric(15, 2))            # running peak since entry (drives the ratchet)
+    atr_at_entry = Column(Numeric(15, 4))            # ATR at entry (trail = highest_high - 5xATR)
+    signal_type = Column(String)                     # stage at entry (S1B / S2)
+    regime_at_entry = Column(String)                 # bull / bear (drove bear-sizing)
+    volume_ratio_at_entry = Column(Numeric(10, 4))   # breakout-bar volume / 50d-avg (>=2x gate)
+    avg_trp_at_entry = Column(Numeric(10, 4))        # avg daily TRP% at entry (>=2.0 gate)
+    strategy_version = Column(String, default="v2")  # which StrategyParams config produced it
+
     created_at = Column(String, server_default=func.now())
     updated_at = Column(String, server_default=func.now())
 
@@ -441,6 +454,12 @@ class SimulationTrade(Base):
     r_multiple = Column(Numeric(10, 4))
     pnl_pct = Column(Numeric(10, 4))
     portfolio_value_at_entry = Column(Numeric(15, 2))
+
+    # v2 trailing stop — paper parity with live (same chandelier fields as `trades`)
+    current_stop = Column(Numeric(15, 2))
+    highest_high = Column(Numeric(15, 2))
+    atr_at_entry = Column(Numeric(15, 4))
+
     created_at = Column(String, server_default=func.now())
 
 

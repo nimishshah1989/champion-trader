@@ -2,117 +2,48 @@ from __future__ import annotations
 
 import logging
 from datetime import date
-from typing import List, Optional
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import and_, desc
+from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
 from backend.database import ScanResult, get_db
 from backend.models.scan_result import ScanRequest, ScanResultResponse
-from backend.services.scanner_engine import (
-    run_all_scans,
-    run_contraction_scan,
-    run_npc_scan,
-    run_ppc_scan,
-)
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/scanner", tags=["Scanner"])
 
 
-def _save_results(db: Session, results: list[dict]) -> list[ScanResult]:
-    """
-    Save scan results to DB with upsert logic.
-    Deletes existing results for the same (scan_date, symbol, scan_type)
-    before inserting new ones.
-    """
-    saved: list[ScanResult] = []
-
-    for result_dict in results:
-        # Delete any existing result for this combo
-        db.query(ScanResult).filter(
-            and_(
-                ScanResult.scan_date == result_dict["scan_date"],
-                ScanResult.symbol == result_dict["symbol"],
-                ScanResult.scan_type == result_dict["scan_type"],
-            )
-        ).delete()
-
-        db_record = ScanResult(**result_dict)
-        db.add(db_record)
-        saved.append(db_record)
-
-    db.commit()
-
-    # Refresh to get auto-generated IDs
-    for record in saved:
-        db.refresh(record)
-
-    return saved
-
-
-def _check_cache(db: Session, scan_date: date, scan_type: str) -> list[ScanResult] | None:
-    """
-    Check if results already exist for this date+type.
-    Returns cached results or None if no cache hit.
-    """
-    types_to_check = ["PPC", "NPC", "CONTRACTION"] if scan_type == "ALL" else [scan_type]
-
-    cached: list[ScanResult] = []
-    for stype in types_to_check:
-        existing = (
-            db.query(ScanResult)
-            .filter(
-                and_(
-                    ScanResult.scan_date == scan_date,
-                    ScanResult.scan_type == stype,
-                )
-            )
-            .all()
-        )
-        cached.extend(existing)
-
-    # Only return cache if we found results for ALL requested types
-    if cached:
-        return cached
-    return None
-
-
 @router.post("/run", response_model=list[ScanResultResponse])
-async def run_scan(request: ScanRequest, db: Session = Depends(get_db)):
-    """Trigger a scan and save results to the database."""
+def run_scan(request: ScanRequest, db: Session = Depends(get_db)):
+    """Run the validated v2 setup scan and return the persisted READY rows.
+
+    This is the SAME brain the daily_scanner cron runs (live_jobs.run_daily_scan):
+    it reads the Kite-adjusted bar store through the parity-proven runtime, writes
+    scan_type="V2" ScanResult rows, and populates the watchlist. The legacy
+    PPC/NPC/Contraction scanners survive only as non-gating labels, so the request's
+    scan_type is accepted for back-compat but ignored — there is one validated setup
+    type now. Sync def: the full-universe scan is blocking, so FastAPI runs it in a
+    worker thread instead of stalling the event loop.
+    """
     scan_date = request.date or date.today()
-    scan_type = request.scan_type.upper()
+    logger.info(f"Running v2 setup scan for {scan_date}")
 
-    if scan_type not in ("PPC", "NPC", "CONTRACTION", "ALL"):
-        raise HTTPException(status_code=400, detail=f"Invalid scan_type: {scan_type}")
+    from backend.services.live_jobs import run_daily_scan
 
-    logger.info(f"Starting {scan_type} scan for {scan_date}")
+    result = run_daily_scan(scan_date)
+    if "error" in result:
+        logger.error(f"v2 scan failed: {result['error']}")
+        raise HTTPException(status_code=500, detail=f"Scan failed: {result['error']}")
 
-    try:
-        scan_date_str = str(scan_date)
-
-        if scan_type == "ALL":
-            # Single download, all three scans
-            results, _data = await run_all_scans(scan_date_str)
-        elif scan_type == "PPC":
-            results = await run_ppc_scan(scan_date_str)
-        elif scan_type == "NPC":
-            results = await run_npc_scan(scan_date_str)
-        else:
-            results = await run_contraction_scan(scan_date_str)
-
-        # Save to DB
-        saved_records = _save_results(db, results)
-        logger.info(f"Saved {len(saved_records)} scan results to database")
-
-        return saved_records
-
-    except Exception as exc:
-        logger.error(f"Scan failed: {exc}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Scan failed: {str(exc)}")
+    return (
+        db.query(ScanResult)
+        .filter(ScanResult.scan_date == scan_date, ScanResult.scan_type == "V2")
+        .order_by(ScanResult.symbol)
+        .all()
+    )
 
 
 @router.get("/results", response_model=list[ScanResultResponse])

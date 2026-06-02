@@ -35,14 +35,14 @@ class TestConstants:
     def test_virtual_capital_is_100000(self):
         assert VIRTUAL_CAPITAL == Decimal("100000")
 
-    def test_rpt_pct_is_0_50(self):
-        assert RPT_PCT == 0.50
+    def test_rpt_pct_matches_v2(self):
+        assert RPT_PCT == Decimal("0.35")        # v2 RPT (RISK_V2.rpt_pct), was 0.50
 
     def test_max_open_risk_pct_is_decimal_10(self):
         assert MAX_OPEN_RISK_PCT == Decimal("10.0")
 
-    def test_max_positions_is_5(self):
-        assert MAX_POSITIONS == 5
+    def test_max_positions_matches_v2(self):
+        assert MAX_POSITIONS == 15               # v2 cap (RISK_V2.max_positions), was 5
 
     def test_min_trp_is_decimal_2(self):
         assert MIN_TRP == Decimal("2.0")
@@ -69,6 +69,7 @@ class TestConstants:
 def _make_scan(
     symbol="RELIANCE",
     trp=3.0,
+    avg_trp=None,
     watchlist_bucket="READY",
     passes_liquidity_filter=True,
     stage="S2",
@@ -81,6 +82,9 @@ def _make_scan(
     scan = MagicMock()
     scan.symbol = symbol
     scan.trp = Decimal(str(trp))
+    # real ScanResult rows carry both; post_scan_populate prefers avg_trp (the v2 gate),
+    # falling back to trp for legacy rows — mirror trp by default so doubles are realistic.
+    scan.avg_trp = Decimal(str(avg_trp if avg_trp is not None else trp))
     scan.watchlist_bucket = watchlist_bucket
     scan.passes_liquidity_filter = passes_liquidity_filter
     scan.stage = stage

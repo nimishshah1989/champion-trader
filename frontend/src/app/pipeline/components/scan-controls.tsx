@@ -1,25 +1,18 @@
 "use client";
 
-import { InfoTooltip } from "@/components/info-tooltip";
-import {
-  type ScanType,
-  SCAN_TYPE_OPTIONS,
-  getTodayISO,
-} from "./pipeline-types";
+import { getTodayISO } from "./pipeline-types";
 
 // ---------------------------------------------------------------------------
-// Scan Controls — type selector, date picker, run button, summary bar
+// Scan Controls — date picker, run button, v2 setup summary bar
 // ---------------------------------------------------------------------------
 
 interface ScanControlsProps {
-  scanType: ScanType;
-  onScanTypeChange: (t: ScanType) => void;
   scanDate: string;
   onDateChange: (d: string) => void;
   onRunScan: () => void;
   isScanning: boolean;
-  /** Summary counts — only displayed when results exist */
-  resultCounts: { total: number; ppc: number; npc: number; contraction: number } | null;
+  /** v2 setup counts by stage — only displayed when results exist */
+  resultCounts: { total: number; s1b: number; s2: number } | null;
   scanDateLabel: string | null;
 }
 
@@ -27,8 +20,6 @@ const INPUT_CLASS =
   "bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none";
 
 export function ScanControls({
-  scanType,
-  onScanTypeChange,
   scanDate,
   onDateChange,
   onRunScan,
@@ -41,25 +32,6 @@ export function ScanControls({
       {/* Control row */}
       <div className="bg-white rounded-xl border border-slate-200 p-4">
         <div className="flex flex-wrap items-end gap-4">
-          {/* Scan Type */}
-          <div>
-            <label className="text-xs text-slate-500 mb-1 block font-medium">
-              Scan Type
-            </label>
-            <select
-              className={INPUT_CLASS}
-              value={scanType}
-              onChange={(e) => onScanTypeChange(e.target.value as ScanType)}
-              disabled={isScanning}
-            >
-              {SCAN_TYPE_OPTIONS.map((st) => (
-                <option key={st.value} value={st.value}>
-                  {st.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
           {/* Scan Date */}
           <div>
             <label className="text-xs text-slate-500 mb-1 block font-medium">
@@ -87,26 +59,26 @@ export function ScanControls({
                 Scanning...
               </>
             ) : (
-              "Run Scan"
+              "Run v2 Setup Scan"
             )}
           </button>
 
-          {/* Scan type tooltips (contextual help) */}
-          <div className="flex items-center gap-3 ml-auto text-xs text-slate-400">
-            <InfoTooltip termKey="PPC" showFullTerm />
-            <InfoTooltip termKey="NPC" showFullTerm />
-            <InfoTooltip termKey="CONTRACTION" showFullTerm />
-          </div>
+          <p className="text-xs text-slate-400 ml-auto max-w-sm">
+            Validated v2 scan: Stage-2 uptrend + volatility contraction + avg TRP &ge; 2,
+            buying the break of the 5-day high. The &ge;2x breakout-volume check fires live
+            at entry.
+          </p>
         </div>
 
         {/* Scanning progress */}
         {isScanning && (
           <div className="mt-3 bg-teal-50 border border-teal-200 rounded-lg px-4 py-3">
             <p className="text-sm text-teal-700 font-medium">
-              Scanning ~500 NIFTY stocks... this takes 1-2 minutes
+              Running the validated v2 setup scan across the liquid NSE universe...
             </p>
             <p className="text-xs text-teal-600 mt-1">
-              Downloading price data in batches, then running Positive Pivotal Candle / Negative Pivotal Candle / Base Contraction detection.
+              Reading the Kite-adjusted bar store and evaluating each symbol through the
+              parity-proven runtime. READY setups auto-populate the board below.
             </p>
           </div>
         )}
@@ -117,24 +89,18 @@ export function ScanControls({
         <div className="bg-white rounded-xl border border-slate-200 px-4 py-3 flex flex-wrap items-center gap-4">
           <div className="text-xs text-slate-500">
             <span className="font-medium text-slate-700">
-              {resultCounts.total} signals found
+              {resultCounts.total} v2 setup{resultCounts.total === 1 ? "" : "s"} found
             </span>
-            {scanDateLabel && (
-              <span className="ml-2">for {scanDateLabel}</span>
-            )}
+            {scanDateLabel && <span className="ml-2">for {scanDateLabel}</span>}
           </div>
           <div className="flex items-center gap-3 ml-auto">
             <span className="text-xs font-mono">
-              <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 mr-1" />
-              Positive Pivotal Candle: {resultCounts.ppc}
-            </span>
-            <span className="text-xs font-mono">
-              <span className="inline-block w-2 h-2 rounded-full bg-red-500 mr-1" />
-              Negative Pivotal Candle: {resultCounts.npc}
+              <span className="inline-block w-2 h-2 rounded-full bg-teal-500 mr-1" />
+              Stage S1B: {resultCounts.s1b}
             </span>
             <span className="text-xs font-mono">
               <span className="inline-block w-2 h-2 rounded-full bg-blue-500 mr-1" />
-              Base Contraction: {resultCounts.contraction}
+              Stage S2: {resultCounts.s2}
             </span>
           </div>
         </div>

@@ -297,32 +297,6 @@ def get_webhook_logs(
     return query.order_by(desc(WebhookLog.id)).limit(limit).all()
 
 
-@router.post("/dhan")
-async def receive_dhan_webhook(request: Request, db: Session = Depends(get_db)):
-    """
-    Receive order execution confirmations from Dhan.
-    Logs the raw payload for now — full processing in Phase 6.
-    """
-    try:
-        body = await request.body()
-        raw_text = body.decode("utf-8")
-        payload = json.loads(raw_text)
-    except Exception:
-        payload = {}
-        raw_text = str(await request.body())
-
-    log_entry = WebhookLog(
-        source="dhan",
-        symbol=payload.get("symbol"),
-        raw_payload=raw_text,
-        status="received",
-    )
-    db.add(log_entry)
-    db.commit()
-
-    return {"status": "received", "message": "Dhan webhook logged — full processing in Phase 6"}
-
-
 @router.get("/test")
 def webhook_test():
     """Simple endpoint to verify webhook URL is reachable."""
@@ -330,7 +304,6 @@ def webhook_test():
         "status": "ok",
         "message": "Webhook endpoint is active",
         "tradingview_url": "/webhook/tradingview",
-        "dhan_url": "/webhook/dhan",
     }
 
 

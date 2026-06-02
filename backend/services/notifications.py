@@ -91,3 +91,26 @@ async def send_entry_alert(symbol: str, trigger_level: float) -> bool:
 async def send_daily_brief(brief_text: str) -> bool:
     """Send the CIO Daily Brief via Telegram."""
     return await send_telegram_message(f"<pre>{brief_text}</pre>")
+
+
+async def send_entry_fills(fills: list[dict]) -> bool:
+    """Notify the v2 breakout entries opened in a daily pass. fills: {symbol, shares, entry, stop}."""
+    if not fills:
+        return False
+    lines = [f"🎯 <b>v2 ENTRIES</b> ({len(fills)})"]
+    for f in fills:
+        lines.append(f"• <b>{f['symbol']}</b>: {f['shares']} @ ₹{float(f['entry']):.2f} "
+                     f"(SL ₹{float(f['stop']):.2f})")
+    return await send_telegram_message("\n".join(lines))
+
+
+async def send_exit_fills(fills: list[dict]) -> bool:
+    """Notify the v2 exits closed in a pass. fills: {symbol, fill, reason, r_multiple}."""
+    if not fills:
+        return False
+    lines = [f"🔴 <b>v2 EXITS</b> ({len(fills)})"]
+    for f in fills:
+        r = f.get("r_multiple")
+        rtxt = f" ({float(r):+.2f}R)" if r is not None else ""
+        lines.append(f"• <b>{f['symbol']}</b>: {f['reason']} @ ₹{float(f['fill']):.2f}{rtxt}")
+    return await send_telegram_message("\n".join(lines))

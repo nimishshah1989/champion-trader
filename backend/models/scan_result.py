@@ -6,7 +6,7 @@ from pydantic import BaseModel
 
 
 class ScanRequest(BaseModel):
-    scan_type: str  # PPC, NPC, CONTRACTION, ALL
+    scan_type: str  # back-compat label only — /scanner/run always runs the validated v2 scan
     date: Optional[datetime.date] = None  # defaults to today
 
 

@@ -16,18 +16,19 @@ from sqlalchemy.orm import Session
 from backend.database import (
     ActionAlert, ScanResult, ShadowTrade, Trade, Watchlist, SessionLocal,
 )
+from backend.engine.runtime.config import RISK_V2, STRATEGY_V2
 from backend.intelligence.regime_classifier import get_latest_regime
 from backend.services.position_calculator import calculate_position
 
 logger = logging.getLogger(__name__)
 IST = ZoneInfo("Asia/Kolkata")
 
-# Risk guardrails — hardcoded, never overridden
-VIRTUAL_CAPITAL = Decimal("100000")       # ₹1,00,000
-RPT_PCT = Decimal("0.50")                 # 0.5% risk per trade
-MAX_OPEN_RISK_PCT = Decimal("10.0")       # 10% of capital = ₹10,000
-MAX_POSITIONS = 5                         # max simultaneous open trades
-MIN_TRP = Decimal("2.0")                  # minimum TRP to be tradeable
+# Risk guardrails — sourced from the validated v2 config (no magic numbers; see ARCHITECTURE.md).
+VIRTUAL_CAPITAL = Decimal("100000")              # ₹1,00,000 (account size, not a strategy param)
+RPT_PCT = Decimal(str(RISK_V2.rpt_pct))          # v2: 0.35% risk per trade (was 0.50)
+MAX_OPEN_RISK_PCT = Decimal("10.0")              # 10% of capital — additional autopilot guard
+MAX_POSITIONS = RISK_V2.max_positions            # v2: 15 simultaneous open trades (was 5)
+MIN_TRP = Decimal(str(STRATEGY_V2.min_trp))      # v2: minimum avg TRP to be tradeable (2.0)
 
 
 # ---------------------------------------------------------------------------
@@ -84,8 +85,10 @@ def post_scan_populate(db: Session) -> int:
         if not scan.passes_liquidity_filter:
             continue
 
-        # TRP must be above minimum
-        trp_val = Decimal(str(scan.trp)) if scan.trp else Decimal("0")
+        # TRP must be above minimum. v2 SETUP rows carry avg_trp (the >=2.0 gate);
+        # legacy PPC/NPC rows carry per-bar trp — accept whichever is present.
+        trp_source = scan.avg_trp if scan.avg_trp is not None else scan.trp
+        trp_val = Decimal(str(trp_source)) if trp_source else Decimal("0")
         if trp_val < MIN_TRP:
             continue
 

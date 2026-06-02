@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Champion Trader System — How It Will Work</title>
+<style>
+  :root{
+    --bg:#f6f7f9; --card:#ffffff; --ink:#16202e; --muted:#5b6b7f; --line:#e3e8ef;
+    --indigo:#4f46e5; --indigo-soft:#eef0fe; --teal:#0d9488; --teal-soft:#e6f6f4;
+    --green:#15803d; --green-soft:#e7f6ec; --red:#dc2626; --red-soft:#fdecec;
+    --amber:#b45309; --amber-soft:#fdf3e3; --slate:#0f172a;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    line-height:1.6;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:920px;margin:0 auto;padding:0 20px 80px}
+  header{background:linear-gradient(135deg,#0f172a,#23314b);color:#fff;padding:46px 0 38px;margin-bottom:34px}
+  header .wrap{padding-bottom:0}
+  header h1{margin:0 0 8px;font-size:30px;letter-spacing:-.02em}
+  header p{margin:0;color:#aebdd4;font-size:16px;max-width:680px}
+  .tag{display:inline-block;background:rgba(255,255,255,.12);color:#dbe6f7;
+    font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;
+    padding:5px 11px;border-radius:999px;margin-bottom:16px}
+  h2{font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+    color:var(--indigo);margin:46px 0 6px}
+  h2 .num{color:var(--muted);margin-right:8px}
+  .lead{font-size:15px;color:var(--muted);margin:0 0 18px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;
+    padding:22px 24px;box-shadow:0 1px 2px rgba(16,32,46,.04)}
+  .hero{font-size:17px;line-height:1.7}
+  .hero b{color:var(--slate)}
+  .grid{display:grid;gap:14px}
+  .g3{grid-template-columns:repeat(3,1fr)}
+  .g2{grid-template-columns:repeat(2,1fr)}
+  @media(max-width:680px){.g3,.g2{grid-template-columns:1fr}}
+  .brain{padding:18px 20px}
+  .brain .h{font-weight:700;color:var(--slate);font-size:15px;margin-bottom:2px}
+  .brain .q{color:var(--teal);font-size:13px;font-style:italic;margin-bottom:8px}
+  .brain .o{font-size:14px;color:var(--muted)}
+  /* timeline */
+  .tl{position:relative;margin:8px 0 0;padding-left:0}
+  .row{display:grid;grid-template-columns:88px 1fr;gap:16px;padding:13px 0;border-top:1px solid var(--line)}
+  .row:first-child{border-top:0}
+  .row .t{font-weight:700;color:var(--slate);font-size:14px;font-variant-numeric:tabular-nums}
+  .row .d{font-size:14.5px}
+  .row .d .j{display:block;font-size:12px;color:var(--muted);margin-top:3px}
+  .row.hot{background:var(--indigo-soft);border-radius:12px;border-top:0;padding:15px 16px;margin:6px 0}
+  .row.hot .t{color:var(--indigo)}
+  .pill{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;
+    background:var(--indigo);color:#fff;margin-left:6px;vertical-align:middle}
+  /* steps */
+  .steps{counter-reset:s;display:grid;gap:0}
+  .step{display:grid;grid-template-columns:40px 1fr;gap:16px;padding:16px 0;border-top:1px dashed var(--line)}
+  .step:first-child{border-top:0}
+  .step .n{counter-increment:s;width:32px;height:32px;border-radius:50%;background:var(--slate);
+    color:#fff;font-weight:700;display:flex;align-items:center;justify-content:center;font-size:15px}
+  .step .n::before{content:counter(s)}
+  .step .h{font-weight:700;color:var(--slate)}
+  .step .b{font-size:14.5px;color:var(--muted)}
+  .step .b code{background:#eef1f5;padding:1px 6px;border-radius:5px;font-size:13px;color:var(--slate)}
+  /* safeguards */
+  .sg{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+  @media(max-width:680px){.sg{grid-template-columns:1fr}}
+  .sg .i{background:var(--card);border:1px solid var(--line);border-left:3px solid var(--teal);
+    border-radius:10px;padding:12px 15px;font-size:14px}
+  .sg .i b{color:var(--slate)}
+  /* tables */
+  .tblwrap{overflow-x:auto;border:1px solid var(--line);border-radius:12px}
+  table{border-collapse:collapse;width:100%;font-size:13.5px;font-variant-numeric:tabular-nums}
+  th,td{padding:9px 12px;text-align:right;white-space:nowrap}
+  th:first-child,td:first-child{text-align:left}
+  thead th{background:#f0f3f8;color:var(--slate);font-weight:700;border-bottom:1px solid var(--line)}
+  tbody tr{border-top:1px solid var(--line)}
+  tbody tr:nth-child(even){background:#fbfcfe}
+  td.pos{color:var(--green);font-weight:600}
+  td.neg{color:var(--red);font-weight:600}
+  tr.mark{background:var(--amber-soft)!important}
+  tr.good{background:var(--green-soft)!important}
+  tfoot td{font-weight:700;border-top:2px solid var(--line);background:#f0f3f8}
+  .colnote{font-size:12px;color:var(--muted);margin-top:8px}
+  /* callouts */
+  .note{border-radius:12px;padding:16px 18px;font-size:14.5px}
+  .note.amber{background:var(--amber-soft);border:1px solid #f4d9a8}
+  .note.amber b{color:var(--amber)}
+  .note.teal{background:var(--teal-soft);border:1px solid #b9e6e0}
+  .note.teal b{color:var(--teal)}
+  /* phases */
+  .ph{border:1px solid var(--line);border-radius:12px;padding:16px 18px;background:var(--card)}
+  .ph .top{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+  .ph .name{font-weight:700;color:var(--slate)}
+  .badge{font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px}
+  .b-done{background:var(--green-soft);color:var(--green)}
+  .b-now{background:var(--indigo-soft);color:var(--indigo)}
+  .b-next{background:#eef1f5;color:var(--muted)}
+  .ph p{margin:0;font-size:14px;color:var(--muted)}
+  ul.clean{margin:6px 0 0;padding-left:20px}
+  ul.clean li{margin:4px 0;font-size:14.5px}
+  .foot{margin-top:50px;padding-top:18px;border-top:1px solid var(--line);
+    color:var(--muted);font-size:13.5px;font-style:italic}
+  .kv{font-weight:700;color:var(--slate)}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <span class="tag">Operating Synopsis · v2 strategy</span>
+    <h1>How the Champion Trader System Will Work</h1>
+    <p>What we're building, how it runs each day, and the life of a single trade — in plain language, before any code is written.</p>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <h2><span class="num">01</span>In one paragraph</h2>
+  <div class="card hero">
+    A fully-automated <b>swing-trading system</b> that runs the <b>validated v2 strategy</b> on
+    liquid NSE stocks (≥ ₹5cr/day turnover) through <b>Zerodha / Kite</b>. After each market
+    close it scans for breakout setups and builds tomorrow's watchlist. In the <b>last 30
+    minutes</b> of the next session it enters names that break their trigger on confirming
+    volume. It then manages every position with a <b>close-based 5×ATR trailing stop</b> —
+    riding winners, cutting losers only on a confirmed close below the stop — with sizing and
+    risk on <b>fixed rules</b> (0.35% risk/trade · max 15 positions · quarter-size in bear
+    markets · halt at 15% drawdown). You supervise from a <b>dashboard and Telegram</b>, in
+    auto or approve-each-action mode. <b>Phase&nbsp;1 is paper</b> (no real money);
+    <b>Phase&nbsp;2 places live orders.</b>
+  </div>
+
+  <h2><span class="num">02</span>One brain, many hands</h2>
+  <p class="lead">The validated v2 logic lives in one place — <span class="kv">backend/engine/runtime/</span>.
+    Everything else (scanner, monitors, autopilot, alerts) calls this brain. There is no second
+    strategy. Already proven: it reproduces the backtest <b>trade-for-trade, 293 / 293</b>.</p>
+  <div class="grid g3">
+    <div class="card brain">
+      <div class="h">signal_service</div>
+      <div class="q">"Is this a v2 entry today?"</div>
+      <div class="o">→ a trigger price + stop distance, or nothing.</div>
+    </div>
+    <div class="card brain">
+      <div class="h">exit_service</div>
+      <div class="q">"What do I do with this open position?"</div>
+      <div class="o">→ hold &amp; ratchet the 5×ATR trail, or exit.</div>
+    </div>
+    <div class="card brain">
+      <div class="h">risk_manager</div>
+      <div class="q">"How many shares — and am I allowed?"</div>
+      <div class="o">→ size, after caps / bear-sizing / drawdown checks.</div>
+    </div>
+  </div>
+
+  <h2><span class="num">03</span>A day in the life of the system <span style="color:var(--muted);text-transform:none;letter-spacing:0;font-weight:400">(IST)</span></h2>
+  <p class="lead">The system's real moment is the <b>last 30 minutes</b> — when both entries and exits
+    execute, the way a swing trader runs it ("review at EOD, act near the close"). Everything else is prep.</p>
+  <div class="card">
+    <div class="tl">
+      <div class="row"><div class="t">09:15</div><div class="d"><b>Morning gap-check.</b> Any open position that <b>gaps open below</b> its trailing stop is exited at the open (overnight gap risk).</div></div>
+      <div class="row"><div class="t">09:15–15:00</div><div class="d">Idle for decisions — v2 acts on the close, not intraday wiggles. <span class="j">(optional non-binding watch only)</span></div></div>
+      <div class="row hot"><div class="t">15:00–15:30</div><div class="d"><b>THE ACTION WINDOW</b><span class="pill">entries + exits</span><br>
+        <b>① Entries:</b> each READY watchlist name trading above its trigger on ≥2× volume → sized → <b>BUY</b> near the close.<br>
+        <b>② Exits:</b> any open position trading below its trail → <b>SELL</b> near the close (a confirmed close-below).</div></div>
+      <div class="row"><div class="t">15:30</div><div class="d">Market close.</div></div>
+      <div class="row"><div class="t">~15:45</div><div class="d"><b>Data ingest.</b> Pull the day's Kite-adjusted bars for the universe + NIFTY 500 into the database.</div></div>
+      <div class="row"><div class="t">16:00</div><div class="d"><b>Trail update + scan.</b> Ratchet every open trail up (<code style="font-size:12px">stop = max(old, high − 5×ATR)</code>); run the scan → write today's setups → build <b>tomorrow's READY/NEAR watchlist</b>.</div></div>
+      <div class="row"><div class="t">16:45</div><div class="d"><b>Regime check.</b> Is NIFTY 500 above its rising 50-DMA? Sets tomorrow's sizing — full vs <b>0.25×</b> (bear).</div></div>
+      <div class="row"><div class="t">17:00</div><div class="d"><b>Daily brief → Telegram:</b> new setups, watchlist, open positions + trails, today's exits, equity / open risk / drawdown.</div></div>
+      <div class="row"><div class="t">overnight</div><div class="d">Nothing. AutoOptimize is frozen — thresholds don't auto-change.</div></div>
+    </div>
+  </div>
+  <div class="note teal" style="margin-top:14px"><b>Why this is simpler than the old system:</b> because v2 is
+    close-based, it does <b>not</b> watch positions tick-by-tick (the old 2-min polling that caused premature
+    exits). One decision near the close + one morning gap-check. Less infrastructure — and it matches the method.</div>
+
+  <h2><span class="num">04</span>The life of a single trade</h2>
+  <div class="card">
+    <div class="steps">
+      <div class="step"><div class="n"></div><div><div class="h">Spotted &nbsp;<span style="font-weight:400;color:var(--muted)">— Day D, after close</span></div>
+        <div class="b">Stock X passes the v2 scan (Stage-2 uptrend, volatility contraction, valid base, avg TRP ≥ 2) → lands on the watchlist as <b>READY</b>, with a trigger price <i>T</i> (the 5-day high) and a stop distance.</div></div></div>
+      <div class="step"><div class="n"></div><div><div class="h">Entered &nbsp;<span style="font-weight:400;color:var(--muted)">— a later day, last 30 min</span></div>
+        <div class="b">X trades above <i>T</i> on <b>≥2× average volume</b> → size = <code>0.35% of equity ÷ stop-distance</code>, ×0.25 if bear regime, <b>skipped</b> if already 15 positions / drawdown halt / circuit-locked → <b>BUY</b> near close. Initial stop = <code>entry − 1×TRP</code>.</div></div></div>
+      <div class="step"><div class="n"></div><div><div class="h">Managed &nbsp;<span style="font-weight:400;color:var(--muted)">— every day after, at the close</span></div>
+        <div class="b">The trail ratchets up: <code>stop = max(old, highest_high − 5×ATR)</code>. <b>No profit target</b> — the position rides.</div></div></div>
+      <div class="step"><div class="n"></div><div><div class="h">Exited</div>
+        <div class="b">The first day X <b>closes below the trail</b> (or <b>gaps below at the open</b>) → <b>SELL the whole position.</b> R-multiple &amp; P&amp;L recorded, Telegram notifies, journal updates.</div></div></div>
+    </div>
+  </div>
+  <div class="note amber" style="margin-top:14px"><b>The honest trade reality:</b> ~65% of trades exit for a small
+    loss (~−1R); the minority that trend pay for them many times over. <b>You must take every signal</b> — the
+    winners are unpredictable and a handful make the year.</div>
+
+  <h2><span class="num">05</span>The safeguards <span style="color:var(--muted);text-transform:none;letter-spacing:0;font-weight:400">(always on)</span></h2>
+  <div class="sg">
+    <div class="i"><b>Per-trade risk 0.35%</b> of equity, and a hard <b>max of 15</b> concurrent positions.</div>
+    <div class="i"><b>Bear-sizing:</b> quarter-size new entries when NIFTY 500 is below its rising 50-DMA.</div>
+    <div class="i"><b>Drawdown breaker:</b> at −15% from peak, halt new entries; resume within 7.5%. Open trades keep running.</div>
+    <div class="i"><b>Liquidity floor ≥ ₹5cr/day</b> turnover (config; ≥ ₹15cr for large capital) — fillable, less survivorship-prone.</div>
+    <div class="i"><b>Kill-switch</b> (Phase 2): one control to stop all new orders instantly.</div>
+    <div class="i"><b>Idle cash</b> parked at ~6.5% so un-deployed capital still earns.</div>
+  </div>
+
+  <h2><span class="num">06</span>What you see &amp; do</h2>
+  <div class="grid g2">
+    <div class="card">
+      <div class="brain"><div class="h" style="margin-bottom:6px">You see</div>
+      <ul class="clean">
+        <li><b>Dashboard</b> (the existing app): watchlist, open positions with live trails, pending BUY/SELL actions, trade history, equity curve, portfolio risk.</li>
+        <li><b>Telegram:</b> entry signals, exit signals, the daily brief, risk warnings.</li>
+      </ul></div>
+    </div>
+    <div class="card">
+      <div class="brain"><div class="h" style="margin-bottom:6px">You choose a mode</div>
+      <ul class="clean">
+        <li><b>APPROVE</b> — system proposes each BUY/SELL, you tap to confirm. <i>(Recommended early, to build trust.)</i></li>
+        <li><b>AUTO</b> — system executes on its own within the rules. <i>(The end state.)</i></li>
+      </ul></div>
+    </div>
+  </div>
+
+  <h2><span class="num">07</span>Data &amp; broker — one provider</h2>
+  <div class="note teal"><b>Zerodha / Kite</b> supplies <b>both</b> the adjusted historical bars the brain reasons on
+    <b>and</b> the order execution. One login, one session — and the <b>live feed is identical to the backtest
+    feed</b>, which removes the price-adjustment mismatch that caused the original phantom-loss bug. The old
+    yfinance scan feed and the Dhan stubs are retired.</div>
+
+  <h2><span class="num">08</span>The honest expectations</h2>
+  <div class="note amber"><b>Plan around ~16–18% deployable CAGR (ex-2021), not the 26.5% headline.</b> That headline
+    leaned on sub-₹1cr micro-caps you can't fill at size and on the one-off 2021 melt-up. Win rate ~35%,
+    win/loss magnitude ~8:1, with long stretches of small losses between trends. Flat years happen (2018, 2022 ≈ 0).
+    Drawdowns to ~15–17% are normal; the breaker caps the tail.</div>
+
+  <p class="lead" style="margin-top:22px">Why the deployable number is ~16–18%, not 26% — the same v2 portfolio at rising liquidity floors:</p>
+  <div class="tblwrap">
+    <table>
+      <thead><tr><th>Liquidity floor</th><th>CAGR</th><th>maxDD</th><th>Calmar</th><th>ex-2021 CAGR</th></tr></thead>
+      <tbody>
+        <tr><td>FULL universe <span style="color:var(--muted)">(headline)</span></td><td>26.5%</td><td>14.8%</td><td>1.79</td><td>19.5%</td></tr>
+        <tr class="good"><td>≥ ₹5cr <b>(Phase 1 default)</b></td><td>18.1%</td><td>15.4%</td><td>1.18</td><td>18.3%</td></tr>
+        <tr class="good"><td>≥ ₹15cr <span style="color:var(--muted)">(large capital)</span></td><td>15.9%</td><td>16.9%</td><td>0.94</td><td>17.6%</td></tr>
+        <tr><td>≥ ₹50cr <span style="color:var(--muted)">(mega only — no edge)</span></td><td>6.3%</td><td>4.2%</td><td>1.49</td><td>6.6%</td></tr>
+        <tr><td>NIFTY 500 buy &amp; hold</td><td>13.4%</td><td>44.8%</td><td>0.30</td><td>11.7%</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p class="lead" style="margin-top:22px">Year by year — note 2021's melt-up vanishes in the fillable tiers, while the deployable edge has been strong 2023→:</p>
+  <div class="tblwrap">
+    <table>
+      <thead><tr><th>Year</th><th>FULL</th><th>≥5cr</th><th>≥15cr</th><th>NIFTY 500</th></tr></thead>
+      <tbody>
+        <tr><td>2016</td><td class="pos">10.3%</td><td class="pos">6.5%</td><td class="pos">4.4%</td><td class="pos">10.3%</td></tr>
+        <tr><td>2017</td><td class="pos">38.6%</td><td class="pos">13.8%</td><td class="pos">8.5%</td><td class="pos">35.9%</td></tr>
+        <tr><td>2018</td><td class="neg">−5.9%</td><td class="neg">−1.1%</td><td class="pos">3.3%</td><td class="neg">−3.4%</td></tr>
+        <tr><td>2019</td><td class="pos">5.5%</td><td class="pos">6.4%</td><td class="pos">4.3%</td><td class="pos">7.7%</td></tr>
+        <tr><td>2020</td><td class="pos">26.9%</td><td class="pos">12.7%</td><td class="pos">11.4%</td><td class="pos">16.7%</td></tr>
+        <tr class="mark"><td>2021 <span style="font-size:11px">(micro mirage)</span></td><td class="pos">114.3%</td><td class="pos">16.2%</td><td class="pos">1.4%</td><td class="pos">30.2%</td></tr>
+        <tr><td>2022</td><td class="pos">2.8%</td><td class="pos">2.3%</td><td class="pos">2.3%</td><td class="pos">3.0%</td></tr>
+        <tr class="good"><td>2023</td><td class="pos">48.4%</td><td class="pos">54.7%</td><td class="pos">50.3%</td><td class="pos">25.8%</td></tr>
+        <tr class="good"><td>2024</td><td class="pos">41.4%</td><td class="pos">46.1%</td><td class="pos">45.8%</td><td class="pos">15.2%</td></tr>
+        <tr class="good"><td>2025</td><td class="pos">11.2%</td><td class="pos">22.9%</td><td class="pos">22.2%</td><td class="pos">6.7%</td></tr>
+        <tr class="good"><td>2026*</td><td class="pos">9.8%</td><td class="pos">14.4%</td><td class="pos">18.3%</td><td class="neg">−5.1%</td></tr>
+      </tbody>
+      <tfoot>
+        <tr><td>CAGR</td><td>26.5%</td><td>18.1%</td><td>15.9%</td><td>13.4%</td></tr>
+        <tr><td>ex-2021</td><td>19.5%</td><td>18.3%</td><td>17.6%</td><td>11.7%</td></tr>
+      </tfoot>
+    </table>
+  </div>
+  <p class="colnote">* 2026 is partial (~5 months). Green rows = the deployable, fillable tiers winning in recent years; amber = the 2021 micro melt-up that the liquid tiers (rightly) didn't chase.</p>
+
+  <h2><span class="num">09</span>What gets built, in order</h2>
+  <div class="grid" style="gap:12px">
+    <div class="ph"><div class="top"><span class="name">Phase 0 — Foundation</span><span class="badge b-now">in progress</span></div>
+      <p><b>Done:</b> signal_service + exit_service extracted &amp; parity-proven (293/293).
+         <b>Next:</b> risk_manager + portfolio parity · trailing-stop DB column · Kite adjusted-bar ingest.</p></div>
+    <div class="ph"><div class="top"><span class="name">Phase 1 — Paper on the validated engine</span><span class="badge b-next">next</span></div>
+      <p>Wire scan → watchlist → last-30-min entry → sizing → close-based exit → trades/journal → Telegram, all calling the runtime.
+         Run in <b>shadow</b> beside the old path, then <b>paper</b> for 10–15 sessions; reconcile real fills. <b>No real money.</b></p></div>
+    <div class="ph"><div class="top"><span class="name">Phase 2 — Live on Kite</span><span class="badge b-next">later</span></div>
+      <p>Real orders behind the same runtime, ≥₹15cr tier if capital is large, hard risk gates + kill-switch + daily broker reconciliation.</p></div>
+  </div>
+
+  <div class="foot">The validated strategy is fixed and proven; this system is the disciplined machine that executes it
+    without emotion — takes every signal, rides winners, and never widens a stop.</div>
+
+</div>
+</body>
+</html>

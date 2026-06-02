@@ -71,9 +71,10 @@ class TestSettingsDefaults:
         s = _fresh_settings()
         assert isinstance(s.default_rpt_pct, (float, Decimal))
 
-    def test_autooptimize_enabled_defaults_true(self):
+    def test_autooptimize_enabled_defaults_false_frozen_for_v2(self):
+        # FROZEN for the v2 rollout: auto-tuning must not perturb the parity-gated config.
         s = _fresh_settings()
-        assert s.autooptimize_enabled is True
+        assert s.autooptimize_enabled is False
 
     def test_environment_defaults_development(self):
         s = _fresh_settings()

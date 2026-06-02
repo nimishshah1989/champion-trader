@@ -11,8 +11,10 @@ manufactures a fake edge in the backtest.
 from __future__ import annotations
 
 import csv
+import hashlib
 import io
 import json
+import urllib.parse
 import urllib.request
 from dataclasses import dataclass
 from datetime import date
@@ -20,6 +22,45 @@ from decimal import Decimal
 from typing import Callable, Optional
 
 KITE_BASE = "https://api.kite.trade"
+
+
+# --- Daily login / access-token exchange (the access_token expires every morning) --------
+
+def login_url(api_key: str) -> str:
+    """The Kite Connect login URL. After login it redirects to your app's redirect URL with
+    ``?request_token=...&status=success`` — paste that request_token into kite_login.py."""
+    return f"https://kite.zerodha.com/connect/login?v=3&api_key={api_key}"
+
+
+def session_checksum(api_key: str, request_token: str, api_secret: str) -> str:
+    """Kite session checksum = SHA-256(api_key + request_token + api_secret)."""
+    return hashlib.sha256(f"{api_key}{request_token}{api_secret}".encode()).hexdigest()
+
+
+def _default_http_post(url: str, fields: dict, timeout: int = 30) -> bytes:
+    data = urllib.parse.urlencode(fields).encode()
+    req = urllib.request.Request(url, data=data, headers={"X-Kite-Version": "3"})
+    return urllib.request.urlopen(req, timeout=timeout).read()
+
+
+def exchange_request_token(api_key: str, api_secret: str, request_token: str, *,
+                           http_post: Optional[Callable[[str, dict], bytes]] = None) -> str:
+    """Exchange a one-time request_token for today's access_token (the Kite session API).
+
+    The HTTP layer is injectable for testing; the checksum + response parsing are pure.
+    Raises RuntimeError if Kite doesn't return a success payload with an access_token.
+    """
+    post = http_post or _default_http_post
+    raw = post(f"{KITE_BASE}/session/token", {
+        "api_key": api_key,
+        "request_token": request_token,
+        "checksum": session_checksum(api_key, request_token, api_secret),
+    })
+    payload = json.loads(raw)
+    token = payload.get("data", {}).get("access_token") if payload.get("status") == "success" else None
+    if not token:
+        raise RuntimeError(f"Kite session exchange failed: {payload}")
+    return token
 
 
 @dataclass(frozen=True)

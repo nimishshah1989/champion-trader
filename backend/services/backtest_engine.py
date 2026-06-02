@@ -1,6 +1,16 @@
 """
 Backtest engine — simulates the full Champion Trader system over a historical period.
 
+⚠ LEGACY / UNVALIDATED. This is the OLD strategy: PPC/NPC setups on a yfinance feed
+with the 2R/NE/GE/EE profit ladder — NOT the validated v2 engine (close-based 5×ATR
+chandelier, ≥2× breakout-volume gate, RPT 0.35 + portfolio overlay). It is the second,
+*unvalidated* backtester the rewire audit flagged (REWIRE_PLAN §1g). The live v2 pipeline
+does NOT use it; the **validated** backtester is `backend/engine/backtest_fast.py`, proven
+trade-for-trade by `scripts/run_runtime_parity.py`. This module survives only behind the
+`/simulation/*` research surface and the (frozen) AutoOptimize scorer. Repointing it onto
+`engine/backtest_fast` is the deferred "strangle" task — large because the SimulationTrade
+schema is built around the ladder. Treat its numbers as exploratory, not the v2 edge.
+
 This engine does NOT rely on pre-saved scan_results. Instead, it:
 1. Fetches OHLCV for the entire NIFTY universe (~464 stocks) in one batch
 2. Pre-computes all PPC detection metrics as vectorized pandas Series

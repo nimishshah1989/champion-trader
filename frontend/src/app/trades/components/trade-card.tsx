@@ -1,7 +1,20 @@
 "use client";
 
 import type { Trade } from "@/lib/api";
-import { formatINR, formatDate } from "./trade-helpers";
+import { formatINR, formatDate, effectiveStop, isTrailing, isV2Trade } from "./trade-helpers";
+
+// ---------------------------------------------------------------------------
+// Signal badge — v2 stage at entry (S1B / S2)
+// ---------------------------------------------------------------------------
+
+function SignalBadge({ trade }: { trade: Trade }) {
+  if (!trade.signal_type) return null;
+  return (
+    <span className="bg-violet-50 text-violet-700 border border-violet-200 rounded-full px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide">
+      {trade.signal_type}
+    </span>
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Status Badge
@@ -86,22 +99,30 @@ function TradeDetailRow({
             </div>
           </div>
 
-          {/* Column 2: Risk levels */}
+          {/* Column 2: Stop & trail (v2 chandelier) */}
           <div className="space-y-2">
             <p className="text-[10px] text-slate-400 uppercase tracking-wider font-medium">
-              Risk
+              Stop &amp; Trail
             </p>
             <div className="space-y-1">
               <div className="flex justify-between">
-                <span className="text-slate-400">Stop Loss Price</span>
-                <span className="font-mono font-semibold text-red-600">
+                <span className="text-slate-400">Initial SL (1R)</span>
+                <span className="font-mono font-semibold text-slate-600">
                   {trade.sl_price != null ? formatINR.format(trade.sl_price) : "--"}
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-400">Stop Loss %</span>
-                <span className="font-mono font-semibold text-red-600">
-                  {trade.sl_pct != null ? `${trade.sl_pct.toFixed(1)}%` : "--"}
+                <span className="text-slate-400">
+                  Current Stop{isTrailing(trade) && <span className="text-emerald-500 ml-0.5">&uarr;</span>}
+                </span>
+                <span className="font-mono font-bold text-red-600">
+                  {effectiveStop(trade) != null ? formatINR.format(effectiveStop(trade) as number) : "--"}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Highest High</span>
+                <span className="font-mono font-semibold text-slate-700">
+                  {trade.highest_high != null ? formatINR.format(trade.highest_high) : "--"}
                 </span>
               </div>
               <div className="flex justify-between">
@@ -110,47 +131,87 @@ function TradeDetailRow({
                   {trade.rpt_amount != null ? formatINR.format(trade.rpt_amount) : "--"}
                 </span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-slate-400">Setup</span>
-                <span className="font-medium text-slate-700">
-                  {trade.setup_type ?? "--"}
-                </span>
-              </div>
             </div>
           </div>
 
-          {/* Column 3: Targets */}
-          <div className="space-y-2">
-            <p className="text-[10px] text-slate-400 uppercase tracking-wider font-medium">
-              Targets
-            </p>
-            <div className="space-y-1">
-              <div className="flex justify-between">
-                <span className="text-slate-400">2R Target</span>
-                <span className="font-mono font-semibold text-emerald-600">
-                  {trade.target_2r != null ? formatINR.format(trade.target_2r) : "--"}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-400">NE Target</span>
-                <span className="font-mono font-semibold text-emerald-600">
-                  {trade.target_ne != null ? formatINR.format(trade.target_ne) : "--"}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-400">GE Target</span>
-                <span className="font-mono font-semibold text-emerald-600">
-                  {trade.target_ge != null ? formatINR.format(trade.target_ge) : "--"}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-400">EE Target</span>
-                <span className="font-mono font-semibold text-emerald-600">
-                  {trade.target_ee != null ? formatINR.format(trade.target_ee) : "--"}
-                </span>
+          {/* Column 3: Attribution (v2) — or the legacy R-ladder targets */}
+          {isV2Trade(trade) ? (
+            <div className="space-y-2">
+              <p className="text-[10px] text-slate-400 uppercase tracking-wider font-medium">
+                Attribution{trade.strategy_version ? ` · ${trade.strategy_version}` : ""}
+              </p>
+              <div className="space-y-1">
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Signal</span>
+                  <span className="font-medium text-violet-700">
+                    {trade.signal_type ?? "--"}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Regime @ entry</span>
+                  <span className="font-medium text-slate-700">
+                    {trade.regime_at_entry ?? "--"}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Avg TRP @ entry</span>
+                  <span className="font-mono font-semibold text-slate-700">
+                    {trade.avg_trp_at_entry != null ? `${trade.avg_trp_at_entry.toFixed(2)}%` : "--"}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Vol ratio @ entry</span>
+                  <span
+                    className={`font-mono font-semibold ${
+                      trade.volume_ratio_at_entry != null && trade.volume_ratio_at_entry >= 2
+                        ? "text-emerald-600"
+                        : "text-slate-700"
+                    }`}
+                  >
+                    {trade.volume_ratio_at_entry != null ? `${trade.volume_ratio_at_entry.toFixed(2)}x` : "--"}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">ATR @ entry</span>
+                  <span className="font-mono font-semibold text-slate-700">
+                    {trade.atr_at_entry != null ? trade.atr_at_entry.toFixed(2) : "--"}
+                  </span>
+                </div>
               </div>
             </div>
-          </div>
+          ) : (
+            <div className="space-y-2">
+              <p className="text-[10px] text-slate-400 uppercase tracking-wider font-medium">
+                Targets <span className="text-slate-300">(legacy)</span>
+              </p>
+              <div className="space-y-1">
+                <div className="flex justify-between">
+                  <span className="text-slate-400">2R Target</span>
+                  <span className="font-mono font-semibold text-emerald-600">
+                    {trade.target_2r != null ? formatINR.format(trade.target_2r) : "--"}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">NE Target</span>
+                  <span className="font-mono font-semibold text-emerald-600">
+                    {trade.target_ne != null ? formatINR.format(trade.target_ne) : "--"}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">GE Target</span>
+                  <span className="font-mono font-semibold text-emerald-600">
+                    {trade.target_ge != null ? formatINR.format(trade.target_ge) : "--"}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">EE Target</span>
+                  <span className="font-mono font-semibold text-emerald-600">
+                    {trade.target_ee != null ? formatINR.format(trade.target_ee) : "--"}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Column 4: P&L and Actions */}
           <div className="space-y-2">
@@ -280,6 +341,7 @@ export function TradeRow({
               }`}
             />
             {trade.symbol}
+            <SignalBadge trade={trade} />
           </div>
         </td>
 
@@ -305,9 +367,16 @@ export function TradeRow({
           {trade.remaining_qty ?? trade.total_qty ?? "--"}
         </td>
 
-        {/* Stop Loss Price */}
+        {/* Current stop (v2 chandelier trail; falls back to the initial 1R) */}
         <td className="px-5 py-2.5 text-right font-mono tabular-nums text-xs text-red-600 font-semibold">
-          {trade.sl_price != null ? formatINR.format(trade.sl_price) : "--"}
+          {effectiveStop(trade) != null ? (
+            <span className="inline-flex items-center justify-end gap-0.5">
+              {isTrailing(trade) && <span className="text-emerald-500" title="trailing stop ratcheted up">&uarr;</span>}
+              {formatINR.format(effectiveStop(trade) as number)}
+            </span>
+          ) : (
+            "--"
+          )}
         </td>
 
         {/* P&L */}

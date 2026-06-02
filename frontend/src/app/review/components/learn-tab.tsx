@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import {
+  SectionV2Reality,
   Section1SwingTrading,
   Section2FourStages,
   Section3Scanners,
@@ -24,6 +25,7 @@ import {
 // ---------------------------------------------------------------------------
 
 const TOC_ITEMS = [
+  { id: "v2-at-a-glance", label: "The v2 System at a Glance" },
   { id: "swing-trading", label: "What is Swing Trading?" },
   { id: "four-stages", label: "The 4 Stages of a Stock" },
   { id: "scanners", label: "How We Find Stocks (Scanners)" },
@@ -104,7 +106,8 @@ export function LearnTab() {
         </div>
       </div>
 
-      {/* All 12 Methodology Sections */}
+      {/* v2 reality first, then the 12 beginner sections */}
+      <SectionV2Reality />
       <Section1SwingTrading />
       <Section2FourStages />
       <Section3Scanners />

@@ -13,8 +13,10 @@ import {
   type TradeStats,
   type HealthStatus,
 } from "@/lib/api";
+import { getRiskStatus, type RiskStatus } from "@/lib/intelligence-api";
 import {
   SystemStatusBanner,
+  DrawdownBanner,
   MorningCheckCards,
   OpenPositionsTable,
   WatchlistSection,
@@ -32,16 +34,18 @@ export default function DashboardPage() {
   const [stance, setStance] = useState<MarketStance | null>(null);
   const [watchlist, setWatchlist] = useState<WatchlistItem[]>([]);
   const [health, setHealth] = useState<HealthStatus | null>(null);
+  const [risk, setRisk] = useState<RiskStatus | null>(null);
   const [loading, setLoading] = useState(true);
 
   const fetchAll = useCallback(async () => {
     try {
-      const [tradesData, stanceData, watchlistData, statsData, healthData] = await Promise.allSettled([
+      const [tradesData, stanceData, watchlistData, statsData, healthData, riskData] = await Promise.allSettled([
         getTrades("OPEN"),
         getLatestStance(),
         getWatchlist(),
         getTradeStats(),
         healthCheck(),
+        getRiskStatus(),
       ]);
 
       if (tradesData.status === "fulfilled") setOpenTrades(tradesData.value);
@@ -49,6 +53,7 @@ export default function DashboardPage() {
       if (watchlistData.status === "fulfilled") setWatchlist(watchlistData.value);
       if (statsData.status === "fulfilled") setStats(statsData.value);
       if (healthData.status === "fulfilled") setHealth(healthData.value);
+      if (riskData.status === "fulfilled") setRisk(riskData.value);
     } catch (err) {
       console.error("Failed to fetch dashboard data:", err);
     } finally {
@@ -78,6 +83,9 @@ export default function DashboardPage() {
 
       {/* System Status */}
       <SystemStatusBanner health={health} />
+
+      {/* Drawdown breaker state */}
+      <DrawdownBanner risk={risk} />
 
       {/* Morning Check */}
       <div className="space-y-4">

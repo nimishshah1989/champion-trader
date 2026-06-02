@@ -98,6 +98,17 @@ export interface Trade {
   r_multiple: number | null;
   pnl_pct: number | null;
   setup_type: string | null;
+  // v2 runtime: live 5×ATR chandelier trail + signal attribution. current_stop moves
+  // (ratchets up); sl_price above is only the initial 1R. *_at_entry + strategy_version
+  // drive attribution and the v2-vs-legacy A/B.
+  current_stop: number | null;
+  highest_high: number | null;
+  atr_at_entry: number | null;
+  signal_type: string | null;
+  regime_at_entry: string | null;
+  volume_ratio_at_entry: number | null;
+  avg_trp_at_entry: number | null;
+  strategy_version: string | null;
 }
 
 export interface TradeStats {

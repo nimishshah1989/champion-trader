@@ -62,8 +62,23 @@ export default function SimulationPage() {
       <div>
         <h1 className="text-xl font-semibold text-slate-800">Simulation</h1>
         <p className="text-sm text-slate-500">
-          Backtest and paper trade the Champion Trader methodology. AutoOptimize
-          uses this same engine overnight to score parameter experiments.
+          Backtest and paper trade the Champion Trader methodology — a research surface.
+        </p>
+      </div>
+
+      {/* Legacy-engine notice — this surface is NOT the validated v2 engine */}
+      <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+        <p className="text-sm font-semibold text-amber-800">
+          Legacy backtester — not the validated v2 engine
+        </p>
+        <p className="text-xs text-amber-700 mt-1 leading-relaxed">
+          This page runs the older PPC/NPC + 2R/4R/8R/12R ladder strategy on a yfinance
+          feed, kept for exploration only. The live system trades the validated{" "}
+          <strong>v2</strong> strategy (close-based 5&times;ATR chandelier, &ge;2&times;
+          breakout-volume gate, RPT 0.35 + drawdown breaker). Validated v2 backtest numbers
+          come from the parity-gated{" "}
+          <code className="text-[11px] bg-amber-100 px-1 rounded">engine/backtest_fast</code>,
+          not this surface. AutoOptimize is frozen for the v2 rollout.
         </p>
       </div>
 
@@ -78,10 +93,10 @@ export default function SimulationPage() {
           Simulate the strategy day-by-day on live market data. Process one day
           at a time to see entries, exits, and equity progression in real time.
         </Term>
-        <Term label="Used by AutoOptimize">
-          The overnight optimiser runs backtests to score each parameter
-          experiment. Composite score = expectancy x sqrt(trade_count) x (1 -
-          max_drawdown). 10 experiments per session, capped to limit compute.
+        <Term label="AutoOptimize (frozen)">
+          The overnight optimiser used this engine to score parameter experiments,
+          but it is FROZEN for the v2 rollout — the validated params are parity-gated
+          and must not be auto-tuned. Kept here for reference only.
         </Term>
         <Term label="Equity Curve">
           Daily portfolio value plot. Upward slope = strategy edge is working.

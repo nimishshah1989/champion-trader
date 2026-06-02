@@ -25,74 +25,83 @@ Individual check functions are in risk_guardian_checks.py.
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from decimal import Decimal
 
+from backend.config import settings
 from backend.database import SessionLocal, Trade
+from backend.engine.runtime.config import RISK_V2, RiskParams
+from backend.engine.runtime.risk_manager import update_halt
 from backend.intelligence.risk_guardian_checks import (
+    MAX_OPEN_RISK_PCT,
     PORTFOLIO_CHECK_INTERVAL_SECONDS,
-    batch_fetch_prices,
-    check_single_position,
-    portfolio_level_checks,
+    send_alert,
 )
 
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# Module-level state
+# Module-level state — the v2 drawdown breaker (15% halt / 7.5% resume).
 # ---------------------------------------------------------------------------
-_frozen = False  # True if month drawdown > 6% -- no new entries allowed
-_last_portfolio_check: datetime | None = None
+_frozen = False  # True when the drawdown breaker has tripped -- no new entries allowed
 
 # Re-export the constant so any callers that imported it from here still work
 PORTFOLIO_CHECK_INTERVAL_SECONDS = PORTFOLIO_CHECK_INTERVAL_SECONDS  # noqa: F811
 
 
+def current_dd_halt(db, *, risk: RiskParams = RISK_V2,
+                    start_capital: Decimal | None = None) -> tuple[bool, float, float]:
+    """Replay the 15%/7.5% drawdown breaker over the realised equity curve.
+
+    Returns (halted, equity, peak). Realised P&L only (closed trades, in exit order) — a
+    conservative, network-free guard for the paper engine. Phase-2 LIVE marks open positions
+    to market for a true intraday equity; the breaker thresholds live in RiskParams.
+    """
+    if start_capital is None:
+        start_capital = Decimal(str(settings.paper_capital))
+    closed = (db.query(Trade).filter(Trade.status == "CLOSED")
+              .order_by(Trade.exit_date.asc(), Trade.id.asc()).all())
+    equity = float(start_capital)
+    peak = equity
+    halted = False
+    for t in closed:
+        if t.gross_pnl is not None:
+            equity += float(t.gross_pnl)
+        peak = max(peak, equity)
+        halted = update_halt(halted, equity, peak, risk)
+    return halted, equity, peak
+
+
 async def monitor_positions() -> None:
+    """v2 portfolio guard — surface the drawdown breaker state + flag excess open risk.
+
+    Per-position stop management is the post-close exit job's job now (exit_runtime's
+    close-based chandelier). This guard tracks the 15%-halt / 7.5%-resume breaker and
+    publishes it via `is_frozen()` (for /health + the FREEZE Telegram alert). The entry pass
+    does not rely on this flag — it recomputes the same halt directly at fill time through
+    `current_dd_halt`, so a freeze is enforced even outside the guard's market-hours cadence.
     """
-    Main monitoring loop -- called every 10 minutes by APScheduler.
-    Fetches live prices, checks SL breaches, updates trailing stops,
-    and runs portfolio-level risk checks on a 30-minute cadence.
-    """
-    global _last_portfolio_check, _frozen
+    global _frozen
 
     db = SessionLocal()
     try:
-        open_trades = (
-            db.query(Trade)
-            .filter(Trade.status.in_(["OPEN", "PARTIAL"]))
-            .all()
-        )
+        halted, equity, peak = current_dd_halt(db)
+        was, _frozen = _frozen, halted
+        if halted and not was:
+            logger.warning(f"HALT: drawdown breaker tripped — equity ₹{equity:,.0f} vs "
+                           f"peak ₹{peak:,.0f}; new entries FROZEN")
+            await send_alert(f"Drawdown breaker tripped: equity ₹{equity:,.0f} vs "
+                             f"peak ₹{peak:,.0f}. New entries FROZEN.")
+        elif was and not halted:
+            logger.info(f"RESUME: drawdown recovered — equity ₹{equity:,.0f}; entries unfrozen")
 
-        if not open_trades:
-            return
-
-        logger.info(f"Monitoring {len(open_trades)} open positions")
-
-        symbols = [t.symbol for t in open_trades]
-        prices = await batch_fetch_prices(symbols)
-
-        for trade in open_trades:
-            live_price = prices.get(trade.symbol)
-            if live_price is None or live_price <= 0:
-                logger.warning(f"No price for {trade.symbol}, skipping")
-                continue
-
-            await check_single_position(db, trade, live_price)
-
-        db.commit()
-
-        now = datetime.now()
-        should_run_portfolio = (
-            _last_portfolio_check is None
-            or (now - _last_portfolio_check).seconds >= PORTFOLIO_CHECK_INTERVAL_SECONDS
-        )
-        if should_run_portfolio:
-            _frozen = await portfolio_level_checks(db, open_trades, prices, _frozen)
-            _last_portfolio_check = now
-
+        open_trades = db.query(Trade).filter(Trade.status.in_(["OPEN", "PARTIAL"])).all()
+        open_risk = sum((Decimal(str(t.rpt_amount or 0)) for t in open_trades), Decimal("0"))
+        cap = Decimal(str(equity)) * Decimal(str(MAX_OPEN_RISK_PCT)) / Decimal("100")
+        if open_risk > cap:
+            logger.warning(f"OPEN RISK ₹{open_risk:,.0f} exceeds {MAX_OPEN_RISK_PCT}% "
+                           f"cap ₹{cap:,.0f} across {len(open_trades)} positions")
     except Exception as e:
-        logger.error(f"Position monitoring error: {e}")
-        db.rollback()
+        logger.error(f"Risk guardian error: {e}")
     finally:
         db.close()
 

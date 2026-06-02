@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Trade, WatchlistItem, TradeStats, MarketStance, HealthStatus } from "@/lib/api";
+import type { RiskStatus } from "@/lib/intelligence-api";
+import { effectiveStop, isTrailing } from "@/app/trades/components/trade-helpers";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -24,17 +26,22 @@ const STANCE_COLORS: Record<string, { color: string; bg: string }> = {
 // JOB_META — human-readable names + schedule descriptions
 // ---------------------------------------------------------------------------
 
+// v2 post-close pipeline: kite_ingest 17:30 → exit 17:40 → entry 17:45 → scan 17:50,
+// plus the 09:15 morning gap-down check. (next_run from /health is authoritative;
+// these are the descriptive cadences.)
 const JOB_META: Record<string, { label: string; schedule: string }> = {
-  daily_scanner:   { label: "Daily Scanner",    schedule: "4:00 PM" },
-  exit_monitor:    { label: "Exit Monitor",      schedule: "Every 2 min" },
-  entry_monitor:   { label: "Entry Monitor",     schedule: "3:00-3:30 PM" },
-  risk_guardian:   { label: "Risk Guardian",     schedule: "Every 10 min" },
+  kite_ingest:     { label: "Kite Bar Ingest",   schedule: "5:30 PM" },
+  exit_monitor:    { label: "Exit Pass",          schedule: "5:40 PM" },
+  entry_monitor:   { label: "Entry Pass",         schedule: "5:45 PM" },
+  daily_scanner:   { label: "v2 Setup Scan",      schedule: "5:50 PM" },
+  morning_gap:     { label: "Morning Gap Check",  schedule: "9:15 AM" },
+  risk_guardian:   { label: "Risk Guardian",      schedule: "Every 10 min" },
   regime_classifier: { label: "Regime Classifier", schedule: "4:45 PM" },
   cio_agent:       { label: "CIO Brief",         schedule: "5:00 PM" },
   corpus_updater:  { label: "Corpus Updater",    schedule: "5:30 PM" },
   learning_agent:  { label: "Learning Agent",    schedule: "Every 30 min" },
   shadow_portfolio:{ label: "Shadow Portfolio",  schedule: "Every 30 min" },
-  autooptimize:    { label: "AutoOptimize",      schedule: "6:00 PM" },
+  autooptimize:    { label: "AutoOptimize",      schedule: "Frozen" },
 };
 
 function formatNextRun(nextRunStr: string): string {
@@ -103,6 +110,59 @@ export function SystemStatusBanner({ health }: { health: HealthStatus | null }) 
 }
 
 // ---------------------------------------------------------------------------
+// DrawdownBanner — the v2 15% drawdown breaker state
+// ---------------------------------------------------------------------------
+
+export function DrawdownBanner({ risk }: { risk: RiskStatus | null }) {
+  if (!risk) return null;
+  const dd = risk.drawdown;
+  const halted = risk.frozen || dd.halted;
+
+  if (halted) {
+    return (
+      <div className="rounded-xl border border-red-200 bg-red-50 p-4">
+        <div className="flex items-center gap-2">
+          <span className="relative flex h-2.5 w-2.5">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500" />
+          </span>
+          <span className="text-sm font-semibold text-red-800">
+            New entries HALTED — drawdown {dd.drawdown_pct.toFixed(1)}% (breaker at {dd.halt_threshold_pct}%)
+          </span>
+        </div>
+        <p className="text-xs text-red-600 mt-1">
+          Open positions keep running. The breaker resumes new entries once equity recovers
+          to within {dd.resume_threshold_pct}% of its {formatINR.format(dd.peak)} peak.
+        </p>
+      </div>
+    );
+  }
+
+  // Not halted — show a subtle gauge of how close the book is to the halt.
+  if (dd.peak <= 0) return null;
+  const ratio = dd.halt_threshold_pct > 0 ? dd.drawdown_pct / dd.halt_threshold_pct : 0;
+  const fill = ratio < 0.5 ? "bg-emerald-400" : ratio < 0.8 ? "bg-amber-400" : "bg-red-400";
+
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white p-3 flex items-center justify-between flex-wrap gap-3">
+      <span className="text-xs text-slate-500">
+        Drawdown breaker:{" "}
+        <span className="font-mono font-semibold text-slate-700">{dd.drawdown_pct.toFixed(1)}%</span> from peak
+        <span className="text-slate-400"> · halts at {dd.halt_threshold_pct}%</span>
+      </span>
+      <div className="flex items-center gap-2 min-w-[180px]">
+        <div className="h-1.5 flex-1 rounded-full bg-slate-100 overflow-hidden">
+          <div className={`h-full rounded-full ${fill}`} style={{ width: `${Math.min(100, ratio * 100)}%` }} />
+        </div>
+        <span className="text-[10px] text-slate-400 tabular-nums whitespace-nowrap">
+          {Math.max(0, dd.halt_threshold_pct - dd.drawdown_pct).toFixed(1)}% to halt
+        </span>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // MorningCheckCards
 // ---------------------------------------------------------------------------
 
@@ -163,7 +223,7 @@ export function MorningCheckCards({
         )}
         {stance && (
           <p className="text-[10px] text-slate-400 mt-1">
-            RPT: {stance.rpt_pct ?? 0.5}% | Max pos: {stance.max_positions ?? "&mdash;"}
+            RPT: {stance.rpt_pct ?? 0.35}% | Max pos: {stance.max_positions ?? 15}
           </p>
         )}
         {!stance && !loading && (
@@ -216,7 +276,7 @@ export function OpenPositionsTable({ trades }: { trades: Trade[] }) {
             <th className="px-5 py-2 font-medium">Symbol</th>
             <th className="px-5 py-2 font-medium">Entry</th>
             <th className="px-5 py-2 font-medium">Qty</th>
-            <th className="px-5 py-2 font-medium">SL Price</th>
+            <th className="px-5 py-2 font-medium">Stop</th>
             <th className="px-5 py-2 font-medium">RPT Amt</th>
             <th className="px-5 py-2 font-medium">Status</th>
           </tr>
@@ -227,7 +287,16 @@ export function OpenPositionsTable({ trades }: { trades: Trade[] }) {
               <td className="px-5 py-2.5 font-bold text-slate-800">{trade.symbol}</td>
               <td className="px-5 py-2.5 font-mono text-xs">{trade.avg_entry_price?.toFixed(2) ?? "&mdash;"}</td>
               <td className="px-5 py-2.5 font-mono text-xs">{trade.remaining_qty ?? trade.total_qty}</td>
-              <td className="px-5 py-2.5 font-mono text-xs text-red-600 font-semibold">{trade.sl_price?.toFixed(2) ?? "&mdash;"}</td>
+              <td className="px-5 py-2.5 font-mono text-xs text-red-600 font-semibold">
+                {effectiveStop(trade) != null ? (
+                  <span className="inline-flex items-center gap-0.5">
+                    {isTrailing(trade) && <span className="text-emerald-500" title="trailing stop">&uarr;</span>}
+                    {(effectiveStop(trade) as number).toFixed(2)}
+                  </span>
+                ) : (
+                  "—"
+                )}
+              </td>
               <td className="px-5 py-2.5 font-mono text-xs">{trade.rpt_amount ? formatINR.format(trade.rpt_amount) : "&mdash;"}</td>
               <td className="px-5 py-2.5">
                 <span className="bg-blue-50 text-blue-700 border border-blue-200 rounded-full px-2 py-0.5 text-[10px] font-medium">
@@ -359,7 +428,7 @@ export function PostMarketLinks({
         <div className="bg-white rounded-xl border border-slate-200 p-5 hover:border-teal-300 transition-colors">
           <h3 className="text-sm font-semibold text-slate-800 mb-1">Run Scans</h3>
           <p className="text-xs text-slate-400">
-            PPC, NPC, Contraction — results auto-fill your pipeline ({nearCount} NEAR, {readyCount} READY)
+            v2 setup scan — results auto-fill your pipeline ({nearCount} NEAR, {readyCount} READY)
           </p>
         </div>
       </Link>

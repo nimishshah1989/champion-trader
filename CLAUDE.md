@@ -7,6 +7,12 @@ Full specification: `README.md` (1336 lines — the source of truth for all trad
 > **Strategy R&D / backtesting work:** read **`STRATEGY_HANDOFF.md` first** to resume.
 > It captures the validated strategy (v2), what's been tested & concluded (4 research
 > tracks — don't redo them), and the open backlog. Spec: `STRATEGY_CARD.md`.
+>
+> **Building / wiring the live system:** read **`ARCHITECTURE.md` first** (engineering
+> standards — one validated brain in `backend/engine/runtime/`, pure core, config-driven
+> params, parity-gated) and **`REWIRE_PLAN.md`** (the phased build). Operating model:
+> `SYSTEM_DESIGN.md`. Keep the codebase clean as it grows — every change meets the
+> Definition of Done in `ARCHITECTURE.md`.
 
 ## Tech Stack
 - **Backend**: Python FastAPI + SQLite (SQLAlchemy ORM)

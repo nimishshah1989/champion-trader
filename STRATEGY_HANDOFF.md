@@ -30,7 +30,7 @@ deployable answer is **v2** (Section 1). Section 5 is what's genuinely still ope
 
 ## 2. The exact config (reproducible)
 
-- **Universe:** ~1,270 NSE names with data (or top-500 by turnover for scale/large accounts).
+- **Universe (live floor DECIDED):** trade names ≥ **₹5cr/day turnover** (Phase-1 paper default; ≥ ₹15cr for large capital). The full ~1,270-name universe is **backtest-only** — its headline returns lean on unfillable sub-₹1cr micro-caps (see Track 5).
 - **Entry (all must hold):** Stage S1B/S2 uptrend · volatility contraction true · avgTRP ≥ 2.0 · valid base (≥20 bars) · buy on break above 5-day high. **No index-regime gate.** **v2 adds: breakout-day volume ≥ 2× the 50-day average.**
 - **Stop (loss-cut):** entry − 1×TRP, **close-based** (exit only on a *close* below the stop, or a gap-down at the open; intraday wicks don't exit).
 - **Exit (profit):** `exit_mode="chandelier"`, **5×ATR trailing stop** (ratchets up only). **No fixed target** — ride until the trail breaks. Confirmed 100% mechanical, no look-ahead (`run_v2_trace.py` re-derives every exit forward).
@@ -56,6 +56,8 @@ Four tracks, each A/B walk-forward validated. Scripts: `run_track{1,2,3,4}_*.py`
 - **Track 4 — regime-conditional filter (≥2× only when weak): DISCIPLINED NEGATIVE.** *Looks* best on full-period (29.2% CAGR) but it's a **2021 mirage** — it rides 2021 like v1 and gives up v2's 2023–25 edge (OOS Calmar 0.46, ex-2021 17.3% < v2's 19.5%). The 50-DMA regime is too crude to tell *easy*-bull (2017/20, filter hurts) from *selective*-bull (23/24, filter helps). **v2 stays.**
 - **Why v2 shines post-2022 (`run_v2_diagnose.py`):** NOT because high-vol breakouts improved — because *low*-vol breakouts **collapsed** (+1.77R in 2016–21 → +0.27R post-2022) as the market got harder/more selective. The filter is a quality screen that only pays when quality matters. **Caveat: if a broad liquidity melt-up returns, expect v2 to lag v1 again** (as in 2020–21).
 - **Honest trade reality (`run_v2_trace.py`):** ~65% of trades lose (median **−1.3R**; ~1-in-5 lose >1.5R because close-based stops let gaps through — losses are NOT capped at 1R). ~35% win (median **+5.2R**). **Top 5 trades = 47% of all profit** → outlier-driven, must take *every* signal. You never sell the top (5×ATR trail gives back ~20–25% from peak).
+
+- **Track 5 — cap/liquidity expectancy + deployable tiers** (`run_v2_cap_diagnostic.py`, `run_v2_deployable_tiers.py`): the edge is **strongly cap-dependent**. Per-trade, mega/large (≥25cr) ≈ **0 edge** (meanR +0.07/+0.31); the money is in **mid (5–25cr, +2.63R, 35% of profit)** and **micro (<1cr, +7.15R, 50% of profit)**. At the portfolio level the headline 26.5% is **micro + 2021 inflated**: 2021 was **+114% FULL but +1.4% at ≥15cr** (the melt-up was entirely sub-15cr). **Deployable ex-2021 CAGR ≈ 18% (≥5cr) / 17.6% (≥15cr)** — still well above the index at ~⅓ the DD. The large-cap edge is **era-dependent** (dead 2016–22, strong 2023–26: ≥15cr +50/+46/+22/+18%). Elevates **survivorship bias** (#2) — the micro tail that inflates the headline is the most delisting-prone. **Live floor DECIDED: ≥5cr (paper) / ≥15cr (large capital). Plan around ~16–18%, not 26%.**
 
 ---
 

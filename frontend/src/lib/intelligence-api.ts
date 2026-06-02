@@ -17,6 +17,7 @@ import type {
   DailyBrief,
   SetupCard,
   RiskStatus,
+  DrawdownState,
   ShadowComparison,
   ShadowTrade,
   AttributionRow,
@@ -42,6 +43,7 @@ export type {
   SetupCard,
   RiskStatus,
   RiskPosition,
+  DrawdownState,
   ShadowComparison,
   ShadowTrade,
   AttributionRow,
@@ -270,13 +272,24 @@ export async function getRiskStatus(): Promise<RiskStatus> {
   const raw = await apiFetch<RawRiskResponse>("/api/intelligence/risk/status");
 
   const risk = raw.risk ?? { total_risk_pct: 0, exceeds_limit: false, per_position: [] };
+  const dd = raw.drawdown;
+  const drawdown: DrawdownState = {
+    halted: dd?.halted ?? false,
+    equity: num(dd?.equity),
+    peak: num(dd?.peak),
+    drawdown_pct: num(dd?.drawdown_pct),
+    halt_threshold_pct: num(dd?.halt_threshold_pct, 15),
+    resume_threshold_pct: num(dd?.resume_threshold_pct, 7.5),
+  };
 
   return {
     open_positions: num(raw.open_positions),
     total_risk_pct: num(risk.total_risk_pct),
     max_risk_pct: MAX_RISK_PCT_DEFAULT,
-    frozen: raw.frozen ?? false,
-    frozen_reason: null,
+    frozen: (raw.frozen ?? false) || drawdown.halted,
+    frozen_reason: drawdown.halted
+      ? `Drawdown ${drawdown.drawdown_pct.toFixed(1)}% — past the ${drawdown.halt_threshold_pct}% halt`
+      : null,
     positions: Array.isArray(risk.per_position)
       ? risk.per_position.map((p) => ({
           symbol: String(p.symbol ?? ""),
@@ -286,6 +299,7 @@ export async function getRiskStatus(): Promise<RiskStatus> {
           qty: 0,
         }))
       : [],
+    drawdown,
   };
 }
 

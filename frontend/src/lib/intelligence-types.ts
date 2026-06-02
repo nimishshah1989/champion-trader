@@ -86,6 +86,17 @@ export interface RiskStatus {
   frozen: boolean;
   frozen_reason: string | null;
   positions: RiskPosition[];
+  /** v2 drawdown breaker (15% halt / 7.5% resume) over the realised equity curve */
+  drawdown: DrawdownState;
+}
+
+export interface DrawdownState {
+  halted: boolean;
+  equity: number;
+  peak: number;
+  drawdown_pct: number;
+  halt_threshold_pct: number;
+  resume_threshold_pct: number;
 }
 
 export interface RiskPosition {
@@ -241,6 +252,14 @@ export interface RawRiskResponse {
       risk_amount: number;
       risk_pct: number;
     }>;
+  };
+  drawdown?: {
+    halted: boolean;
+    equity: number;
+    peak: number;
+    drawdown_pct: number;
+    halt_threshold_pct: number;
+    resume_threshold_pct: number;
   };
 }
 
