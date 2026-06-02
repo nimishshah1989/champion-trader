@@ -198,7 +198,7 @@ def svg_bar_years(rows, width=1080, height=340, pad=60):
         bars+=f'<text x="{cx+bw/2+2:.1f}" y="{ny0-4 if r[2]>=0 else ny0+nh+12:.1f}" fill="#7e93a8" font-size="10" text-anchor="middle">{r[2]:+.0f}</text>'
         xlbls+=f'<text x="{cx:.1f}" y="{height-pad+18}" fill="#8a9bad" font-size="12" text-anchor="middle">{r[0]}</text>'
     axis=f'<line x1="{pad}" y1="{zero:.1f}" x2="{width-pad}" y2="{zero:.1f}" stroke="#3a4a5a" stroke-width="1.5"/>'
-    leg=f'<g font-size="13"><rect x="{pad+8}" y="14" width="13" height="13" fill="#3fb950"/><text x="{pad+28}" y="25" fill="#c9d6e3">Strategy</text><rect x="{pad+120}" y="14" width="13" height="13" fill="#4a7dbf"/><text x="{pad+140}" y="25" fill="#c9d6e3">Nifty 50</text></g>'
+    leg=f'<g font-size="13"><rect x="{pad+8}" y="14" width="13" height="13" fill="#3fb950"/><text x="{pad+28}" y="25" fill="#c9d6e3">Strategy</text><rect x="{pad+120}" y="14" width="13" height="13" fill="#4a7dbf"/><text x="{pad+140}" y="25" fill="#c9d6e3">{BENCH}</text></g>'
     return f'<svg viewBox="0 0 {width} {height}" width="100%" style="max-width:{width}px">{axis}{bars}{xlbls}{leg}</svg>'
 
 def svg_histogram(labels, counts, bin_colors, width=1080, height=340, pad=60, subtext=None):
@@ -441,13 +441,13 @@ HTML=f'''<!DOCTYPE html>
 
 <div class="grid grid4">
   {metric_card("Final Value", lakh(S["final_value"]), f"from {lakh(CAP)} · {S['total_ret']:+.0f}% total", good=True)}
-  {metric_card("CAGR", f"{S['cagr']:.1f}%", f"vs Nifty {S['nifty_cagr']:.1f}%", good=S['cagr']>S['nifty_cagr'])}
+  {metric_card("CAGR", f"{S['cagr']:.1f}%", f"vs {BENCH} {S['nifty_cagr']:.1f}%", good=S['cagr']>S['nifty_cagr'])}
   {metric_card("Post-Tax CAGR", f"{S['post_tax_cagr']:.1f}%", f"after {inr(S['total_tax'])} tax", good=True)}
-  {metric_card("Max Drawdown", f"-{S['max_dd']:.1f}%", f"Nifty -{S['nifty_max_dd']:.1f}%", good=S['max_dd']<S['nifty_max_dd'])}
+  {metric_card("Max Drawdown", f"-{S['max_dd']:.1f}%", f"{BENCH} -{S['nifty_max_dd']:.1f}%", good=S['max_dd']<S['nifty_max_dd'])}
 </div>
 <div class="grid grid4" style="margin-top:14px">
-  {metric_card("Sharpe Ratio", f"{S['sharpe']:.2f}", f"Nifty {S['nifty_sharpe']:.2f}", good=S['sharpe']>S['nifty_sharpe'])}
-  {metric_card("Sortino Ratio", f"{S['sortino']:.2f}", f"Nifty {S['nifty_sortino']:.2f}", good=S['sortino']>S['nifty_sortino'])}
+  {metric_card("Sharpe Ratio", f"{S['sharpe']:.2f}", f"{BENCH} {S['nifty_sharpe']:.2f}", good=S['sharpe']>S['nifty_sharpe'])}
+  {metric_card("Sortino Ratio", f"{S['sortino']:.2f}", f"{BENCH} {S['nifty_sortino']:.2f}", good=S['sortino']>S['nifty_sortino'])}
   {metric_card("Calmar Ratio", f"{S['calmar']:.2f}", "CAGR ÷ MaxDD", good=S['calmar']>1)}
   {metric_card("CAPM Alpha", f"{S['alpha']:+.1f}%", f"β {S['beta']:.2f} · ρ {S['corr']:.2f}", good=S['alpha']>0)}
 </div>
@@ -501,7 +501,7 @@ measured cost of letting trend winners run: the same patience that produces the 
 <h2>6 · Year-by-Year Performance</h2>
 <div class="chart-box">{chart_years}</div>
 <table>
-  <tr><th>Year</th><th class="num">Strategy</th><th class="num">Nifty 50</th><th class="num">Outperformance</th><th class="num">Strategy Max DD</th><th class="num">Closed Trades</th></tr>
+  <tr><th>Year</th><th class="num">Strategy</th><th class="num">{BENCH}</th><th class="num">Outperformance</th><th class="num">Strategy Max DD</th><th class="num">Closed Trades</th></tr>
   {year_table}
 </table>
 <div class="note">Returns are mark-to-market (include unrealised gains on open positions at each year boundary),
@@ -536,7 +536,7 @@ expected signature of trend-following, not a flaw.</div>
 <div class="two-col">
   <div><h3>Return</h3>
     <table>
-      <tr><th>Metric</th><th class="num">Strategy</th><th class="num">Nifty 50</th></tr>
+      <tr><th>Metric</th><th class="num">Strategy</th><th class="num">{BENCH}</th></tr>
       <tr><td>Total Return</td><td class="num pos">{S['total_ret']:+.1f}%</td><td class="num">{S['nifty_total']:+.1f}%</td></tr>
       <tr><td>CAGR</td><td class="num pos">{S['cagr']:.1f}%</td><td class="num">{S['nifty_cagr']:.1f}%</td></tr>
       <tr><td>Post-Tax Total</td><td class="num">{S['post_tax_ret']:+.1f}%</td><td class="num">—</td></tr>
@@ -546,7 +546,7 @@ expected signature of trend-following, not a flaw.</div>
   </div>
   <div><h3>Risk-Adjusted</h3>
     <table>
-      <tr><th>Metric</th><th class="num">Strategy</th><th class="num">Nifty 50</th></tr>
+      <tr><th>Metric</th><th class="num">Strategy</th><th class="num">{BENCH}</th></tr>
       <tr><td>Sharpe (rf={cfg['risk_free']:.1f}%)</td><td class="num pos">{S['sharpe']:.2f}</td><td class="num">{S['nifty_sharpe']:.2f}</td></tr>
       <tr><td>Sortino</td><td class="num pos">{S['sortino']:.2f}</td><td class="num">{S['nifty_sortino']:.2f}</td></tr>
       <tr><td>Calmar</td><td class="num">{S['calmar']:.2f}</td><td class="num">{S['nifty_calmar']:.2f}</td></tr>
@@ -611,7 +611,7 @@ Even losing 6 in 10, the 4 winners more than pay for them. Classic asymmetric tr
 
 <h2>16 · Methodology &amp; Assumptions</h2>
 <table>
-  <tr><td class="sym">Entry signal</td><td>RS ratio (Stock Close ÷ Nifty 50 Close) EMA50 crosses <b>above</b> EMA200</td></tr>
+  <tr><td class="sym">Entry signal</td><td>RS ratio (Stock Close ÷ {BENCH} Close) EMA50 crosses <b>above</b> EMA200</td></tr>
   <tr><td class="sym">Exit signal</td><td>RS EMA50 crosses <b>below</b> EMA200 (symmetric), OR price hits 10% hard stop from entry</td></tr>
   <tr><td class="sym">Execution</td><td>Signal at close; fill at <b>next day's open</b>; unfilled orders expire after 1 day</td></tr>
   <tr><td class="sym">Position sizing</td><td>Fixed risk: Capital × {cfg['rpt']:.1f}% ÷ {cfg['sl_pct']:.0f}% = <b>{inr(cfg['pos_value'])}</b> notional per trade</td></tr>
