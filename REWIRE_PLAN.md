@@ -224,9 +224,9 @@ This is what makes the runtime *trustably* the validated strategy.
 └──────────────────────────────────────────────────────────────────────────-─┘
         │
         ▼
-┌─ ORDER (Phase 1 paper → Phase 2 Dhan) ─────────────────────────────────────┐
+┌─ ORDER (Phase 1 paper → Phase 2 Kite/Zerodha live) ────────────────────────┐
 │ Phase 1: paper fill at break price + tiered slippage                        │
-│ Phase 2: broker order via a BrokerClient abstraction (Dhan/Kite)            │
+│ Phase 2: live order via Kite Connect order API (same provider as the feed)  │
 └──────────────────────────────────────────────────────────────────────────-─┘
         │  (once daily, at/after close)
         ▼
@@ -283,11 +283,14 @@ No tables need deleting. No destructive migrations.
 ## 6. Phased rollout
 
 ### Phase 0 — Foundation (no live trading)
-- [ ] Extract Layers 1–3 into `backend/engine/runtime/{signal_service,exit_service,risk_manager}.py`.
-- [ ] Upgrade entry to **v2** (≥2× vol gate + circuit-skip) inside `signal_service`.
+- [x] Extract `exit_service` (close-based 5×ATR chandelier) + `signal_service` (v2 entry,
+      ≥2× vol gate + circuit-skip) into `backend/engine/runtime/`. *(risk_manager: TODO)*
+- [x] **Parity harness PASSED** (`scripts/run_runtime_parity.py`): full universe, 1,272
+      symbols, **293 v2 trades, 0 mismatches** — the runtime reproduces `backtest_fast`
+      v2 trade-for-trade. **GATE GREEN.**
+- [ ] Extract `risk_manager` (RPT 0.35, max 15, bear-sizing, DD breaker) from the
+      research `portfolio()` overlay; add a portfolio-level parity check.
 - [ ] Add the trailing-stop schema (§5).
-- [ ] Build the **parity harness** and prove trade-for-trade reproduction of
-      `backtest_fast` v2. **GATE: parity green or stop.**
 - [ ] Stand up the Kite-adjusted `bars`/`index_bars` ingest (retire the yfinance scan feed).
 
 ### Phase 1 — Live paper-trading on the validated engine (handoff backlog #1)
@@ -300,9 +303,9 @@ No tables need deleting. No destructive migrations.
 - [ ] **No real orders.** Exit: paper Calmar/DD/win-rate within the backtest's band.
 
 ### Phase 2 — Dhan live with safeguards
-- [ ] `BrokerClient` abstraction (Dhan first; the `/webhook/dhan` stub and
-      `dhan_client.py` already anticipate this). Keep **data feed (Kite)** separate from
-      **broker (Dhan)**.
+- [ ] Order execution via **Kite Connect (Zerodha)** — the *same* provider as the data
+      feed, so feed + execution share one auth/session. (`services/dhan_client.py` and the
+      `/webhook/dhan` stub are now dead code — Dhan is not used.)
 - [ ] Start on the **top-500 liquidity tier**, reduced RPT, small capital.
 - [ ] Hard gates: 15-pos cap, 15% DD breaker, bear-sizing, max open risk, **kill-switch**,
       earnings/announcement blackout, reconciled cost model (`costs.py` flags FY25-26
@@ -345,8 +348,8 @@ No tables need deleting. No destructive migrations.
 
 ## 8. Open decisions (need a human call before building)
 
-1. **Data feed & broker:** standardize the live feed on **Kite** (matches the backtest)?
-   And is the broker **Dhan** (per `CLAUDE.md`) or **Kite**? Keep them separable either way.
+1. ~~Data feed & broker~~ **DECIDED:** feed **and** execution both on **Kite/Zerodha**
+   (matches the backtest; one provider, one session). Dhan is not used.
 2. **Liquidity tier for go-live:** full universe (24.5% CAGR, small account) vs **top-500**
    (18% CAGR, best Calmar, scalable)? Recommend top-500 for real money.
 3. **Legacy PPC/NPC scanners:** delete, or retain as non-gating labels alongside v2?
