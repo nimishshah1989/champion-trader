@@ -255,9 +255,15 @@ async def rag_query_endpoint(corpus: str, question: str, top_k: int = DEFAULT_RA
 
 @router.get("/risk/status")
 async def risk_status():
-    """Get Risk Guardian status including freeze state."""
+    """Get Risk Guardian status: open-risk, freeze state, and the v2 drawdown breaker.
+
+    The drawdown block replays the validated 15%-halt / 7.5%-resume breaker over the
+    realised equity curve (`current_dd_halt`) so the UI can show how close the portfolio
+    is to halting new entries — not just the published freeze flag.
+    """
     from backend.intelligence.portfolio_math import calculate_open_risk
-    from backend.intelligence.risk_guardian import is_frozen
+    from backend.intelligence.risk_guardian import is_frozen, current_dd_halt
+    from backend.engine.runtime.config import RISK_V2
     from backend.database import SessionLocal, Trade
 
     db = SessionLocal()
@@ -280,10 +286,21 @@ async def risk_status():
 
         risk = calculate_open_risk(positions, settings.default_account_value)
 
+        halted, equity, peak = current_dd_halt(db)
+        drawdown_pct = (peak - equity) / peak * 100 if peak > 0 else 0.0
+
         return {
             "frozen": is_frozen(),
             "open_positions": len(open_trades),
             "risk": risk,
+            "drawdown": {
+                "halted": halted,
+                "equity": equity,
+                "peak": peak,
+                "drawdown_pct": drawdown_pct,
+                "halt_threshold_pct": RISK_V2.dd_halt * 100,
+                "resume_threshold_pct": RISK_V2.dd_resume * 100,
+            },
         }
     finally:
         db.close()
