@@ -54,7 +54,9 @@ class Settings(BaseSettings):
     broker_live_trading: bool = False
     broker_type: str = "paper"  # paper | jhaveri
 
-    model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
+    # extra="ignore": the .env also carries keys the research layer uses (SUPABASE_*,
+    # Atlas) that this model doesn't declare — the app must not crash on them.
+    model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}
 
 
 settings = Settings()
