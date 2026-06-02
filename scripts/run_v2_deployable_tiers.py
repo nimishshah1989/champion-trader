@@ -176,6 +176,7 @@ bench_ex = ex2021_cagr([(d, idx_close[d] * _f) for d in FULL])
 print(f"v2 portfolio by liquidity FLOOR  (RPT {RPT}% | full v2 trades = {len(trades_turn)})\n")
 print(f"{'floor':>10}{'#trades':>9}{'final Rs':>12}{'CAGR':>8}{'maxDD':>8}{'Calmar':>8}{'Sharpe':>8}{'TESTcal':>9}{'ex2021':>8}")
 print("-" * 88)
+curves = OrderedDict()
 for T in TIERS:
     sub = [t for t, turn in trades_turn if turn >= T]
     cf = portfolio(sub, FULL)
@@ -183,8 +184,28 @@ for T in TIERS:
     _, _, tcal, _ = met(portfolio(sub, TEST), TEST)
     exc = ex2021_cagr(cf)
     label = "FULL" if T == 0 else f">={T}cr"
+    curves[label] = cf
     print(f"{label:>10}{len(sub):>9}{cf[-1][1]:>12,.0f}{cagr:>8.1%}{mdd:>8.1%}{cal_:>8.2f}{shp:>8.2f}{tcal:>9.2f}{exc:>8.1%}")
 print("-" * 88)
 print(f"{'NIFTY500':>10}{'-':>9}{(idx_close[FULL[-1]]*_f):>12,.0f}{bench[0]:>8.1%}{bench[1]:>8.1%}{bench[2]:>8.2f}{bench[3]:>8.2f}{'-':>9}{bench_ex:>8.1%}")
 print("\nfloor = min entry-time turnover (Rs cr/day). FULL should reproduce the headline v2.")
-print("Read: how far does CAGR/Calmar fall as you drop the illiquid (micro) tail you can't fill?")
+
+# ---- per-year returns by liquidity floor ----
+labels = list(curves.keys())
+bench_curve = [(d, idx_close[d] * _f) for d in FULL]
+yt = {lab: yearly(curves[lab]) for lab in labels}
+yb = yearly(bench_curve)
+bull = defaultdict(lambda: [0, 0])
+for d in FULL:
+    bull[d.year][0 if regime_map.get(d, False) else 1] += 1
+hdr = f"{'year':>6}" + "".join(f"{lab:>8}" for lab in labels) + f"{'NIFTY500':>10}{'bull':>6}"
+print("\nPER-YEAR RETURNS by liquidity floor:")
+print(hdr); print("-" * len(hdr))
+for y in sorted(yb.keys()):
+    bd = bull[y]; pct = bd[0] / (bd[0] + bd[1]) if (bd[0] + bd[1]) else 0
+    row = f"{y:>6}" + "".join(f"{yt[lab].get(y, 0):>8.1%}" for lab in labels) + f"{yb.get(y, 0):>10.1%}{pct:>6.0%}"
+    print(row)
+print("-" * len(hdr))
+cagrs = {lab: met(curves[lab], FULL)[0] for lab in labels}
+print(f"{'CAGR':>6}" + "".join(f"{cagrs[lab]:>8.1%}" for lab in labels) + f"{bench[0]:>10.1%}{'':>6}")
+print(f"{'ex21':>6}" + "".join(f"{ex2021_cagr(curves[lab]):>8.1%}" for lab in labels) + f"{bench_ex:>10.1%}{'':>6}")
