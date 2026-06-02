@@ -35,14 +35,14 @@ class TestConstants:
     def test_virtual_capital_is_100000(self):
         assert VIRTUAL_CAPITAL == Decimal("100000")
 
-    def test_rpt_pct_is_0_50(self):
-        assert RPT_PCT == 0.50
+    def test_rpt_pct_matches_v2(self):
+        assert RPT_PCT == Decimal("0.35")        # v2 RPT (RISK_V2.rpt_pct), was 0.50
 
     def test_max_open_risk_pct_is_decimal_10(self):
         assert MAX_OPEN_RISK_PCT == Decimal("10.0")
 
-    def test_max_positions_is_5(self):
-        assert MAX_POSITIONS == 5
+    def test_max_positions_matches_v2(self):
+        assert MAX_POSITIONS == 15               # v2 cap (RISK_V2.max_positions), was 5
 
     def test_min_trp_is_decimal_2(self):
         assert MIN_TRP == Decimal("2.0")
