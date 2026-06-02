@@ -6,12 +6,17 @@ Uses pre-downloaded OHLCV data (dict of symbol → DataFrame) to detect patterns
 from __future__ import annotations
 
 import logging
+import sqlite3
 from datetime import date
 from decimal import Decimal, ROUND_HALF_UP
+from statistics import median
 from typing import Dict, List, Optional
 
 import pandas as pd
 
+from backend.engine.backtest_fast import load_bars
+from backend.engine.runtime import signal_service
+from backend.engine.runtime.config import RISK_V2, STRATEGY_V2, RiskParams, StrategyParams
 from backend.services.data_fetcher import fetch_all_stocks
 from backend.intelligence.strategy import PARAMETERS
 from backend.services.technical import (
@@ -286,3 +291,67 @@ async def run_all_scans(
         f"{len(npc_results)} NPC, {len(contraction_results)} Contraction"
     )
     return all_results, data
+
+
+# --- v2 SETUP scan (the validated entry gate) -----------------------------------------
+# Replaces the legacy PPC/NPC/Contraction *gating*: a row is emitted only for a true v2
+# setup (stage S1B/S2 + contraction + valid base + avgTRP>=2) on a fillable name
+# (turnover >= the liquidity floor). It reads the Kite-adjusted `bars` store (the same
+# feed as the backtest) via the validated runtime, NOT the yfinance 9-month feed. The
+# PPC/NPC/Contraction scans above are retained as non-gating labels only.
+
+
+def _turnover_cr(bars, lookback: int = 60) -> float:
+    """Median daily turnover (close*volume) over the last `lookback` bars, in Rs crore."""
+    win = [float(b.close) * b.volume for b in bars[-lookback:]]
+    return (median(win) / 1e7) if win else 0.0
+
+
+def run_v2_scan(
+    con: sqlite3.Connection,
+    symbols: list[str],
+    scan_date: str | date,
+    *,
+    params: StrategyParams = STRATEGY_V2,
+    risk: RiskParams = RISK_V2,
+    as_of: date | None = None,
+) -> list[dict]:
+    """Validated v2 SETUP scan over the Kite bars store -> ScanResult-shaped dicts.
+
+    The trigger is tomorrow's 5-day-high break; the >=2x breakout-volume confirmation
+    happens live at the break (entry_monitor), not here. Returns READY watchlist rows.
+    """
+    scan_date_obj = date.fromisoformat(scan_date) if isinstance(scan_date, str) else scan_date
+    results: list[dict] = []
+    for sym in symbols:
+        try:
+            bars = load_bars(con, sym)
+            if as_of is not None:
+                bars = [b for b in bars if b.date <= as_of]
+            setup = signal_service.detect_setup(bars, params=params)
+            if setup is None:
+                continue
+            turnover_cr = _turnover_cr(bars)
+            if turnover_cr < risk.liquidity_floor_cr:        # only fillable names (>= Rs5cr/day default)
+                continue
+            last = bars[-1]
+            results.append({
+                "scan_date": scan_date_obj,
+                "symbol": sym,
+                "scan_type": "V2",
+                "close_price": Decimal(str(round(float(last.close), 2))),
+                "volume": int(last.volume),
+                "avg_trp": Decimal(str(round(setup.avg_trp, 2))),
+                "stage": setup.stage,
+                "has_min_20_bar_base": True,                  # valid-base gate passed (>=20 bars)
+                "adt": Decimal(str(round(turnover_cr * 1e7, 0))),
+                "passes_liquidity_filter": True,
+                "watchlist_bucket": "READY",                  # a confirmed setup -> ready to trigger
+                "trigger_level": setup.trigger,
+                "notes": (f"v2 setup: stage {setup.stage}, avgTRP {setup.avg_trp:.2f}, "
+                          f"trigger {setup.trigger}, turnover Rs{turnover_cr:.1f}cr"),
+            })
+        except Exception as exc:
+            logger.warning(f"v2 scan error for {sym}: {exc}")
+    logger.info(f"v2 scan complete: {len(results)} setups (>= Rs{risk.liquidity_floor_cr}cr/day)")
+    return results

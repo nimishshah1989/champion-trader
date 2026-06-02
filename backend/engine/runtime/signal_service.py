@@ -44,6 +44,15 @@ class EntryContext:
 
 
 @dataclass
+class Setup:
+    """A v2 SETUP on the signal bar (pre-breakout): the watchlist candidate for tomorrow."""
+    trigger: Decimal        # break level for tomorrow = 5-day high on the signal bar
+    stopdist: Decimal       # 1R distance = trigger * avg_trp%
+    avg_trp: float
+    stage: str              # S1B / S2
+
+
+@dataclass
 class EntrySignal:
     entry: Decimal          # filled entry price (after slippage)
     trigger: Decimal        # break level (5-day high)
@@ -60,18 +69,37 @@ def _circuit_locked(prev_close: Decimal, bar: Bar) -> bool:
     return bar.high == bar.low or (gain >= Decimal("0.195") and (bar.high - bar.close) <= bar.close * Decimal("0.003"))
 
 
+def setup_at(ctx: EntryContext, j: int, *, params: StrategyParams = STRATEGY_V2) -> Optional[Setup]:
+    """Is signal bar `j` a v2 SETUP? Stage S1B/S2 + contraction + valid base + avgTRP>=min.
+
+    This is the per-stock strength gate WITHOUT the breakout/volume/circuit checks — i.e.
+    a watchlist candidate carrying tomorrow's trigger (the 5-day high) and its 1R stop. The
+    breakout + >=2x volume + circuit-skip are applied later (`entry_at` on bar j+1, or live).
+    """
+    if j < WARMUP - 1:
+        return None
+    if not (ctx.stages[j] in TRADEABLE and bool(ctx.contr[j]) and ctx.avgtrp[j] >= params.min_trp):
+        return None
+    if not analyze_base(ctx.bars[max(0, j - BASE_TAIL + 1): j + 1]).is_valid_base:
+        return None
+    trigger = Decimal(str(round(float(ctx.trig[j]), 2)))   # same rounding as the engine
+    avg_trp = round(float(ctx.avgtrp[j]), 4)
+    sd = trigger * Decimal(str(avg_trp)) / Decimal(100)
+    if sd <= 0:
+        return None
+    return Setup(trigger=trigger, stopdist=sd, avg_trp=avg_trp, stage=str(ctx.stages[j]))
+
+
 def entry_at(ctx: EntryContext, i: int, *, params: StrategyParams = STRATEGY_V2,
              slippage: Decimal = DEFAULT_SLIPPAGE) -> Optional[EntrySignal]:
-    """Is bar `i` a v2 entry? Signal bar is j=i-1; breakout/fill is bar i. Same order as the engine."""
+    """Is bar `i` a v2 entry? = SETUP on j=i-1, then breakout/volume/circuit/fill on bar i."""
     if i < WARMUP:
         return None
     j = i - 1
+    setup = setup_at(ctx, j, params=params)
+    if setup is None:
+        return None
     bars = ctx.bars
-    # per-stock strength + base + tradeability (evaluated on the signal bar j)
-    if not (ctx.stages[j] in TRADEABLE and bool(ctx.contr[j]) and ctx.avgtrp[j] >= params.min_trp):
-        return None
-    if not analyze_base(bars[max(0, j - BASE_TAIL + 1): j + 1]).is_valid_base:
-        return None
     b = bars[i]
     # breakout-bar volume confirmation (the v2 gate)
     vol_ratio = float("nan")
@@ -83,16 +111,11 @@ def entry_at(ctx: EntryContext, i: int, *, params: StrategyParams = STRATEGY_V2,
             return None
     if params.skip_circuit_locked and _circuit_locked(bars[j].close, b):
         return None
-    # trigger + TRP-based stop distance (same rounding as the engine)
-    trigger = Decimal(str(round(float(ctx.trig[j]), 2)))
-    avg_trp = round(float(ctx.avgtrp[j]), 4)
-    sd = trigger * Decimal(str(avg_trp)) / Decimal(100)
-    if sd <= 0:
-        return None
-    ent = fill_entry(trigger, b.open, b.high, slippage)
+    ent = fill_entry(setup.trigger, b.open, b.high, slippage)
     if ent is None:                       # bar's high never reached the trigger
         return None
-    return EntrySignal(entry=ent, trigger=trigger, stopdist=sd, avg_trp=avg_trp, volume_ratio=vol_ratio)
+    return EntrySignal(entry=ent, trigger=setup.trigger, stopdist=setup.stopdist,
+                       avg_trp=setup.avg_trp, volume_ratio=vol_ratio)
 
 
 def context_from_df(bars: list[Bar], df) -> EntryContext:
@@ -108,9 +131,18 @@ def context_from_df(bars: list[Bar], df) -> EntryContext:
 
 def evaluate_entry(history: list[Bar], *, params: StrategyParams = STRATEGY_V2,
                    slippage: Decimal = DEFAULT_SLIPPAGE) -> Optional[EntrySignal]:
-    """Live API: given a symbol's recent bars (newest last), is TODAY a v2 entry?"""
+    """Live API: given a symbol's recent bars (newest last), is TODAY a v2 entry (breakout)?"""
     if len(history) <= WARMUP:
         return None
     df = precompute_features(history)
     ctx = context_from_df(history, df)
     return entry_at(ctx, len(history) - 1, params=params, slippage=slippage)
+
+
+def detect_setup(history: list[Bar], *, params: StrategyParams = STRATEGY_V2) -> Optional[Setup]:
+    """Live API (watchlist): is the latest bar a v2 SETUP ready to trigger tomorrow?"""
+    if len(history) < WARMUP:
+        return None
+    df = precompute_features(history)
+    ctx = context_from_df(history, df)
+    return setup_at(ctx, len(history) - 1, params=params)

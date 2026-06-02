@@ -315,7 +315,11 @@ No tables need deleting. No destructive migrations.
       `open_trail`/`trail_from_db` + `morning_gap_exit`/`eod_exit` (→ exit_service). Pure
       (no FastAPI); 16 unit tests. Encodes the two live decisions (volume projection; exit
       once-daily-close + 09:15 gap-check).
-- [ ] Re-point `daily_scanner` + watchlist to `scan_universe` (PPC/NPC → labels only).
+- [~] **v2 scanner built & tested** (`scanner_engine.run_v2_scan` + runtime `detect_setup`
+      / `setup_at` + bridge `scan_universe`): reads the Kite bars store, emits READY
+      `ScanResult` rows for true v2 setups ≥ the liquidity floor; PPC/NPC retained as
+      non-gating labels. Verified against the real cache (`test_scanner_v2`). *Pending: wire
+      the `daily_scanner` job (main.py) to call it instead of `run_all_scans`.*
 - [ ] Re-point `entry_monitor` (last 30 min) to `evaluate_live_entry`; persist the trail.
 - [ ] Replace `exit_monitor` with `eod_exit` (post-close) + `morning_gap_exit` (09:15);
       delete the 2R/4R/8R/12R ladder + 2-min intraday-touch loop.

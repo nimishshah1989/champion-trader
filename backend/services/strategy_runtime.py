@@ -30,30 +30,34 @@ from backend.engine.runtime import exit_service, signal_service
 from backend.engine.runtime.config import RISK_V2, STRATEGY_V2, RiskParams, StrategyParams
 from backend.engine.runtime.exit_service import ExitDecision, TrailState
 from backend.engine.runtime.risk_manager import bear_multiplier, position_size, update_halt
-from backend.engine.runtime.signal_service import EntrySignal
+from backend.engine.runtime.signal_service import EntrySignal, Setup
 
 NSE_SESSION_MINUTES = 375   # 09:15 -> 15:30
 
 
-# --- DAILY SCAN ------------------------------------------------------------------------
+# --- DAILY SCAN (watchlist: pre-breakout SETUPS + tomorrow's trigger) ------------------
 
 def scan_symbol(con: sqlite3.Connection, symbol: str, *, params: StrategyParams = STRATEGY_V2,
-                as_of: Optional[date] = None, slippage: Decimal = DEFAULT_SLIPPAGE) -> Optional[EntrySignal]:
-    """Is `symbol` a v2 setup as of its latest stored bar (or `as_of`)? Reads the market store."""
+                as_of: Optional[date] = None) -> Optional[Setup]:
+    """Is `symbol` a v2 SETUP as of its latest stored bar (or `as_of`)? Reads the market store.
+
+    Returns the watchlist candidate (trigger for tomorrow + 1R stop). The breakout + >=2x
+    volume confirmation happens live at the trigger break (`evaluate_live_entry`).
+    """
     bars = load_bars(con, symbol)
     if as_of is not None:
         bars = [b for b in bars if b.date <= as_of]
-    return signal_service.evaluate_entry(bars, params=params, slippage=slippage)
+    return signal_service.detect_setup(bars, params=params)
 
 
 def scan_universe(con: sqlite3.Connection, symbols, *, params: StrategyParams = STRATEGY_V2,
-                  as_of: Optional[date] = None) -> dict[str, EntrySignal]:
-    """Run the v2 scan across `symbols`; return only those that signal."""
-    out: dict[str, EntrySignal] = {}
+                  as_of: Optional[date] = None) -> dict[str, Setup]:
+    """Run the v2 SETUP scan across `symbols`; return only those that set up (the watchlist)."""
+    out: dict[str, Setup] = {}
     for s in symbols:
-        sig = scan_symbol(con, s, params=params, as_of=as_of)
-        if sig is not None:
-            out[s] = sig
+        setup = scan_symbol(con, s, params=params, as_of=as_of)
+        if setup is not None:
+            out[s] = setup
     return out
 
 
