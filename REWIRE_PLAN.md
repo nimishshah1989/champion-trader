@@ -423,6 +423,32 @@ No tables need deleting. No destructive migrations.
 
 ---
 
+## 10. Decision log — the legacy backtester (`services/backtest_engine.py`)
+
+**Status (2026-06):** the `/simulation/*` research surface and the AutoOptimize scorer
+still call the **legacy, unvalidated** `services/backtest_engine.py` (PPC/NPC + 2R/NE/GE/EE
+ladder on a yfinance feed). The live v2 pipeline does **not** — it runs entirely on the
+parity-gated runtime. We **document and keep** this rather than repoint it, because:
+
+- **AutoOptimize is frozen** (`autooptimize_enabled=False`), so the unvalidated backtester
+  no longer influences any live parameter — its riskiest consumer is dormant.
+- The validated backtesting path already exists: `engine/backtest_fast.py`, proven
+  trade-for-trade by `scripts/run_runtime_parity.py`. Anyone who needs the v2 edge uses it.
+- A repoint is **not a focused change**: `SimulationTrade` (and the frontend simulation
+  page) are built around the ladder columns (`target_2r/ne/ge/ee`, `qty_exited_*`), which v2
+  has none of. Six modules consume `backtest_engine` (simulation router, autooptimize
+  scoring, `backtest_metrics`, `intelligence_strategy`, `strategy.py`, its test). Repointing
+  cleanly means a new v2-shaped `simulation_trades` schema + adapter + UI rework — a project,
+  not a commit.
+
+**Mitigation shipped instead:** the legacy status is now explicit at every seam — a module
+warning in `backtest_engine.py`, an endpoint note in `routers/simulation.py`, and an amber
+"not the validated v2 engine" banner on the simulation page — so its numbers can't be
+mistaken for the v2 edge. The full repoint (retire `backtest_engine.py`, v2-shape the sim
+schema) is the deferred strangle, to be scheduled deliberately.
+
+---
+
 *Source audits: live scan path, sizing/exit path, autopilot/alerts/scheduler, engine
 contract, DB schema + routers — all read-only, cited inline above. Engine entry points:
 `engine/production_signal.py`, `engine/backtest_fast.py::_fast_simulate`,

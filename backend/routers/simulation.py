@@ -24,7 +24,13 @@ router = APIRouter(prefix="/simulation", tags=["Simulation"])
 
 @router.post("/backtest", response_model=SimulationRunResponse)
 def create_backtest(req: BacktestRequest, db: Session = Depends(get_db)):
-    """Run a historical backtest over the given date range."""
+    """Run a historical backtest over the given date range.
+
+    NOTE: this is the LEGACY, unvalidated backtester (PPC/NPC + 2R/NE/GE/EE ladder on a
+    yfinance feed), kept as a research surface — NOT the validated v2 engine that trades
+    live. For validated v2 numbers use `backend/engine/backtest_fast.py` (parity-gated by
+    `scripts/run_runtime_parity.py`). See REWIRE_PLAN §1g / the §10 decision note.
+    """
     if req.start_date >= req.end_date:
         raise HTTPException(status_code=400, detail="start_date must be before end_date")
 
