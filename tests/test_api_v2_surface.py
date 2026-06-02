@@ -108,3 +108,57 @@ def test_scanner_run_uses_the_v2_scan(tmp_path, monkeypatch):
         assert rows[0].stage == "S2" and rows[0].watchlist_bucket == "READY"
     finally:
         database.SessionLocal.configure(bind=database.engine)
+
+
+def test_scanner_run_returns_empty_when_no_setups(tmp_path, monkeypatch):
+    """A scan that finds nothing returns an empty list, not an error."""
+    from backend import database
+    from backend.tables import Base
+    from backend.models.scan_result import ScanRequest
+    from backend.routers import scanner
+    from backend.services import live_jobs
+
+    engine = create_engine(f"sqlite:///{tmp_path}/t.db")
+    Base.metadata.create_all(engine)
+    database.SessionLocal.configure(bind=engine)
+    try:
+        monkeypatch.setattr(live_jobs, "run_daily_scan",
+                            lambda *a, **k: {"setups": 0, "watchlist_added": 0})
+        db = database.SessionLocal()
+        rows = scanner.run_scan(ScanRequest(scan_type="V2", date=date(2024, 6, 2)), db=db)
+        db.close()
+        assert rows == []
+    finally:
+        database.SessionLocal.configure(bind=database.engine)
+
+
+def test_scanner_run_raises_500_on_scan_error(tmp_path, monkeypatch):
+    """A scan failure (e.g. missing bar store) surfaces as HTTP 500, not a silent pass."""
+    from fastapi import HTTPException
+    from backend import database
+    from backend.tables import Base
+    from backend.models.scan_result import ScanRequest
+    from backend.routers import scanner
+    from backend.services import live_jobs
+
+    engine = create_engine(f"sqlite:///{tmp_path}/t.db")
+    Base.metadata.create_all(engine)
+    database.SessionLocal.configure(bind=engine)
+    try:
+        monkeypatch.setattr(live_jobs, "run_daily_scan",
+                            lambda *a, **k: {"error": "bar store missing"})
+        db = database.SessionLocal()
+        with pytest.raises(HTTPException) as ei:
+            scanner.run_scan(ScanRequest(scan_type="V2"), db=db)
+        db.close()
+        assert ei.value.status_code == 500 and "bar store missing" in ei.value.detail
+    finally:
+        database.SessionLocal.configure(bind=database.engine)
+
+
+def test_config_drops_dead_dhan_keys_keeps_kite():
+    """Dhan is deleted (broker = Kite): the dead config keys are gone, Kite's remain."""
+    from backend.config import settings
+    assert not hasattr(settings, "dhan_client_id")
+    assert not hasattr(settings, "dhan_access_token")
+    assert hasattr(settings, "kite_api_key") and hasattr(settings, "kite_access_token")
