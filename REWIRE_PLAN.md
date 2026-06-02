@@ -321,8 +321,11 @@ No tables need deleting. No destructive migrations.
       non-gating labels. Verified against the real cache (`test_scanner_v2`). *Pending: wire
       the `daily_scanner` job (main.py) to call it instead of `run_all_scans`.*
 - [ ] Re-point `entry_monitor` (last 30 min) to `evaluate_live_entry`; persist the trail.
-- [ ] Replace `exit_monitor` with `eod_exit` (post-close) + `morning_gap_exit` (09:15);
-      delete the 2R/4R/8R/12R ladder + 2-min intraday-touch loop.
+- [~] **v2 exit job built & tested** (`exit_runtime.run_eod_exits` + `run_morning_gap_exits`):
+      close-based 5×ATR chandelier on open trades, persists the ratcheting stop to the new
+      `current_stop`/`highest_high` columns, self-heals legacy trades. In-memory-DB tested.
+      *Pending: wire `exit_monitor` to it (once-daily post-close + 09:15) and delete the
+      2R/4R/8R/12R ladder + 2-min intraday-touch loop.*
 - [ ] Promote `risk_guardian` to enforce caps / DD halt / bear-sizing (via risk_manager).
 - [ ] Wire Telegram entry/exit + brief; run in SHADOW, then paper.
 - [ ] Run the full pipeline of §3 in **paper mode** on live Kite data: scan → watchlist →
