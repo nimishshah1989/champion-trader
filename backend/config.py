@@ -48,8 +48,10 @@ class Settings(BaseSettings):
     # Anthropic (CIO Agent + AutoOptimize)
     anthropic_api_key: str = ""
 
-    # AutoOptimize
-    autooptimize_enabled: bool = True
+    # AutoOptimize — FROZEN for the v2 rollout: the StrategyParams/RiskParams are validated
+    # and parity-gated, so overnight auto-tuning must NOT perturb them. Re-enable only to
+    # research a *new* versioned config against the validated backtester (never the live one).
+    autooptimize_enabled: bool = False
     autooptimize_start_hour: int = 18
     autooptimize_halt_hour: int = 8
     autooptimize_model: str = "claude-sonnet-4-5"
