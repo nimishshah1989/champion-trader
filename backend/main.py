@@ -28,6 +28,7 @@ from backend.routers import (
 from backend.routers.alerts_app import router as alerts_app_router
 from backend.routers.intelligence import router as intelligence_router
 from backend.routers.intelligence_strategy import router as intelligence_strategy_router
+from backend.routers.rs_strategy import router as rs_strategy_router
 
 
 # ── APScheduler Setup ────────────────────────────────────────────────
@@ -95,6 +96,16 @@ def _setup_scheduler():
             CronTrigger(day_of_week="mon-fri", hour=17, minute=30, timezone=IST),
             id="corpus_updater",
             name="Corpus Updater: Market Data Ingestion",
+        )
+
+        # RS EMA50×200 Strategy — daily signals + position update at 16:30 IST
+        from backend.intelligence.rs_ema_strategy import run_rs_ema_daily
+
+        scheduler.add_job(
+            run_rs_ema_daily,
+            CronTrigger(day_of_week="mon-fri", hour=16, minute=30, timezone=IST),
+            id="rs_ema_strategy",
+            name="RS EMA50×200: Daily Signal Scan + Paper Trades (16:30 IST)",
         )
 
         # AutoOptimize — start at 18:00 IST (halts internally at 08:00)
@@ -313,6 +324,9 @@ app.include_router(simulation.router)
 # Register intelligence routers — v2
 app.include_router(intelligence_router)
 app.include_router(intelligence_strategy_router)
+
+# RS EMA50×200 paper trading
+app.include_router(rs_strategy_router)
 
 
 @app.get("/")
