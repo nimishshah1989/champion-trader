@@ -198,9 +198,5 @@ def get_broker_client() -> BaseBrokerClient:
             logger.warning("Jhaveri selected but live trading disabled — using paper")
             return PaperBrokerClient()
         return JhaveriBrokerClient()
-    elif broker_type == "dhan":
-        # Legacy — redirect to paper for now
-        logger.warning("Dhan broker deprecated — using paper mode")
-        return PaperBrokerClient()
     else:
         return PaperBrokerClient()
