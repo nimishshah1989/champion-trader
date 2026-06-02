@@ -69,6 +69,7 @@ class TestConstants:
 def _make_scan(
     symbol="RELIANCE",
     trp=3.0,
+    avg_trp=None,
     watchlist_bucket="READY",
     passes_liquidity_filter=True,
     stage="S2",
@@ -81,6 +82,9 @@ def _make_scan(
     scan = MagicMock()
     scan.symbol = symbol
     scan.trp = Decimal(str(trp))
+    # real ScanResult rows carry both; post_scan_populate prefers avg_trp (the v2 gate),
+    # falling back to trp for legacy rows — mirror trp by default so doubles are realistic.
+    scan.avg_trp = Decimal(str(avg_trp if avg_trp is not None else trp))
     scan.watchlist_bucket = watchlist_bucket
     scan.passes_liquidity_filter = passes_liquidity_filter
     scan.stage = stage

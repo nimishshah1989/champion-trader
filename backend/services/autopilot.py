@@ -85,8 +85,10 @@ def post_scan_populate(db: Session) -> int:
         if not scan.passes_liquidity_filter:
             continue
 
-        # TRP must be above minimum
-        trp_val = Decimal(str(scan.trp)) if scan.trp else Decimal("0")
+        # TRP must be above minimum. v2 SETUP rows carry avg_trp (the >=2.0 gate);
+        # legacy PPC/NPC rows carry per-bar trp — accept whichever is present.
+        trp_source = scan.avg_trp if scan.avg_trp is not None else scan.trp
+        trp_val = Decimal(str(trp_source)) if trp_source else Decimal("0")
         if trp_val < MIN_TRP:
             continue
 
