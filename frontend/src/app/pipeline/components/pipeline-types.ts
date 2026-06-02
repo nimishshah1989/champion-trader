@@ -4,7 +4,6 @@
 
 import type { ScanResult, WatchlistItem } from "@/lib/api";
 
-export type ScanType = "PPC" | "NPC" | "CONTRACTION" | "ALL";
 export type Bucket = "READY" | "NEAR" | "AWAY";
 
 /**
@@ -35,13 +34,6 @@ export interface PipelineCard {
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
-
-export const SCAN_TYPE_OPTIONS: { value: ScanType; label: string; fullName: string }[] = [
-  { value: "ALL", label: "All Scans", fullName: "Positive Pivotal Candle + Negative Pivotal Candle + Base Contraction" },
-  { value: "PPC", label: "Positive Pivotal Candle", fullName: "Positive Pivotal Candle" },
-  { value: "NPC", label: "Negative Pivotal Candle", fullName: "Negative Pivotal Candle" },
-  { value: "CONTRACTION", label: "Base Contraction", fullName: "Base Contraction" },
-];
 
 export const BUCKET_ORDER: Bucket[] = ["READY", "NEAR", "AWAY"];
 
@@ -170,7 +162,7 @@ export function mergeScanAndWatchlist(
     if (watchlistSymbols.has(s.symbol)) continue;
 
     const entryPrice = s.trigger_level ?? s.close_price;
-    const trpPct = s.trp;
+    const trpPct = s.avg_trp ?? s.trp; // v2 scan writes avg_trp; legacy scans wrote trp
     const { positionSize, halfQty } = calculatePositionFields(accountValue, rptPct, entryPrice, trpPct);
 
     cards.push({

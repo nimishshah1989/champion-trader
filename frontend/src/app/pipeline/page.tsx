@@ -17,7 +17,6 @@ import { ScanControls } from "./components/scan-controls";
 import { PipelineKanban, type AddStockFormData } from "./components/pipeline-kanban";
 import { PipelineLearn } from "./components/pipeline-learn";
 import {
-  type ScanType,
   type Bucket,
   getTodayISO,
   mergeScanAndWatchlist,
@@ -33,7 +32,6 @@ export default function PipelinePage() {
   // ---------------------------------------------------------------------------
   // State
   // ---------------------------------------------------------------------------
-  const [scanType, setScanType] = useState<ScanType>("ALL");
   const [scanDate, setScanDate] = useState(getTodayISO());
   const [isScanning, setIsScanning] = useState(false);
 
@@ -67,9 +65,8 @@ export default function PipelinePage() {
     if (scanResults.length === 0) return null;
     return {
       total: scanResults.length,
-      ppc: scanResults.filter((r) => r.scan_type === "PPC").length,
-      npc: scanResults.filter((r) => r.scan_type === "NPC").length,
-      contraction: scanResults.filter((r) => r.scan_type === "CONTRACTION").length,
+      s1b: scanResults.filter((r) => r.stage === "S1B").length,
+      s2: scanResults.filter((r) => r.stage === "S2").length,
     };
   }, [scanResults]);
 
@@ -128,53 +125,18 @@ export default function PipelinePage() {
   async function handleRunScan() {
     setIsScanning(true);
     try {
-      const data = await runScan({ scan_type: scanType, date: scanDate });
+      const data = await runScan({ scan_type: "V2", date: scanDate });
       setScanResults(data);
       setHasScanned(true);
-      toast.success(`Scan complete -- ${data.length} signals found`);
-      // Auto-add qualifying results to watchlist
-      await autoPopulateWatchlist(data);
+      toast.success(`Scan complete -- ${data.length} v2 setup${data.length === 1 ? "" : "s"} found`);
+      // The v2 scan persists ScanResult rows AND populates the watchlist server-side
+      // (live_jobs.run_daily_scan), so just refresh the board from the watchlist.
+      await fetchWatchlist();
     } catch (err) {
       const message = err instanceof Error ? err.message : "Scan failed";
       toast.error(message);
     } finally {
       setIsScanning(false);
-    }
-  }
-
-  /**
-   * After a scan, automatically add qualifying results to the watchlist
-   * so they persist across sessions. Skip symbols already in the watchlist.
-   */
-  async function autoPopulateWatchlist(results: ScanResult[]) {
-    const existingSymbols = new Set(watchlistItems.map((w) => w.symbol));
-    const toAdd = results.filter(
-      (r) => !existingSymbols.has(r.symbol) && r.watchlist_bucket,
-    );
-
-    if (toAdd.length === 0) return;
-
-    let addedCount = 0;
-    for (const result of toAdd) {
-      try {
-        await addToWatchlist({
-          symbol: result.symbol,
-          bucket: result.watchlist_bucket || "AWAY",
-          stage: result.stage || undefined,
-          trigger_level: result.trigger_level || undefined,
-          planned_sl_pct: result.trp || undefined,
-          wuc_types: result.wuc_type || undefined,
-          notes: `Auto-added from ${result.scan_type} scan on ${result.scan_date}`,
-        });
-        addedCount++;
-      } catch (err) {
-        console.error(`Failed to auto-add ${result.symbol} to watchlist:`, err);
-      }
-    }
-
-    if (addedCount > 0) {
-      toast.success(`${addedCount} new stock${addedCount > 1 ? "s" : ""} auto-added to pipeline`);
-      await fetchWatchlist();
     }
   }
 
@@ -193,7 +155,7 @@ export default function PipelinePage() {
           bucket: newBucket,
           stage: scanItem?.stage || undefined,
           trigger_level: scanItem?.trigger_level || undefined,
-          planned_sl_pct: scanItem?.trp || undefined,
+          planned_sl_pct: scanItem?.avg_trp ?? scanItem?.trp ?? undefined,
           wuc_types: scanItem?.wuc_type || undefined,
           notes: scanItem
             ? `Added from ${scanItem.scan_type} scan on ${scanItem.scan_date}`
@@ -277,14 +239,12 @@ export default function PipelinePage() {
           Pipeline
         </h1>
         <p className="text-sm text-slate-500 mt-0.5">
-          Scan for patterns, auto-categorize into READY / NEAR / AWAY, and track stocks toward entry
+          Scan for v2 setups, auto-categorize into READY / NEAR / AWAY, and track stocks toward entry
         </p>
       </div>
 
       {/* Scan controls */}
       <ScanControls
-        scanType={scanType}
-        onScanTypeChange={setScanType}
         scanDate={scanDate}
         onDateChange={setScanDate}
         onRunScan={handleRunScan}
@@ -301,10 +261,10 @@ export default function PipelinePage() {
             Your pipeline is empty
           </h3>
           <p className="text-xs text-slate-400 max-w-md mx-auto">
-            Run your first scan to detect Positive Pivotal Candle, Negative Pivotal Candle,
-            and Base Contraction patterns across ~500 stocks. Qualifying results will
-            automatically populate into the board below. Best run after market close
-            (3:30 PM IST).
+            Run your first scan to detect validated v2 breakout setups (Stage-2 uptrend +
+            volatility contraction + avg TRP &ge; 2) across the liquid NSE universe, read
+            from the Kite-adjusted bar store. READY setups auto-populate the board below.
+            Best run after market close.
           </p>
         </div>
       )}

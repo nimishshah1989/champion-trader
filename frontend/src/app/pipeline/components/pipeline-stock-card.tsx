@@ -35,12 +35,14 @@ function StageBadge({ stage }: { stage: string | null }) {
 function ScanTypeBadge({ scanType }: { scanType: string | null }) {
   if (!scanType) return null;
   const colorMap: Record<string, string> = {
+    V2: "bg-violet-100 text-violet-700", // validated v2 setup
     PPC: "bg-emerald-100 text-emerald-700",
     NPC: "bg-red-100 text-red-700",
     CONTRACTION: "bg-blue-100 text-blue-700",
   };
   const color = colorMap[scanType] || "bg-slate-100 text-slate-600";
   const labelMap: Record<string, string> = {
+    V2: "V2 SETUP",
     PPC: "PPC",
     NPC: "NPC",
     CONTRACTION: "CTR",
@@ -89,7 +91,7 @@ export function PipelineStockCard({
         {card.trp !== null && (
           <div className="flex items-center gap-0.5">
             <span className="text-slate-400">
-              True Range Percentage <InfoTooltip termKey="TRP" />
+              Avg TRP <InfoTooltip termKey="TRP" />
             </span>
             <span
               className={`ml-1 font-mono font-semibold ${
