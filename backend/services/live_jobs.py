@@ -22,12 +22,15 @@ from typing import Optional
 
 from backend.config import settings
 from backend.database import ScanResult, SessionLocal
+from backend.engine import market_store
 from backend.services import entry_runtime, exit_runtime
 from backend.services.autopilot import run_post_scan_automation
 from backend.services.notifications import send_entry_fills, send_exit_fills
 from backend.services.scanner_engine import run_v2_scan
 
 logger = logging.getLogger(__name__)
+
+_INDICES = ("NIFTY 50", "NIFTY 500")
 
 
 def _notify(coro) -> None:
@@ -46,6 +49,46 @@ def _store_con() -> sqlite3.Connection:
 def _universe(con: sqlite3.Connection) -> list[str]:
     """The live universe = every symbol with ingested bars in the store."""
     return [r[0] for r in con.execute("select symbol from done where n>0 order by symbol")]
+
+
+def run_daily_ingest(*, cache_path: Optional[str] = None,
+                     start: date = date(2015, 1, 1)) -> dict:
+    """Post-close: refresh the Kite-adjusted bar store the v2 pipeline reads (runs first).
+
+    Incremental — each symbol fetches only bars after its last stored date. A safe no-op when
+    Kite isn't configured (dev / before the daily token refresh), so the schedule never errors.
+    """
+    if not (settings.kite_api_key and settings.kite_access_token):
+        logger.warning("[v2 INGEST] Kite not configured — skipping bar-store refresh")
+        return {"skipped": "kite-not-configured"}
+    from backend.engine.kite_data import KiteHistoricalAdapter
+
+    adapter = KiteHistoricalAdapter(settings.kite_api_key, settings.kite_access_token)
+    con = sqlite3.connect(cache_path or settings.bars_db_path)
+    today = date.today()
+    new_bars = missing = failed = 0
+    try:
+        market_store.ensure_schema(con)
+        for sym in _universe(con):
+            try:
+                new_bars += market_store.ingest_symbol(con, adapter, sym, start=start,
+                                                        end=today, as_of=today)
+            except KeyError:                          # symbol not in Kite -> mark done, skip on resume
+                con.execute("insert or replace into done values(?,?)", (sym, 0))
+                con.commit()
+                missing += 1
+            except Exception as exc:
+                logger.warning(f"[v2 INGEST] {sym}: {exc}")
+                failed += 1
+        for code in _INDICES:
+            try:
+                market_store.ingest_index(con, adapter, code, start=start, end=today, as_of=today)
+            except Exception as exc:
+                logger.warning(f"[v2 INGEST] index {code}: {exc}")
+    finally:
+        con.close()
+    logger.info(f"[v2 INGEST] +{new_bars:,} bars, {missing} not-in-kite, {failed} failed")
+    return {"new_bars": new_bars, "missing": missing, "failed": failed}
 
 
 def run_daily_scan(scan_date: Optional[date] = None,

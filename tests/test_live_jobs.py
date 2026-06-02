@@ -99,6 +99,15 @@ def test_post_scan_populate_accepts_v2_avg_trp(temp_db):
         db.close()
 
 
+def test_run_daily_ingest_skips_when_kite_unconfigured(monkeypatch):
+    from backend.config import settings
+    from backend.services import live_jobs
+
+    monkeypatch.setattr(settings, "kite_api_key", "")
+    monkeypatch.setattr(settings, "kite_access_token", "")
+    assert live_jobs.run_daily_ingest() == {"skipped": "kite-not-configured"}
+
+
 @needs_cache
 def test_jobs_are_robust_noops_on_empty_db(temp_db):
     from backend.services import live_jobs

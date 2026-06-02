@@ -136,12 +136,19 @@ def _setup_scheduler():
         # (decisions #5/#6: exit once post-close + 09:15 gap; volume gate finalised on the
         # close). In Phase-2 LIVE the ENTRY pass moves to the last 30 min on intraday ticks.
         from backend.services.live_jobs import (
+            run_daily_ingest,
             run_daily_scan,
             run_entry_pass,
             run_exit_pass,
             run_morning_gap_pass,
         )
 
+        scheduler.add_job(
+            run_daily_ingest,
+            CronTrigger(day_of_week="mon-fri", hour=17, minute=30, timezone=IST),
+            id="kite_ingest",
+            name="v2 Ingest: Kite adjusted bars -> store (17:30 IST)",
+        )
         scheduler.add_job(
             run_exit_pass,
             CronTrigger(day_of_week="mon-fri", hour=17, minute=40, timezone=IST),
