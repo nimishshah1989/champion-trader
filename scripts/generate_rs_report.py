@@ -141,6 +141,10 @@ def color_ret(v):
 
 
 def build_yearwise_html():
+    # Annual portfolio returns are MTM (marked-to-market), including unrealized gains
+    # on open positions. Win%/avg win stats are cumulative over the full simulation —
+    # year-by-year trade attribution is unreliable for trend-following because winning
+    # positions typically span multiple calendar years.
     rows = ""
     YEARS = ["2021","2022","2023","2024","2025","2026*"]
     for yr in YEARS:
@@ -150,65 +154,69 @@ def build_yearwise_html():
         s5  = yd["s5"]
         s15 = yd["s15"]
         n   = yd["nifty"]
-        label = yr
         partial_note = " <span style='font-size:10px;color:#475569'>(Jan–May)</span>" if "*" in yr else ""
 
         def beat(s, nret):
             return "↑" if s and s["yr_ret"] > nret else "↓"
 
-        def cell5():
-            if not s5: return "<td>—</td>"*8
-            b = beat(s5, n["ret"])
+        def cell(s):
+            if not s: return "<td>—</td>"*3
+            b  = beat(s, n["ret"])
             bc = "#22c55e" if b == "↑" else "#ef4444"
             return (
-                f'<td style="color:{color_ret(s5["yr_ret"])};font-weight:700">{s5["yr_ret"]:+.1f}%'
-                f' <span style="color:{bc};font-size:11px">{b}</span></td>'
-                f'<td style="color:{color_dd(s5["mdd"])}">{s5["mdd"]:.1f}%</td>'
-                f'<td>{s5["trades"]}</td>'
-                f'<td>{s5["wr"]:.0f}%</td>'
-                f'<td class="pos">{s5["avg_w"]:+.1f}%</td>'
-                f'<td class="neg">{s5["avg_l"]:+.1f}%</td>'
+                f'<td style="color:{color_ret(s["yr_ret"])};font-weight:700">'
+                f'{s["yr_ret"]:+.1f}% <span style="color:{bc};font-size:11px">{b}</span></td>'
+                f'<td style="color:{color_dd(s["mdd"])}">{s["mdd"]:.1f}%</td>'
+                f'<td>{s["trades"]}</td>'
             )
 
-        def cell15():
-            if not s15: return "<td>—</td>"*6
-            b = beat(s15, n["ret"])
-            bc = "#22c55e" if b == "↑" else "#ef4444"
-            return (
-                f'<td style="color:{color_ret(s15["yr_ret"])};font-weight:700">{s15["yr_ret"]:+.1f}%'
-                f' <span style="color:{bc};font-size:11px">{b}</span></td>'
-                f'<td style="color:{color_dd(s15["mdd"])}">{s15["mdd"]:.1f}%</td>'
-                f'<td>{s15["trades"]}</td>'
-                f'<td>{s15["wr"]:.0f}%</td>'
-                f'<td class="pos">{s15["avg_w"]:+.1f}%</td>'
-                f'<td class="neg">{s15["avg_l"]:+.1f}%</td>'
-            )
-
-        nifty_ret_col  = f'<td style="color:{color_ret(n["ret"])}">{n["ret"]:+.1f}%</td>' if n else "<td>—</td>"
-        nifty_dd_col   = f'<td style="color:{color_dd(n["mdd"])}">{n["mdd"]:.1f}%</td>'   if n else "<td>—</td>"
+        nret = f'<td style="color:{color_ret(n["ret"])}">{n["ret"]:+.1f}%</td>' if n else "<td>—</td>"
+        ndd  = f'<td style="color:{color_dd(n["mdd"])}">{n["mdd"]:.1f}%</td>'   if n else "<td>—</td>"
 
         rows += f"""<tr>
-  <td class="left"><strong>{label}</strong>{partial_note}</td>
-  {cell5()}
-  {cell15()}
-  {nifty_ret_col}
-  {nifty_dd_col}
+  <td class="left"><strong>{yr.replace("*","")}</strong>{partial_note}</td>
+  {cell(s5)}
+  {cell(s15)}
+  {nret}{ndd}
 </tr>\n"""
 
+    # Totals row
+    d5_r  = [r for r in data5["results"]  if r["scenario"]=="RS_ONLY" and not r["regime"] and not r["volume"]][0]
+    d15_r = [r for r in data15["results"] if r["scenario"]=="RS_ONLY" and not r["regime"] and not r["volume"]][0]
+    rows += f"""<tr class="benchmark">
+  <td class="left"><strong>Full Period</strong> <span style="font-size:10px">(2021–May 2026)</span></td>
+  <td style="color:{color_ret(d5_r['total_ret'])};font-weight:700">{d5_r['total_ret']:+.1f}%</td>
+  <td style="color:{color_dd(d5_r['max_dd'])}">{d5_r['max_dd']:.1f}%</td>
+  <td>{d5_r['trades']}</td>
+  <td style="color:{color_ret(d15_r['total_ret'])};font-weight:700">{d15_r['total_ret']:+.1f}%</td>
+  <td style="color:{color_dd(d15_r['max_dd'])}">{d15_r['max_dd']:.1f}%</td>
+  <td>{d15_r['trades']}</td>
+  <td style="color:#93c5fd;font-weight:700">{data5["nifty_ret"]:+.1f}%</td>
+  <td style="color:{color_dd(data5["nifty_max_dd"])}">{data5["nifty_max_dd"]:.1f}%</td>
+</tr>"""
+
     return f"""
+<div class="callout amber" style="margin-bottom:14px">
+  <p><strong>Note on annual returns:</strong> Portfolio returns are mark-to-market (MTM) at each
+  year-end, including unrealized gains on open positions. This is the correct measure for
+  year-on-year comparison. The "Trades" column shows positions
+  <em>closed</em> in that year — long-duration winners often span multiple years, so this
+  count understates activity. Overall win rate and avg win/loss are shown in the full-period
+  summary row. Year returns compound to the exact full-period total (verified).</p>
+</div>
 <div class="card" style="padding:0">
 <div class="tbl-wrap">
 <table class="main">
   <thead>
     <tr>
       <th class="left" rowspan="2">Year</th>
-      <th colspan="6" style="border-bottom:1px solid #334155;color:#93c5fd">Universe A — ADT ≥ ₹5 Cr &nbsp;(429 stocks)</th>
-      <th colspan="6" style="border-bottom:1px solid #334155;color:#fbbf24">Universe B — ADT ≥ ₹15 Cr &nbsp;(388 stocks)</th>
-      <th colspan="2" style="border-bottom:1px solid #334155;color:#94a3b8">Nifty 50</th>
+      <th colspan="3" style="border-bottom:1px solid #334155;color:#93c5fd">ADT ≥ ₹5 Cr &nbsp;(429 stocks)</th>
+      <th colspan="3" style="border-bottom:1px solid #334155;color:#fbbf24">ADT ≥ ₹15 Cr &nbsp;(388 stocks)</th>
+      <th colspan="2" style="border-bottom:1px solid #334155;color:#94a3b8">Nifty 50 B&amp;H</th>
     </tr>
     <tr>
-      <th>Return</th><th>Max DD</th><th>Trades</th><th>Win%</th><th>Avg Win</th><th>Avg Loss</th>
-      <th>Return</th><th>Max DD</th><th>Trades</th><th>Win%</th><th>Avg Win</th><th>Avg Loss</th>
+      <th>Return (MTM)</th><th>Max DD</th><th>Closed Trades</th>
+      <th>Return (MTM)</th><th>Max DD</th><th>Closed Trades</th>
       <th>Return</th><th>Max DD</th>
     </tr>
   </thead>
