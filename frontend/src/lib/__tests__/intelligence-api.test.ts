@@ -423,6 +423,41 @@ describe("getRiskStatus", () => {
     expect(result.positions).toHaveLength(2);
     expect(result.positions[0].symbol).toBe("RELIANCE");
   });
+
+  it("maps the drawdown breaker block and treats a realised halt as frozen", async () => {
+    mockFetch.mockResolvedValueOnce(okResponse({
+      frozen: false, // the published flag may lag; the realised halt is authoritative
+      open_positions: 1,
+      risk: { total_risk_amount: 3500, total_risk_pct: 0.35, exceeds_limit: false, per_position: [] },
+      drawdown: {
+        halted: true, equity: 990000, peak: 1080000, drawdown_pct: 8.33,
+        halt_threshold_pct: 15, resume_threshold_pct: 7.5,
+      },
+    }));
+
+    const result = await getRiskStatus();
+
+    expect(result.drawdown.halted).toBe(true);
+    expect(result.drawdown.drawdown_pct).toBeCloseTo(8.33);
+    expect(result.drawdown.peak).toBe(1080000);
+    expect(result.drawdown.halt_threshold_pct).toBe(15);
+    expect(result.frozen).toBe(true); // realised halt -> frozen even though raw.frozen was false
+    expect(result.frozen_reason).toContain("8.3%");
+  });
+
+  it("defaults the drawdown block when the API omits it", async () => {
+    mockFetch.mockResolvedValueOnce(okResponse({
+      frozen: false, open_positions: 0,
+      risk: { total_risk_amount: 0, total_risk_pct: 0, exceeds_limit: false, per_position: [] },
+    }));
+
+    const result = await getRiskStatus();
+
+    expect(result.drawdown.halted).toBe(false);
+    expect(result.drawdown.halt_threshold_pct).toBe(15);
+    expect(result.drawdown.resume_threshold_pct).toBe(7.5);
+    expect(result.frozen).toBe(false);
+  });
 });
 
 describe("getShadowComparison", () => {
