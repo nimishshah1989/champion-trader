@@ -2,8 +2,36 @@
 // Shared constants and helpers for the Trades feature
 // ---------------------------------------------------------------------------
 
+import type { Trade } from "@/lib/api";
+
 // Re-export shared formatters for backwards compatibility
 export { formatINR, formatINRCompact, formatDateShort as formatDate, todayISO } from "@/lib/format";
+
+// ---------------------------------------------------------------------------
+// v2 stop helpers — the validated stop is the chandelier trail (current_stop),
+// which ratchets up from the initial 1R (sl_price). Fall back to sl_price for
+// legacy trades or before the first ratchet.
+// ---------------------------------------------------------------------------
+
+export function effectiveStop(t: Trade): number | null {
+  return t.current_stop ?? t.sl_price;
+}
+
+/** True once the chandelier has ratcheted the stop above the initial 1R. */
+export function isTrailing(t: Trade): boolean {
+  return t.current_stop != null && t.sl_price != null && t.current_stop > t.sl_price;
+}
+
+/** A v2 trade carries trail/attribution state; legacy trades carry the R-ladder targets. */
+export function isV2Trade(t: Trade): boolean {
+  return (
+    t.current_stop != null ||
+    t.highest_high != null ||
+    t.atr_at_entry != null ||
+    t.signal_type != null ||
+    t.avg_trp_at_entry != null
+  );
+}
 
 export type StatusFilter = "ALL" | "OPEN" | "PARTIAL" | "CLOSED";
 
