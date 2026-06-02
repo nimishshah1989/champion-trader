@@ -38,7 +38,9 @@ class Settings(BaseSettings):
     bars_db_path: str = "./champion_cache.sqlite"
 
     # Paper engine — virtual account the validated v2 strategy trades until go-live.
-    paper_capital: Decimal = Decimal("100000")
+    # ₹10,00,000 over the full universe (≥ liquidity floor): non-degenerate sizing for the
+    # paper run (₹1L rounds expensive names to 0 shares). Tune per the fill reconciliation.
+    paper_capital: Decimal = Decimal("1000000")
 
     # Defaults
     default_account_value: Decimal = Decimal("1000000")
