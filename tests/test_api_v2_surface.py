@@ -69,3 +69,42 @@ async def test_risk_status_includes_drawdown_block(tmp_path, monkeypatch):
         assert dd["resume_threshold_pct"] == 7.5
     finally:
         database.SessionLocal.configure(bind=database.engine)
+
+
+def test_scanner_run_uses_the_v2_scan(tmp_path, monkeypatch):
+    """POST /scanner/run drives the validated v2 scan and returns its V2 rows.
+
+    run_daily_scan is the one brain (it reads the cache); here we stub it to persist a
+    V2 row so the test stays fast/cache-free, and assert the endpoint returns exactly
+    the scan_type="V2" rows for the requested date.
+    """
+    from backend import database
+    from backend.tables import Base, ScanResult
+    from backend.models.scan_result import ScanRequest
+    from backend.routers import scanner
+    from backend.services import live_jobs
+
+    engine = create_engine(f"sqlite:///{tmp_path}/t.db")
+    Base.metadata.create_all(engine)
+    database.SessionLocal.configure(bind=engine)
+    try:
+        def fake_daily_scan(scan_date=None, symbols=None):
+            s = database.SessionLocal()
+            s.add(ScanResult(scan_date=scan_date, symbol="ASTERDM", scan_type="V2",
+                             avg_trp=Decimal("3.18"), stage="S2", watchlist_bucket="READY",
+                             trigger_level=Decimal("601")))
+            s.commit()
+            s.close()
+            return {"setups": 1, "watchlist_added": 1}
+
+        monkeypatch.setattr(live_jobs, "run_daily_scan", fake_daily_scan)
+
+        db = database.SessionLocal()
+        rows = scanner.run_scan(ScanRequest(scan_type="V2", date=date(2024, 6, 2)), db=db)
+        db.close()
+
+        assert len(rows) == 1
+        assert rows[0].scan_type == "V2" and rows[0].symbol == "ASTERDM"
+        assert rows[0].stage == "S2" and rows[0].watchlist_bucket == "READY"
+    finally:
+        database.SessionLocal.configure(bind=database.engine)
