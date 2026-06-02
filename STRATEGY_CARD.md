@@ -170,6 +170,24 @@ Calmar 1.93 → 2.42 — grounded in O'Neil/Weinstein. It cuts trades ~64%, but
 > its edge is regime-dependent and post-2021-weighted. It's an *option*, not a strict
 > dominator. The ≥2× threshold is pre-registered from O'Neil/Weinstein (not data-mined).
 
+## 6b. Deployable reality — liquidity tiers (the honest live number)
+
+The headline 26.5% CAGR is **micro + 2021 inflated**. Re-running the full v2 portfolio at
+rising turnover floors (`run_v2_deployable_tiers.py` · `run_v2_cap_diagnostic.py`):
+
+| liquidity floor | CAGR | maxDD | Calmar | ex-2021 |
+|---|---|---|---|---|
+| FULL (~1,270) | 26.5% | 14.8% | 1.79 | 19.5% |
+| **≥ ₹5cr (live default)** | **18.1%** | 15.4% | 1.18 | **18.3%** |
+| ≥ ₹15cr (large capital) | 15.9% | 16.9% | 0.94 | 17.6% |
+| ≥ ₹50cr (mega only) | 6.3% | 4.2% | 1.49 | 6.6% |
+
+- The edge is **cap-dependent**: per-trade, mega/large ≈ 0; mid (5–25cr) and micro (<1cr) carry it.
+- **2021 was +114% FULL but +1.4% at ≥ ₹15cr** — the melt-up was entirely sub-15cr micro.
+- The large-cap edge is **era-dependent** (dead 2016–22, strong 2023–26 in fillable names: ≥15cr +50/+46/+22/+18%).
+- **Live liquidity floor DECIDED: ≥ ₹5cr (paper) / ≥ ₹15cr (large capital). Plan around ~16–18%, not 26%.**
+- Elevates **survivorship bias** — the micro tail that inflates the headline is the most delisting-prone.
+
 ## 7. Next steps
 
 - [ ] Decide v1 (max trades) vs v2 (higher win rate, fewer trades) as the live default.
