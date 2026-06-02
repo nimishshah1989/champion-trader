@@ -72,11 +72,13 @@ def current_dd_halt(db, *, risk: RiskParams = RISK_V2,
 
 
 async def monitor_positions() -> None:
-    """v2 portfolio guard — enforce the drawdown breaker + flag excess open risk.
+    """v2 portfolio guard — surface the drawdown breaker state + flag excess open risk.
 
     Per-position stop management is the post-close exit job's job now (exit_runtime's
-    close-based chandelier); this guard sets the entry freeze (`is_frozen()`, read by the
-    entry pass) when the 15% drawdown breaker trips and lifts it on a 7.5% recovery.
+    close-based chandelier). This guard tracks the 15%-halt / 7.5%-resume breaker and
+    publishes it via `is_frozen()` (for /health + the FREEZE Telegram alert). The entry pass
+    does not rely on this flag — it recomputes the same halt directly at fill time through
+    `current_dd_halt`, so a freeze is enforced even outside the guard's market-hours cadence.
     """
     global _frozen
 
