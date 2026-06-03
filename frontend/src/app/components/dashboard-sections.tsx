@@ -417,11 +417,12 @@ export function ActionsCTA() {
 export function RsPortfolioCard() {
   const [status, setStatus] = useState<RsPortfolioStatus | null>(null);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(false);
 
   useEffect(() => {
     getRsStrategyStatus()
-      .then(setStatus)
-      .catch(() => setStatus(null))
+      .then((s) => { setStatus(s); setFetchError(false); })
+      .catch(() => { setStatus(null); setFetchError(true); })
       .finally(() => setLoading(false));
   }, []);
 
@@ -437,8 +438,10 @@ export function RsPortfolioCard() {
         </div>
         {loading ? (
           <Skeleton className="h-8 w-24 bg-slate-100" />
+        ) : fetchError ? (
+          <span className="text-sm text-red-400">Backend unreachable</span>
         ) : status?.error || !status ? (
-          <span className="text-sm text-slate-400">Not started</span>
+          <span className="text-sm text-slate-400">Not started yet</span>
         ) : (
           <>
             <p className={`text-2xl font-bold font-mono ${isPositive ? "text-emerald-600" : "text-red-600"}`}>

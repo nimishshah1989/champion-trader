@@ -253,16 +253,19 @@ export default function RsStrategyPage() {
   const [status, setStatus] = useState<RsPortfolioStatus | null>(null);
   const [trades, setTrades] = useState<RsStrategyTrade[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(false);
   const [running, setRunning] = useState(false);
   const [activeTab, setActiveTab] = useState<"open" | "closed">("open");
 
   const fetchAll = useCallback(async () => {
+    setFetchError(false);
     try {
       const [s, t] = await Promise.allSettled([getRsStrategyStatus(), getRsStrategyTrades()]);
       if (s.status === "fulfilled") setStatus(s.value);
+      else setFetchError(true);
       if (t.status === "fulfilled") setTrades(t.value);
     } catch {
-      // silently swallow
+      setFetchError(true);
     } finally {
       setLoading(false);
     }
@@ -316,33 +319,41 @@ export default function RsStrategyPage() {
             <div key={i} className="h-24 rounded-xl border bg-slate-100" />
           ))}
         </div>
+      ) : fetchError ? (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700">
+          Could not reach the backend. Check that the server is running and try again.
+        </div>
       ) : status?.error ? (
         <div className="rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700">
           {status.error}
+        </div>
+      ) : !status ? (
+        <div className="rounded-xl border border-slate-200 bg-slate-50 px-5 py-4 text-sm text-slate-500">
+          Strategy not started yet. Click <strong>Run Now</strong> to run the first scan.
         </div>
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <StatCard
             label="Current Equity"
-            value={`₹${fmt(status?.current_equity ?? 100000, 0)}`}
-            sub={`Started ₹${fmt(status?.starting_capital ?? 100000, 0)}`}
+            value={`₹${fmt(status.current_equity, 0)}`}
+            sub={`Started ₹${fmt(status.starting_capital, 0)}`}
             valueClass={colorPct(returnPct)}
           />
           <StatCard
             label="Total Return"
             value={fmtPct(returnPct)}
-            sub={`P&L ₹${fmt(status?.total_pnl ?? 0, 0)}`}
+            sub={`P&L ₹${fmt(status.total_pnl, 0)}`}
             valueClass={colorPct(returnPct)}
           />
           <StatCard
             label="Open Positions"
-            value={String(status?.open_positions ?? 0)}
-            sub={`of ${status?.config?.max_positions ?? 15} max`}
+            value={String(status.open_positions)}
+            sub={`of ${status.config?.max_positions ?? 15} max`}
           />
           <StatCard
             label="Win Rate"
             value={winRate != null ? `${winRate.toFixed(1)}%` : "—"}
-            sub={`${status?.win_count ?? 0}W / ${status?.loss_count ?? 0}L of ${status?.total_trades ?? 0} trades`}
+            sub={`${status.win_count}W / ${status.loss_count}L of ${status.total_trades} trades`}
           />
         </div>
       )}

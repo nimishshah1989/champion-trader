@@ -93,8 +93,10 @@ jobs:
           command_timeout: 15m
           script: |
             set -e
-            cd ~/apps/champion/frontend
+            cd ~/apps/champion
+            git pull origin main
 
+            cd frontend
             echo "Building frontend image..."
             docker build \
               --build-arg NEXT_PUBLIC_API_URL=https://champion-api.jslwealth.in \
