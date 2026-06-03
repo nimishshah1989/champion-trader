@@ -24,6 +24,10 @@ const CORE_NAV = [
   { title: "Review", href: "/review" },
 ] as const;
 
+const STRATEGIES_NAV = [
+  { title: "RS EMA50×200", href: "/rs-strategy" },
+] as const;
+
 const INTELLIGENCE_NAV = [
   { title: "Intelligence", href: "/intelligence" },
   { title: "Simulation", href: "/simulation" },
@@ -56,6 +60,24 @@ export function AppSidebar() {
           <SidebarGroupContent>
             <SidebarMenu>
               {CORE_NAV.map((item) => (
+                <SidebarMenuItem key={item.href}>
+                  <SidebarMenuButton asChild isActive={isActive(item.href, pathname)}>
+                    <Link href={item.href}>
+                      <span>{item.title}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        {/* Strategies */}
+        <SidebarGroup>
+          <SidebarGroupLabel>Strategies</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {STRATEGIES_NAV.map((item) => (
                 <SidebarMenuItem key={item.href}>
                   <SidebarMenuButton asChild isActive={isActive(item.href, pathname)}>
                     <Link href={item.href}>

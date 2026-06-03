@@ -22,6 +22,7 @@ import {
   WatchlistSection,
   ActionsCTA,
   PostMarketLinks,
+  RsPortfolioCard,
 } from "./components/dashboard-sections";
 
 // ---------------------------------------------------------------------------
@@ -129,6 +130,14 @@ export default function DashboardPage() {
           readyCount={readyStocks.length}
           stance={stance}
         />
+      </div>
+
+      {/* Strategies */}
+      <div className="space-y-4">
+        <h2 className="text-sm font-semibold text-slate-800 uppercase tracking-wider">Automated Strategies</h2>
+        <div className="grid gap-4 md:grid-cols-3">
+          <RsPortfolioCard />
+        </div>
       </div>
     </div>
   );

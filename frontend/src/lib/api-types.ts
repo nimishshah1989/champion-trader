@@ -364,6 +364,91 @@ export interface HealthStatus {
   jobs: ScheduledJob[];
 }
 
+// --- RS EMA50×200 Strategy ---
+
+export interface RsOpenTrade {
+  symbol: string;
+  entry_date: string | null;
+  entry_price: number;
+  qty: number;
+  sl_price: number;
+  position_value: number;
+  rpt_amount: number;
+}
+
+export interface RsClosedSummary {
+  count: number;
+  total_pnl: number;
+  wins: number;
+  losses: number;
+  win_rate: number | null;
+  avg_win: number | null;
+  avg_loss: number | null;
+}
+
+export interface RsStrategyConfig {
+  capital: number;
+  rpt_pct: number;
+  sl_pct: number;
+  max_positions: number;
+  ema_fast: number;
+  ema_slow: number;
+  min_adt_cr: number;
+  pos_value: number;
+}
+
+export interface RsPortfolioStatus {
+  run_id: number;
+  status: string;
+  start_date: string | null;
+  last_run_date: string | null;
+  starting_capital: number;
+  current_equity: number;
+  total_pnl: number;
+  total_return_pct: number;
+  total_trades: number;
+  win_count: number;
+  loss_count: number;
+  win_rate: number | null;
+  open_positions: number;
+  config: RsStrategyConfig;
+  open_trades: RsOpenTrade[];
+  closed_summary: RsClosedSummary;
+  equity_curve: { date: string; equity: number }[];
+  error?: string;
+}
+
+export interface RsStrategyTrade {
+  id: number;
+  symbol: string;
+  signal_date: string | null;
+  entry_date: string | null;
+  entry_price: number;
+  qty: number;
+  sl_price: number;
+  rpt_amount: number;
+  status: string;
+  exit_date: string | null;
+  exit_reason: string | null;
+  gross_pnl: number;
+  pnl_pct: number;
+  r_multiple: number;
+  position_value: number;
+  remaining_qty: number;
+}
+
+export interface RsRunNowResult {
+  message: string;
+  result: {
+    date: string;
+    exits: string[];
+    entries: string[];
+    open_positions: number;
+    equity: number;
+    errors: string[];
+  };
+}
+
 // --- Internal ---
 
 export interface RequestOptions {

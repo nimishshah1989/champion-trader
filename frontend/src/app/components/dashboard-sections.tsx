@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { Trade, WatchlistItem, TradeStats, MarketStance, HealthStatus } from "@/lib/api";
+import { getRsStrategyStatus, type Trade, type WatchlistItem, type TradeStats, type MarketStance, type HealthStatus, type RsPortfolioStatus } from "@/lib/api";
 import type { RiskStatus } from "@/lib/intelligence-api";
 import { effectiveStop, isTrailing } from "@/app/trades/components/trade-helpers";
 
@@ -406,6 +407,53 @@ export function ActionsCTA() {
         </Link>
       </div>
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// RsPortfolioCard — self-fetching, drop-in on dashboard
+// ---------------------------------------------------------------------------
+
+export function RsPortfolioCard() {
+  const [status, setStatus] = useState<RsPortfolioStatus | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(false);
+
+  useEffect(() => {
+    getRsStrategyStatus()
+      .then((s) => { setStatus(s); setFetchError(false); })
+      .catch(() => { setStatus(null); setFetchError(true); })
+      .finally(() => setLoading(false));
+  }, []);
+
+  const returnPct = status?.total_return_pct ?? 0;
+  const isPositive = returnPct >= 0;
+
+  return (
+    <Link href="/rs-strategy" className="block">
+      <div className="bg-white rounded-xl border border-slate-200 p-5 hover:border-teal-300 transition-colors">
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-xs text-slate-400 font-medium uppercase tracking-wide">RS EMA50×200</p>
+          <span className="text-[10px] bg-blue-50 text-blue-700 rounded-full px-2 py-0.5 font-medium">Paper</span>
+        </div>
+        {loading ? (
+          <Skeleton className="h-8 w-24 bg-slate-100" />
+        ) : fetchError ? (
+          <span className="text-sm text-red-400">Backend unreachable</span>
+        ) : status?.error || !status ? (
+          <span className="text-sm text-slate-400">Not started yet</span>
+        ) : (
+          <>
+            <p className={`text-2xl font-bold font-mono ${isPositive ? "text-emerald-600" : "text-red-600"}`}>
+              {isPositive ? "+" : ""}{returnPct.toFixed(2)}%
+            </p>
+            <p className="text-[10px] text-slate-400 mt-1">
+              {status.open_positions} open · {status.total_trades} trades · ₹{(status.current_equity / 1000).toFixed(1)}k equity
+            </p>
+          </>
+        )}
+      </div>
+    </Link>
   );
 }
 
