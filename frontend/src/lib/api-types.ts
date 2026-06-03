@@ -439,14 +439,6 @@ export interface RsStrategyTrade {
 
 export interface RsRunNowResult {
   message: string;
-  result: {
-    date: string;
-    exits: string[];
-    entries: string[];
-    open_positions: number;
-    equity: number;
-    errors: string[];
-  };
 }
 
 // --- Internal ---

@@ -37,12 +37,10 @@ def rs_trades():
 async def rs_run_now():
     """
     Manually trigger the RS EMA50×200 daily scan.
-    Same logic as the 16:30 IST scheduled job — fetches latest prices,
-    processes exits on open positions, opens new golden-cross positions.
+    Fires the job in the background and returns immediately — the scan can
+    take 30–60 s (yfinance data fetch), which would otherwise time out.
+    Poll GET /rs-strategy/status to see updated results.
     """
     logger.info("[RS-EMA] Manual run triggered via API")
-    result = await run_rs_ema_daily()
-    return {
-        "message": "RS EMA daily run complete",
-        "result": result,
-    }
+    asyncio.create_task(run_rs_ema_daily())
+    return {"message": "RS EMA scan started — poll /rs-strategy/status for results."}

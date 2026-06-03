@@ -7,7 +7,6 @@ import {
   runRsStrategyNow,
   type RsPortfolioStatus,
   type RsStrategyTrade,
-  type RsRunNowResult,
 } from "@/lib/api";
 import { toast } from "sonner";
 import {
@@ -230,20 +229,6 @@ function ClosedTradesTable({ trades }: { trades: RsStrategyTrade[] }) {
 }
 
 // ---------------------------------------------------------------------------
-// Run-Now result toast content
-// ---------------------------------------------------------------------------
-
-function showRunResult(result: RsRunNowResult) {
-  const r = result.result;
-  const lines = [
-    `Date: ${r.date}`,
-    r.entries.length ? `Entries: ${r.entries.join(", ")}` : "No new entries",
-    r.exits.length ? `Exits: ${r.exits.join(", ")}` : "No exits",
-    `Open positions: ${r.open_positions} | Equity: ₹${fmt(r.equity, 0)}`,
-  ];
-  if (r.errors.length) lines.push(`Errors: ${r.errors.join("; ")}`);
-  toast.success(result.message, { description: lines.join("\n"), duration: 8000 });
-}
 
 // ---------------------------------------------------------------------------
 // Main page
@@ -278,14 +263,19 @@ export default function RsStrategyPage() {
   async function handleRunNow() {
     setRunning(true);
     try {
-      const result = await runRsStrategyNow();
-      showRunResult(result);
-      await fetchAll();
-    } catch (err: unknown) {
-      toast.error("Run failed", {
-        description: err instanceof Error ? err.message : "Unknown error",
+      await runRsStrategyNow();
+      toast.success("Scan started", {
+        description: "Fetching market data & computing signals — results will refresh in ~45 s.",
+        duration: 6000,
       });
-    } finally {
+      // Auto-refresh once the scan has had time to complete
+      setTimeout(() => {
+        fetchAll().finally(() => setRunning(false));
+      }, 45_000);
+    } catch (err: unknown) {
+      toast.error("Run failed — backend unreachable", {
+        description: err instanceof Error ? err.message : "Check that the server is running.",
+      });
       setRunning(false);
     }
   }
