@@ -7,6 +7,8 @@ import {
   runRsStrategyNow,
   type RsPortfolioStatus,
   type RsStrategyTrade,
+  type RsBothPortfolios,
+  type RsAllTrades,
 } from "@/lib/api";
 import { toast } from "sonner";
 import {
@@ -40,8 +42,12 @@ function colorPct(n: number | null | undefined): string {
   return n >= 0 ? "text-emerald-600" : "text-red-600";
 }
 
+function isFullStatus(p: RsBothPortfolios["A"]): p is RsPortfolioStatus {
+  return !("error" in p);
+}
+
 // ---------------------------------------------------------------------------
-// Stat card
+// Sub-components
 // ---------------------------------------------------------------------------
 
 function StatCard({
@@ -57,198 +63,277 @@ function StatCard({
 }) {
   return (
     <div className="rounded-xl border bg-white px-5 py-4 shadow-sm">
-      <p className="text-xs text-slate-500 uppercase tracking-wide mb-1">{label}</p>
-      <p className={`text-2xl font-bold ${valueClass ?? "text-slate-800"}`}>{value}</p>
-      {sub && <p className="text-xs text-slate-400 mt-0.5">{sub}</p>}
+      <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">{label}</p>
+      <p className={`mt-1 text-xl font-semibold ${valueClass ?? "text-slate-800"}`}>{value}</p>
+      {sub && <p className="mt-0.5 text-xs text-slate-400">{sub}</p>}
     </div>
   );
 }
 
+function ExitBadge({ reason }: { reason: string | null }) {
+  if (!reason) return null;
+  const cls =
+    reason === "STOP_LOSS"
+      ? "bg-red-100 text-red-700"
+      : reason === "RS_DEATH_CROSS"
+      ? "bg-orange-100 text-orange-700"
+      : "bg-slate-100 text-slate-600";
+  return (
+    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${cls}`}>
+      {reason === "STOP_LOSS" ? "Stop Loss" : reason === "RS_DEATH_CROSS" ? "Death Cross" : reason}
+    </span>
+  );
+}
+
 // ---------------------------------------------------------------------------
-// Equity curve
+// Single portfolio panel
 // ---------------------------------------------------------------------------
 
-function EquityCurve({ data }: { data: { date: string; equity: number }[] }) {
-  if (!data.length) {
+function PortfolioPanel({
+  label,
+  status,
+  trades,
+  activeTab,
+  onTabChange,
+}: {
+  label: "A" | "B";
+  status: RsBothPortfolios["A"] | null;
+  trades: RsStrategyTrade[];
+  activeTab: "open" | "closed";
+  onTabChange: (t: "open" | "closed") => void;
+}) {
+  const color = label === "A" ? "indigo" : "violet";
+  const borderColor = label === "A" ? "border-indigo-200" : "border-violet-200";
+  const headerBg = label === "A" ? "bg-indigo-50" : "bg-violet-50";
+  const headerText = label === "A" ? "text-indigo-700" : "text-violet-700";
+
+  if (!status) {
     return (
-      <div className="flex items-center justify-center h-40 text-slate-400 text-sm">
-        No equity data yet — run the strategy to populate the curve.
+      <div className={`rounded-xl border ${borderColor} bg-white shadow-sm overflow-hidden`}>
+        <div className={`px-5 py-3 ${headerBg} flex items-center gap-2`}>
+          <span className={`text-sm font-semibold ${headerText}`}>Portfolio {label}</span>
+        </div>
+        <div className="px-5 py-8 text-center text-sm text-slate-400">Loading…</div>
       </div>
     );
   }
 
-  const start = data[0].equity;
-  const end = data[data.length - 1].equity;
-  const positive = end >= start;
-
-  return (
-    <ResponsiveContainer width="100%" height={200}>
-      <AreaChart data={data} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
-        <defs>
-          <linearGradient id="equityGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop
-              offset="5%"
-              stopColor={positive ? "#10b981" : "#ef4444"}
-              stopOpacity={0.25}
-            />
-            <stop
-              offset="95%"
-              stopColor={positive ? "#10b981" : "#ef4444"}
-              stopOpacity={0.02}
-            />
-          </linearGradient>
-        </defs>
-        <XAxis
-          dataKey="date"
-          tick={{ fontSize: 10 }}
-          tickFormatter={(v) => v.slice(5)}
-          minTickGap={40}
-        />
-        <YAxis
-          tick={{ fontSize: 10 }}
-          tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`}
-          width={52}
-        />
-        <Tooltip
-          formatter={(v: number | undefined) => [`₹${fmt(v ?? 0)}`, "Equity"]}
-          labelFormatter={(l) => `Date: ${l}`}
-        />
-        <Area
-          type="monotone"
-          dataKey="equity"
-          stroke={positive ? "#10b981" : "#ef4444"}
-          strokeWidth={2}
-          fill="url(#equityGrad)"
-          dot={false}
-        />
-      </AreaChart>
-    </ResponsiveContainer>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Open positions table
-// ---------------------------------------------------------------------------
-
-function OpenPositionsTable({ trades }: { trades: RsPortfolioStatus["open_trades"] }) {
-  if (!trades.length) {
-    return <p className="text-sm text-slate-400 py-4 text-center">No open positions</p>;
+  if (!isFullStatus(status)) {
+    return (
+      <div className={`rounded-xl border ${borderColor} bg-white shadow-sm overflow-hidden`}>
+        <div className={`px-5 py-3 ${headerBg} flex items-center gap-2`}>
+          <span className={`text-sm font-semibold ${headerText}`}>Portfolio {label}</span>
+        </div>
+        <div className="px-5 py-6 text-center text-sm text-slate-500">
+          Not started yet — click <strong>Run Now</strong> to initialise.
+        </div>
+      </div>
+    );
   }
-  return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b text-xs text-slate-500 uppercase tracking-wide">
-            <th className="text-left py-2 pr-4">Symbol</th>
-            <th className="text-right py-2 pr-4">Entry</th>
-            <th className="text-right py-2 pr-4">Qty</th>
-            <th className="text-right py-2 pr-4">Stop</th>
-            <th className="text-right py-2 pr-4">Risk</th>
-            <th className="text-right py-2">Value</th>
-          </tr>
-        </thead>
-        <tbody>
-          {trades.map((t) => (
-            <tr key={t.symbol} className="border-b last:border-0 hover:bg-slate-50">
-              <td className="py-2 pr-4 font-medium text-slate-800">{t.symbol}</td>
-              <td className="py-2 pr-4 text-right">₹{fmt(t.entry_price, 2)}</td>
-              <td className="py-2 pr-4 text-right">{t.qty}</td>
-              <td className="py-2 pr-4 text-right text-red-600">₹{fmt(t.sl_price, 2)}</td>
-              <td className="py-2 pr-4 text-right">₹{fmt(t.rpt_amount, 0)}</td>
-              <td className="py-2 text-right">₹{fmt(t.position_value, 0)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
 
-// ---------------------------------------------------------------------------
-// Closed trades table
-// ---------------------------------------------------------------------------
+  const s = status;
+  const returnPct = s.total_return_pct ?? 0;
+  const openTrades = trades.filter((t) => t.status === "OPEN" || t.status === "PARTIAL");
+  const closedTrades = trades.filter((t) => t.status === "CLOSED");
+  const curveColor = returnPct >= 0 ? "#10b981" : "#ef4444";
 
-function ClosedTradesTable({ trades }: { trades: RsStrategyTrade[] }) {
-  const closed = trades.filter((t) => t.status === "CLOSED");
-  if (!closed.length) {
-    return <p className="text-sm text-slate-400 py-4 text-center">No closed trades yet</p>;
-  }
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b text-xs text-slate-500 uppercase tracking-wide">
-            <th className="text-left py-2 pr-4">Symbol</th>
-            <th className="text-right py-2 pr-4">Entry</th>
-            <th className="text-right py-2 pr-4">Exit</th>
-            <th className="text-right py-2 pr-4">P&L</th>
-            <th className="text-right py-2 pr-4">P&L %</th>
-            <th className="text-right py-2 pr-4">R</th>
-            <th className="text-left py-2">Reason</th>
-          </tr>
-        </thead>
-        <tbody>
-          {closed
-            .sort((a, b) => (b.exit_date ?? "").localeCompare(a.exit_date ?? ""))
-            .map((t) => (
-              <tr key={t.id} className="border-b last:border-0 hover:bg-slate-50">
-                <td className="py-2 pr-4 font-medium text-slate-800">{t.symbol}</td>
-                <td className="py-2 pr-4 text-right text-xs">
-                  <div>{t.entry_date?.slice(0, 10) ?? "—"}</div>
-                  <div className="text-slate-500">₹{fmt(t.entry_price, 2)}</div>
-                </td>
-                <td className="py-2 pr-4 text-right text-xs">
-                  <div>{t.exit_date?.slice(0, 10) ?? "—"}</div>
-                </td>
-                <td className={`py-2 pr-4 text-right font-medium ${colorPct(t.gross_pnl)}`}>
-                  ₹{fmt(t.gross_pnl, 0)}
-                </td>
-                <td className={`py-2 pr-4 text-right ${colorPct(t.pnl_pct)}`}>
-                  {fmtPct(t.pnl_pct)}
-                </td>
-                <td className={`py-2 pr-4 text-right ${colorPct(t.r_multiple)}`}>
-                  {t.r_multiple != null ? t.r_multiple.toFixed(2) : "—"}
-                </td>
-                <td className="py-2 text-xs">
-                  <span
-                    className={`rounded px-1.5 py-0.5 text-xs font-medium ${
-                      t.exit_reason === "STOP_LOSS"
-                        ? "bg-red-50 text-red-700"
-                        : "bg-blue-50 text-blue-700"
-                    }`}
-                  >
-                    {t.exit_reason ?? "—"}
-                  </span>
-                </td>
-              </tr>
+    <div className={`rounded-xl border ${borderColor} bg-white shadow-sm overflow-hidden`}>
+      {/* Header */}
+      <div className={`px-5 py-3 ${headerBg} flex items-center justify-between`}>
+        <span className={`text-sm font-semibold ${headerText}`}>Portfolio {label}</span>
+        <span className="text-xs text-slate-500">
+          {s.open_positions}/{s.config.max_positions} positions
+        </span>
+      </div>
+
+      <div className="p-5 space-y-5">
+        {/* Stat cards */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <StatCard
+            label="Equity"
+            value={`₹${fmt(s.current_equity, 0)}`}
+            sub={`Started ₹${fmt(s.starting_capital, 0)}`}
+          />
+          <StatCard
+            label="Return"
+            value={fmtPct(returnPct)}
+            sub={`P&L ₹${fmt(s.total_pnl, 0)}`}
+            valueClass={colorPct(returnPct)}
+          />
+          <StatCard
+            label="Win Rate"
+            value={s.win_rate != null ? `${s.win_rate.toFixed(1)}%` : "—"}
+            sub={`${s.win_count}W / ${s.loss_count}L`}
+          />
+          <StatCard
+            label="Total Trades"
+            value={String(s.total_trades)}
+            sub={`${s.open_positions} open`}
+          />
+        </div>
+
+        {/* Equity curve */}
+        {s.equity_curve.length > 1 ? (
+          <div className="rounded-xl border bg-white p-4 shadow-sm">
+            <p className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-3">
+              Equity Curve
+            </p>
+            <ResponsiveContainer width="100%" height={140}>
+              <AreaChart data={s.equity_curve} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id={`grad${label}`} x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor={curveColor} stopOpacity={0.15} />
+                    <stop offset="95%" stopColor={curveColor} stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <XAxis dataKey="date" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
+                <YAxis
+                  tick={{ fontSize: 10 }}
+                  tickLine={false}
+                  axisLine={false}
+                  tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`}
+                  width={52}
+                />
+                <Tooltip
+                  formatter={(v: number | undefined) => [`₹${fmt(v ?? 0)}`, "Equity"]}
+                  labelFormatter={(l) => `Date: ${l}`}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="equity"
+                  stroke={curveColor}
+                  strokeWidth={2}
+                  fill={`url(#grad${label})`}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        ) : (
+          <div className="rounded-xl border bg-slate-50 p-4 text-center text-sm text-slate-400">
+            No equity data yet — run the strategy to populate the curve.
+          </div>
+        )}
+
+        {/* Trades tabs */}
+        <div className="rounded-xl border bg-white shadow-sm overflow-hidden">
+          <div className="flex border-b">
+            {(["open", "closed"] as const).map((tab) => (
+              <button
+                key={tab}
+                onClick={() => onTabChange(tab)}
+                className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+                  activeTab === tab
+                    ? "border-slate-800 text-slate-800"
+                    : "border-transparent text-slate-500 hover:text-slate-700"
+                }`}
+              >
+                {tab === "open" ? `Open Positions (${openTrades.length})` : `Closed Trades (${closedTrades.length})`}
+              </button>
             ))}
-        </tbody>
-      </table>
+          </div>
+
+          <div className="overflow-x-auto">
+            {activeTab === "open" ? (
+              openTrades.length === 0 ? (
+                <p className="py-8 text-center text-sm text-slate-400">No open positions</p>
+              ) : (
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b bg-slate-50 text-xs text-slate-500">
+                      <th className="px-4 py-2 text-left">Symbol</th>
+                      <th className="px-4 py-2 text-right">Entry</th>
+                      <th className="px-4 py-2 text-right">SL</th>
+                      <th className="px-4 py-2 text-right">Qty</th>
+                      <th className="px-4 py-2 text-right">Value</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {openTrades.map((t) => (
+                      <tr key={t.id} className="border-b last:border-0 hover:bg-slate-50">
+                        <td className="px-4 py-2 font-medium text-slate-800">{t.symbol}</td>
+                        <td className="px-4 py-2 text-right">₹{fmt(t.entry_price, 2)}</td>
+                        <td className="px-4 py-2 text-right text-red-600">₹{fmt(t.sl_price, 2)}</td>
+                        <td className="px-4 py-2 text-right">{t.remaining_qty}</td>
+                        <td className="px-4 py-2 text-right">₹{fmt(t.position_value, 0)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )
+            ) : closedTrades.length === 0 ? (
+              <p className="py-8 text-center text-sm text-slate-400">No closed trades yet</p>
+            ) : (
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b bg-slate-50 text-xs text-slate-500">
+                    <th className="px-4 py-2 text-left">Symbol</th>
+                    <th className="px-4 py-2 text-right">Entry</th>
+                    <th className="px-4 py-2 text-right">P&L</th>
+                    <th className="px-4 py-2 text-right">Return</th>
+                    <th className="px-4 py-2 text-left">Exit</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {closedTrades.map((t) => (
+                    <tr key={t.id} className="border-b last:border-0 hover:bg-slate-50">
+                      <td className="px-4 py-2 font-medium text-slate-800">{t.symbol}</td>
+                      <td className="px-4 py-2 text-right">₹{fmt(t.entry_price, 2)}</td>
+                      <td className={`px-4 py-2 text-right font-medium ${t.gross_pnl >= 0 ? "text-emerald-600" : "text-red-600"}`}>
+                        ₹{fmt(t.gross_pnl, 0)}
+                      </td>
+                      <td className={`px-4 py-2 text-right ${t.pnl_pct >= 0 ? "text-emerald-600" : "text-red-600"}`}>
+                        {fmtPct(t.pnl_pct)}
+                      </td>
+                      <td className="px-4 py-2">
+                        <ExitBadge reason={t.exit_reason} />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
+
+        {/* Config */}
+        <div className="rounded-xl border bg-slate-50 p-4">
+          <p className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">Config</p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-6 gap-y-1 text-xs text-slate-600">
+            <span>Capital: ₹{fmt(s.config.capital, 0)}</span>
+            <span>Stop Loss: {s.config.sl_pct}%</span>
+            <span>Position Size: ₹{fmt(s.config.pos_value, 0)}</span>
+            <span>Max Positions: {s.config.max_positions}</span>
+            <span>EMA Fast: {s.config.ema_fast}</span>
+            <span>EMA Slow: {s.config.ema_slow}</span>
+            <span>Min ADT: ₹{s.config.min_adt_cr}cr</span>
+            <span>Last Run: {s.last_run_date ?? "Never"}</span>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
-
-// ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
 // Main page
 // ---------------------------------------------------------------------------
 
 export default function RsStrategyPage() {
-  const [status, setStatus] = useState<RsPortfolioStatus | null>(null);
-  const [trades, setTrades] = useState<RsStrategyTrade[]>([]);
+  const [portfolios, setPortfolios] = useState<RsBothPortfolios | null>(null);
+  const [trades, setTrades] = useState<RsAllTrades>({ A: [], B: [] });
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState(false);
   const [running, setRunning] = useState(false);
-  const [activeTab, setActiveTab] = useState<"open" | "closed">("open");
+  const [tabA, setTabA] = useState<"open" | "closed">("open");
+  const [tabB, setTabB] = useState<"open" | "closed">("open");
 
   const fetchAll = useCallback(async () => {
     setFetchError(false);
     try {
-      const [s, t] = await Promise.allSettled([getRsStrategyStatus(), getRsStrategyTrades()]);
-      if (s.status === "fulfilled") setStatus(s.value);
-      else setFetchError(true);
-      if (t.status === "fulfilled") setTrades(t.value);
+      const [s, t] = await Promise.all([getRsStrategyStatus(), getRsStrategyTrades()]);
+      setPortfolios(s);
+      setTrades(t);
     } catch {
       setFetchError(true);
     } finally {
@@ -264,11 +349,10 @@ export default function RsStrategyPage() {
     setRunning(true);
     try {
       await runRsStrategyNow();
-      toast.success("Scan started", {
-        description: "Fetching market data & computing signals — results will refresh in ~45 s.",
+      toast.success("Scan started for Portfolio A & B", {
+        description: "Fetching market data — results will refresh in ~45 s.",
         duration: 6000,
       });
-      // Auto-refresh once the scan has had time to complete
       setTimeout(() => {
         fetchAll().finally(() => setRunning(false));
       }, 45_000);
@@ -280,9 +364,6 @@ export default function RsStrategyPage() {
     }
   }
 
-  const returnPct = status?.total_return_pct ?? 0;
-  const winRate = status?.win_rate;
-
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -290,151 +371,56 @@ export default function RsStrategyPage() {
         <div>
           <h1 className="text-xl font-semibold text-slate-800">RS EMA50×200 Strategy</h1>
           <p className="text-sm text-slate-500 mt-0.5">
-            Automated paper trading — RS golden/death cross signals on NSE
+            Dual portfolio paper trading — ₹10,00,000 each · max 15 positions each · 10% SL
           </p>
         </div>
-        <button
-          onClick={handleRunNow}
-          disabled={running || loading}
-          className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        >
-          {running ? "Running…" : "Run Now"}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={fetchAll}
+            disabled={loading}
+            className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+          >
+            Refresh
+          </button>
+          <button
+            onClick={handleRunNow}
+            disabled={running || loading}
+            className="rounded-lg bg-slate-800 px-4 py-1.5 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
+          >
+            {running ? "Running…" : "Run Now"}
+          </button>
+        </div>
       </div>
 
-      {/* Summary cards */}
+      {/* Error / loading states */}
       {loading ? (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 animate-pulse">
-          {[...Array(4)].map((_, i) => (
-            <div key={i} className="h-24 rounded-xl border bg-slate-100" />
+        <div className="grid gap-4 md:grid-cols-2">
+          {["A", "B"].map((l) => (
+            <div key={l} className="rounded-xl border bg-white shadow-sm p-8 text-center text-sm text-slate-400">
+              Loading Portfolio {l}…
+            </div>
           ))}
         </div>
       ) : fetchError ? (
         <div className="rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700">
           Could not reach the backend. Check that the server is running and try again.
         </div>
-      ) : status?.error ? (
-        <div className="rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700">
-          {status.error}
-        </div>
-      ) : !status ? (
-        <div className="rounded-xl border border-slate-200 bg-slate-50 px-5 py-4 text-sm text-slate-500">
-          Strategy not started yet. Click <strong>Run Now</strong> to run the first scan.
-        </div>
       ) : (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <StatCard
-            label="Current Equity"
-            value={`₹${fmt(status.current_equity, 0)}`}
-            sub={`Started ₹${fmt(status.starting_capital, 0)}`}
-            valueClass={colorPct(returnPct)}
+        <div className="grid gap-6 md:grid-cols-2">
+          <PortfolioPanel
+            label="A"
+            status={portfolios?.A ?? null}
+            trades={trades.A}
+            activeTab={tabA}
+            onTabChange={setTabA}
           />
-          <StatCard
-            label="Total Return"
-            value={fmtPct(returnPct)}
-            sub={`P&L ₹${fmt(status.total_pnl, 0)}`}
-            valueClass={colorPct(returnPct)}
+          <PortfolioPanel
+            label="B"
+            status={portfolios?.B ?? null}
+            trades={trades.B}
+            activeTab={tabB}
+            onTabChange={setTabB}
           />
-          <StatCard
-            label="Open Positions"
-            value={String(status.open_positions)}
-            sub={`of ${status.config?.max_positions ?? 15} max`}
-          />
-          <StatCard
-            label="Win Rate"
-            value={winRate != null ? `${winRate.toFixed(1)}%` : "—"}
-            sub={`${status.win_count}W / ${status.loss_count}L of ${status.total_trades} trades`}
-          />
-        </div>
-      )}
-
-      {/* Equity curve */}
-      <div className="rounded-xl border bg-white px-5 py-4 shadow-sm">
-        <h2 className="text-sm font-medium text-slate-700 mb-3">Equity Curve</h2>
-        {loading ? (
-          <div className="h-[200px] animate-pulse bg-slate-100 rounded" />
-        ) : (
-          <EquityCurve data={status?.equity_curve ?? []} />
-        )}
-      </div>
-
-      {/* Positions & Trades */}
-      <div className="rounded-xl border bg-white shadow-sm">
-        {/* Tabs */}
-        <div className="border-b px-5">
-          <div className="flex gap-6">
-            {(["open", "closed"] as const).map((tab) => (
-              <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                className={`py-3 text-sm font-medium border-b-2 transition-colors ${
-                  activeTab === tab
-                    ? "border-slate-800 text-slate-800"
-                    : "border-transparent text-slate-500 hover:text-slate-700"
-                }`}
-              >
-                {tab === "open"
-                  ? `Open Positions (${status?.open_positions ?? 0})`
-                  : `Closed Trades (${trades.filter((t) => t.status === "CLOSED").length})`}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="px-5 py-4">
-          {loading ? (
-            <div className="h-24 animate-pulse bg-slate-100 rounded" />
-          ) : activeTab === "open" ? (
-            <OpenPositionsTable trades={status?.open_trades ?? []} />
-          ) : (
-            <ClosedTradesTable trades={trades} />
-          )}
-        </div>
-      </div>
-
-      {/* Strategy Config */}
-      {status?.config && (
-        <div className="rounded-xl border bg-white px-5 py-4 shadow-sm">
-          <h2 className="text-sm font-medium text-slate-700 mb-3">Strategy Config</h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-2 text-sm">
-            <div>
-              <span className="text-slate-500">Capital</span>
-              <span className="ml-2 font-medium">₹{fmt(status.config.capital, 0)}</span>
-            </div>
-            <div>
-              <span className="text-slate-500">RPT</span>
-              <span className="ml-2 font-medium">{status.config.rpt_pct}%</span>
-            </div>
-            <div>
-              <span className="text-slate-500">Stop Loss</span>
-              <span className="ml-2 font-medium">{status.config.sl_pct}%</span>
-            </div>
-            <div>
-              <span className="text-slate-500">Max Positions</span>
-              <span className="ml-2 font-medium">{status.config.max_positions}</span>
-            </div>
-            <div>
-              <span className="text-slate-500">EMA Fast</span>
-              <span className="ml-2 font-medium">{status.config.ema_fast}</span>
-            </div>
-            <div>
-              <span className="text-slate-500">EMA Slow</span>
-              <span className="ml-2 font-medium">{status.config.ema_slow}</span>
-            </div>
-            <div>
-              <span className="text-slate-500">Min ADT</span>
-              <span className="ml-2 font-medium">₹{status.config.min_adt_cr}Cr</span>
-            </div>
-            <div>
-              <span className="text-slate-500">Position Size</span>
-              <span className="ml-2 font-medium">₹{fmt(status.config.pos_value, 0)}</span>
-            </div>
-          </div>
-          {status.last_run_date && (
-            <p className="mt-3 text-xs text-slate-400">
-              Last run: {status.last_run_date} · Next: weekdays 16:30 IST
-            </p>
-          )}
         </div>
       )}
     </div>

@@ -437,6 +437,16 @@ export interface RsStrategyTrade {
   remaining_qty: number;
 }
 
+export interface RsBothPortfolios {
+  A: RsPortfolioStatus | { error: string };
+  B: RsPortfolioStatus | { error: string };
+}
+
+export interface RsAllTrades {
+  A: RsStrategyTrade[];
+  B: RsStrategyTrade[];
+}
+
 export interface RsRunNowResult {
   message: string;
 }

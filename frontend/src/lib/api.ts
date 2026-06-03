@@ -28,6 +28,8 @@ export type {
   RsPortfolioStatus,
   RsStrategyTrade,
   RsRunNowResult,
+  RsBothPortfolios,
+  RsAllTrades,
 } from "./api-types";
 
 import type {
@@ -52,6 +54,8 @@ import type {
   RsPortfolioStatus,
   RsStrategyTrade,
   RsRunNowResult,
+  RsBothPortfolios,
+  RsAllTrades,
 } from "./api-types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -347,12 +351,12 @@ export function healthCheck(): Promise<HealthStatus> {
 
 // --- RS EMA50×200 Strategy ---
 
-export function getRsStrategyStatus(): Promise<RsPortfolioStatus> {
-  return apiFetch<RsPortfolioStatus>("/rs-strategy/status");
+export function getRsStrategyStatus(): Promise<RsBothPortfolios> {
+  return apiFetch<RsBothPortfolios>("/rs-strategy/status");
 }
 
-export function getRsStrategyTrades(): Promise<RsStrategyTrade[]> {
-  return apiFetch<RsStrategyTrade[]>("/rs-strategy/trades");
+export function getRsStrategyTrades(): Promise<RsAllTrades> {
+  return apiFetch<RsAllTrades>("/rs-strategy/trades");
 }
 
 export function runRsStrategyNow(): Promise<RsRunNowResult> {
