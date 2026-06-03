@@ -26,13 +26,13 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "22"
 
       - name: Install frontend dependencies
         working-directory: frontend
         run: |
           corepack enable
-          corepack prepare pnpm@latest --activate
+          corepack prepare pnpm@10.33.0 --activate
           pnpm install --frozen-lockfile
 
       - name: Frontend type check
