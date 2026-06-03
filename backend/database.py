@@ -45,9 +45,10 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
 def init_db() -> None:
-    """Create all tables in the database, then add any missing columns."""
+    """Create all tables in the database, then run schema migrations."""
     Base.metadata.create_all(bind=engine)
     _migrate_columns()
+    _retire_old_rs_run()
 
 
 def _migrate_columns() -> None:
@@ -82,6 +83,19 @@ def _migrate_columns() -> None:
                     )
                 )
                 conn.commit()
+
+
+def _retire_old_rs_run() -> None:
+    """Mark the legacy single-portfolio RS run as CANCELLED so the new A/B runs take over."""
+    import sqlalchemy
+    with engine.connect() as conn:
+        conn.execute(
+            sqlalchemy.text(
+                "UPDATE simulation_runs SET status = 'CANCELLED' "
+                "WHERE name = 'RS-EMA50x200-LIVE' AND status = 'ACTIVE'"
+            )
+        )
+        conn.commit()
 
 
 def get_db():
