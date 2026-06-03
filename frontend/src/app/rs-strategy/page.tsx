@@ -111,7 +111,7 @@ function EquityCurve({ data }: { data: { date: string; equity: number }[] }) {
           width={52}
         />
         <Tooltip
-          formatter={(v: number) => [`₹${fmt(v)}`, "Equity"]}
+          formatter={(v: number | undefined) => [`₹${fmt(v ?? 0)}`, "Equity"]}
           labelFormatter={(l) => `Date: ${l}`}
         />
         <Area
