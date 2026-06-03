@@ -20,18 +20,18 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import warnings
+import os
+import sqlite3
 from datetime import date, datetime, timedelta
 
 import numpy as np
 import pandas as pd
-import yfinance as yf
 
-from backend.data.nse_stocks import get_yfinance_symbols, strip_ns_suffix
+from backend.config import settings
+from backend.data.nse_stocks import NSE_UNIVERSE
 from backend.database import SessionLocal, SimulationRun, SimulationTrade
 from backend.services.notifications import send_telegram_message
 
-warnings.filterwarnings("ignore")
 logger = logging.getLogger(__name__)
 
 # ── Strategy constants ─────────────────────────────────────────────────────────
@@ -44,7 +44,6 @@ SLOW_N        = 200          # RS EMA span
 MIN_ADT_CR    = 5.0          # minimum avg daily turnover (crore)
 ADT_THRESHOLD = MIN_ADT_CR * 1e7
 BUFFER_DAYS   = 370
-BATCH_SIZE    = 50
 
 RUN_NAME_A = "RS-EMA50x200-LIVE-A"
 RUN_NAME_B = "RS-EMA50x200-LIVE-B"
@@ -95,54 +94,72 @@ def _get_or_create_run(db, name: str) -> SimulationRun:
 # ── Data fetching ──────────────────────────────────────────────────────────────
 
 def _fetch_data_sync() -> tuple[pd.Series, dict[str, pd.DataFrame]]:
-    """Download BUFFER_DAYS of OHLCV for Nifty + all NSE stocks."""
-    end_dt    = datetime.now()
-    start_str = (end_dt - timedelta(days=BUFFER_DAYS)).strftime("%Y-%m-%d")
-    end_str   = end_dt.strftime("%Y-%m-%d")
+    """Read BUFFER_DAYS of OHLCV for Nifty 50 + NSE stocks from the Kite bar store.
 
-    logger.info(f"[RS-EMA] Fetching data {start_str} → {end_str}")
+    Reads from the pre-ingested SQLite bar store (settings.bars_db_path), which is
+    kept fresh by the corpus_updater job via KiteHistoricalAdapter. No network calls.
+    """
+    bars_path = settings.bars_db_path
+    if not os.path.exists(bars_path):
+        raise RuntimeError(
+            f"Bar store not found at {bars_path}. "
+            "Run scripts/ingest_kite_daily.py or wait for the corpus_updater job."
+        )
 
-    nifty_raw = yf.download("^NSEI", start=start_str, end=end_str,
-                             auto_adjust=True, progress=False, timeout=60)
-    if isinstance(nifty_raw.columns, pd.MultiIndex):
-        nifty_raw.columns = [c[0] for c in nifty_raw.columns]
-    nifty_raw.index = pd.to_datetime(nifty_raw.index).normalize()
-    nifty_close = nifty_raw["Close"].astype(float).dropna()
-    logger.info(f"[RS-EMA] NIFTY: {len(nifty_close)} days")
+    cutoff = (datetime.now() - timedelta(days=BUFFER_DAYS)).strftime("%Y-%m-%d")
+    logger.info(f"[RS-EMA] Reading bar store {bars_path} from {cutoff}")
 
-    all_symbols = get_yfinance_symbols()
-    stock_data: dict[str, pd.DataFrame] = {}
-    batches = [all_symbols[i:i + BATCH_SIZE] for i in range(0, len(all_symbols), BATCH_SIZE)]
-
-    for bi, batch in enumerate(batches):
-        logger.info(f"[RS-EMA] Batch {bi + 1}/{len(batches)}")
-        try:
-            raw = yf.download(
-                tickers=batch, start=start_str, end=end_str,
-                group_by="ticker", auto_adjust=True,
-                threads=True, progress=False, timeout=120,
+    con = sqlite3.connect(bars_path)
+    try:
+        # ── NIFTY 50 index closes ────────────────────────────────────────────
+        rows = con.execute(
+            "SELECT date, close FROM index_bars "
+            "WHERE index_code='NIFTY 50' AND date >= ? ORDER BY date",
+            (cutoff,),
+        ).fetchall()
+        if not rows:
+            raise RuntimeError(
+                "No 'NIFTY 50' rows in index_bars. "
+                "Run scripts/ingest_kite_daily.py to populate the bar store."
             )
-            if raw.empty:
-                continue
-            for sym in batch:
-                clean = strip_ns_suffix(sym)
-                try:
-                    if len(batch) > 1 and isinstance(raw.columns, pd.MultiIndex):
-                        df = raw[sym].copy()
-                    else:
-                        df = raw.copy()
-                        if isinstance(df.columns, pd.MultiIndex):
-                            df.columns = [c[0] for c in df.columns]
-                    df = df.dropna(subset=["Close"])
-                    df.index = pd.to_datetime(df.index).normalize()
-                    if len(df) >= 210:
-                        stock_data[clean] = df[["Open", "High", "Low", "Close", "Volume"]]
-                except (KeyError, TypeError):
-                    pass
-        except Exception as e:
-            logger.error(f"[RS-EMA] Batch {bi + 1} error: {e}")
+        nifty_close = pd.Series(
+            [float(r[1]) for r in rows],
+            index=pd.to_datetime([r[0] for r in rows]),
+        )
+        logger.info(f"[RS-EMA] NIFTY 50: {len(nifty_close)} days")
 
-    logger.info(f"[RS-EMA] Fetched {len(stock_data)} stocks")
+        # ── Stock OHLCV (universe = symbols already in the store) ────────────
+        available = {
+            r[0]
+            for r in con.execute("SELECT symbol FROM done WHERE n > 0").fetchall()
+        }
+        symbols = [s for s in NSE_UNIVERSE if s in available]
+        logger.info(f"[RS-EMA] {len(symbols)} symbols available in bar store")
+
+        stock_data: dict[str, pd.DataFrame] = {}
+        for sym in symbols:
+            bar_rows = con.execute(
+                "SELECT date, open, high, low, close, volume FROM bars "
+                "WHERE symbol=? AND date >= ? ORDER BY date",
+                (sym, cutoff),
+            ).fetchall()
+            if len(bar_rows) < SLOW_N + 10:
+                continue
+            idx = pd.to_datetime([r[0] for r in bar_rows])
+            stock_data[sym] = pd.DataFrame(
+                {
+                    "Open":   [float(r[1]) for r in bar_rows],
+                    "High":   [float(r[2]) for r in bar_rows],
+                    "Low":    [float(r[3]) for r in bar_rows],
+                    "Close":  [float(r[4]) for r in bar_rows],
+                    "Volume": [int(r[5]) for r in bar_rows],
+                },
+                index=idx,
+            )
+    finally:
+        con.close()
+
+    logger.info(f"[RS-EMA] Loaded {len(stock_data)} stocks from bar store")
     return nifty_close, stock_data
 
 
