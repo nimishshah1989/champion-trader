@@ -116,6 +116,7 @@ def fetch_prior_day_low(symbol: str) -> float | None:
         data = yf.download(
             f"{symbol}.NS",
             period=f"{LOD_LOOKBACK_DAYS}d",
+            auto_adjust=True,
             progress=False,
         )
         if isinstance(data.columns, __import__("pandas").MultiIndex):

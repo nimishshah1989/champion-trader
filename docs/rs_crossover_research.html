@@ -1,0 +1,834 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RS Crossover Hypothesis — Champion Trader Research</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+       background: #0f172a; color: #e2e8f0; line-height: 1.7; }
+.wrap { max-width: 1160px; margin: 0 auto; padding: 44px 24px; }
+
+/* Header */
+.header { background: linear-gradient(135deg, #1e3a5f 0%, #0f172a 100%);
+           border: 1px solid #1e40af; border-radius: 14px;
+           padding: 44px; margin-bottom: 36px; }
+.header h1 { font-size: 28px; font-weight: 800; color: #93c5fd; margin-bottom: 4px; }
+.header .sub { color: #64748b; font-size: 13px; margin-bottom: 24px; text-transform: uppercase;
+                letter-spacing: 0.07em; }
+.meta-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 10px; }
+.meta-box { background: rgba(255,255,255,0.05); border-radius: 8px; padding: 12px 14px; }
+.meta-box .lbl { font-size: 10px; color: #475569; text-transform: uppercase;
+                  letter-spacing: 0.07em; margin-bottom: 4px; }
+.meta-box .val { font-size: 16px; font-weight: 700; color: #e2e8f0; }
+
+/* Layout */
+section { margin-bottom: 44px; }
+h2 { font-size: 19px; font-weight: 700; color: #93c5fd; margin-bottom: 18px;
+      padding-bottom: 10px; border-bottom: 1px solid #1e3a5f; }
+p { color: #94a3b8; font-size: 14px; margin-bottom: 12px; }
+ul { color: #94a3b8; font-size: 14px; padding-left: 20px; margin-bottom: 10px; }
+li { margin-bottom: 6px; }
+strong { color: #e2e8f0; }
+.card { background: #1e293b; border: 1px solid #334155;
+         border-radius: 10px; padding: 24px; margin-bottom: 16px; }
+
+/* Callouts */
+.callout { border-left: 4px solid #3b82f6; background: #1e293b;
+            padding: 14px 18px; border-radius: 0 8px 8px 0;
+            margin-bottom: 14px; font-size: 14px; color: #94a3b8; }
+.callout p { margin: 0; }
+.callout.green  { border-color: #16a34a; }
+.callout.amber  { border-color: #f59e0b; }
+.callout.red    { border-color: #ef4444; }
+.callout.purple { border-color: #a855f7; }
+
+/* Scenario cards */
+.sc-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; margin-bottom: 20px; }
+.sc-card { background: #1e293b; border: 1px solid #334155; border-radius: 10px; padding: 20px; }
+.sc-card .sc-title { font-size: 13px; font-weight: 700; color: #93c5fd;
+                      text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; }
+.sc-card .sc-badge { display: inline-block; font-size: 10px; font-weight: 700;
+                      padding: 2px 8px; border-radius: 4px; margin-bottom: 10px; }
+.sc-card p { font-size: 13px; color: #94a3b8; margin: 0; }
+.badge-1 { background: #1e3a5f; color: #93c5fd; }
+.badge-2 { background: #14532d; color: #86efac; }
+.badge-3 { background: #451a03; color: #fcd34d; }
+
+/* Filter explanation */
+.filter-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 20px; }
+@media (max-width: 680px) { .filter-grid { grid-template-columns: 1fr; } }
+.filter-card { background: #1e293b; border: 1px solid #334155; border-radius: 10px; padding: 18px; }
+.filter-card .f-label { font-size: 11px; font-weight: 700; color: #475569;
+                         text-transform: uppercase; letter-spacing: 0.06em;
+                         font-family: monospace; margin-bottom: 8px; }
+.filter-card .f-name { font-size: 14px; font-weight: 700; color: #e2e8f0; margin-bottom: 6px; }
+.filter-card p { font-size: 13px; color: #94a3b8; margin: 0; }
+
+/* Table */
+.tbl-wrap { overflow-x: auto; }
+table.main { width: 100%; border-collapse: collapse; font-size: 13px; }
+table.main th { background: #0f172a; color: #475569; text-transform: uppercase;
+                 font-size: 10px; letter-spacing: 0.06em; padding: 10px 12px;
+                 text-align: center; border-bottom: 2px solid #334155; white-space: nowrap; }
+table.main th.left { text-align: left; }
+table.main td { padding: 9px 12px; text-align: center; border-bottom: 1px solid #1e293b; }
+table.main td.left { text-align: left; }
+table.main tr:hover td { background: rgba(255,255,255,0.025); }
+tr.section-hdr td { background: #0f172a; color: #334155; font-size: 10px;
+  text-transform: uppercase; letter-spacing: 0.08em; padding: 5px 12px;
+  border-top: 2px solid #1e293b; }
+tr.benchmark td { background: #172554; color: #93c5fd; font-style: italic; }
+.star { color: #fbbf24; }
+.tag { color: #475569; font-size: 11px; font-family: monospace; min-width: 36px; }
+.pos { color: #16a34a; }
+.neg { color: #ef4444; }
+
+/* Key findings */
+.finding-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
+.finding { background: #1e293b; border: 1px solid #334155; border-radius: 10px; padding: 18px; }
+.finding .num { font-size: 26px; font-weight: 800; color: #93c5fd; margin-bottom: 4px; }
+.finding .label { font-size: 12px; color: #64748b; text-transform: uppercase;
+                   letter-spacing: 0.05em; margin-bottom: 8px; }
+.finding p { font-size: 13px; color: #94a3b8; margin: 0; }
+
+/* Appendix */
+.appendix-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+@media (max-width: 680px) { .appendix-grid { grid-template-columns: 1fr; } }
+
+/* Footer */
+.footer { margin-top: 48px; padding-top: 20px; border-top: 1px solid #1e293b;
+           color: #334155; font-size: 12px; text-align: center; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<!-- ═══════════════════════════════ HEADER ═══════════════════════════════ -->
+<div class="header">
+  <div class="sub">Champion Trader · Quantitative Research · June 02, 2026</div>
+  <h1>Relative Strength Crossover Hypothesis</h1>
+  <div class="meta-grid">
+    <div class="meta-box"><div class="lbl">Period</div><div class="val">Jan 2021 – May 2026</div></div>
+    <div class="meta-box"><div class="lbl">Trading Days</div><div class="val">1,334</div></div>
+    <div class="meta-box"><div class="lbl">Capital</div><div class="val">₹10 Lakh</div></div>
+    <div class="meta-box"><div class="lbl">Hard SL</div><div class="val">10%</div></div>
+    <div class="meta-box"><div class="lbl">RPT</div><div class="val">0.5%</div></div>
+    <div class="meta-box"><div class="lbl">Max Positions</div><div class="val">10</div></div>
+    <div class="meta-box"><div class="lbl">Nifty ARR</div>
+      <div class="val" style="color:#fbbf24">10.3%</div></div>
+    <div class="meta-box"><div class="lbl">Nifty Max DD</div>
+      <div class="val" style="color:#ef4444">17.2%</div></div>
+    <div class="meta-box"><div class="lbl">Bull Regime</div>
+      <div class="val">81% of days</div></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════ HYPOTHESIS ═══════════════════════════════ -->
+<section>
+  <h2>The Hypothesis</h2>
+  <div class="card">
+    <p>Traditional SMA crossover systems measure momentum in <strong>absolute price terms</strong>.
+    This research tests a different question: <strong>does measuring momentum relative to
+    the market index produce a superior entry signal?</strong></p>
+
+    <p>The core idea: compute the <strong>Relative Strength (RS) Ratio</strong> as
+    <em>Stock Close ÷ Nifty 50 Close</em> on each trading day — a dimensionless number
+    that reflects exactly how much alpha the stock is generating versus the index.
+    Then apply the classic SMA20 / SMA200 golden-cross logic to this ratio, not to price.
+    A crossover here means the stock has entered a phase of <em>structural outperformance</em>,
+    not just a price uptick that may be pure market-beta.</p>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════ THREE SCENARIOS ═══════════════════════════════ -->
+<section>
+  <h2>Three Trading Scenarios</h2>
+  <div class="sc-grid">
+
+    <!-- RS Only -->
+    <div class="sc-card">
+      <div class="sc-title">Scenario 1 — RS Only</div>
+      <div class="sc-badge badge-1">Single Trigger</div>
+      <p><strong>Entry:</strong> Buy when the RS ratio's SMA20 crosses above its SMA200 for the
+      first time (golden cross on relative strength). This is purely a <em>relative momentum</em>
+      signal — the stock's outperformance trend is just beginning, regardless of whether price
+      itself is above or below its own moving averages.</p>
+      <p style="margin-top:10px"><strong>Exit:</strong> Sell when the same RS crossover reverses
+      (SMA20 crosses back below SMA200 on the RS ratio). Hard stop-loss at 10% below entry.</p>
+      <p style="margin-top:10px;color:#64748b;font-size:12px">
+      <em>Think of it as: "Buy leaders. Sell when they stop leading."</em></p>
+    </div>
+
+    <!-- Dual Either -->
+    <div class="sc-card">
+      <div class="sc-title">Scenario 2 — Dual Confirmation, Quick Exit</div>
+      <div class="sc-badge badge-2">Dual Trigger — Either Exit</div>
+      <p><strong>Entry:</strong> Buy only when BOTH signals are simultaneously bullish for the
+      first time — (a) Price SMA20 is already above Price SMA200 AND (b) RS SMA20 is already
+      above RS SMA200. The crossover trigger fires when one of them <em>newly</em> becomes true
+      while the other was already met. This is a <strong>higher conviction</strong> signal:
+      the stock must be winning both in absolute price terms and relative to the index.</p>
+      <p style="margin-top:10px"><strong>Exit:</strong> Sell as soon as <em>either</em> crossover
+      reverses — the first sign of deterioration. Defensive approach; protects capital aggressively.</p>
+      <p style="margin-top:10px;color:#64748b;font-size:12px">
+      <em>Think of it as: "Enter with two green lights. Exit at the first red."</em></p>
+    </div>
+
+    <!-- Dual Both -->
+    <div class="sc-card">
+      <div class="sc-title">Scenario 3 — Dual Confirmation, Patient Exit</div>
+      <div class="sc-badge badge-3">Dual Trigger — Both Exit</div>
+      <p><strong>Entry:</strong> Identical to Scenario 2 — requires both price and RS crossovers
+      to be simultaneously bullish. Same high-conviction dual entry.</p>
+      <p style="margin-top:10px"><strong>Exit:</strong> Sell only when <em>both</em> crossovers
+      have reversed — the stock must be weak both in absolute price AND relative to the index
+      before we exit. This is the most <strong>patient</strong> approach: it lets winners run
+      fully through a complete trend cycle before exiting.</p>
+      <p style="margin-top:10px;color:#64748b;font-size:12px">
+      <em>Think of it as: "Enter with two green lights. Exit only when both turn red."</em></p>
+    </div>
+
+  </div>
+</section>
+
+<!-- ═══════════════════════════════ FOUR FILTER OVERLAYS ═══════════════════════════════ -->
+<section>
+  <h2>Four Filter Combinations Tested per Scenario (12 total)</h2>
+  <div class="filter-grid">
+
+    <div class="filter-card">
+      <div class="f-label">No Tag</div>
+      <div class="f-name">Baseline — No Filters</div>
+      <p>Pure signal. Every crossover triggers a trade, regardless of market conditions or
+      volume. Maximum signal frequency. Establishes the raw edge of each scenario.</p>
+    </div>
+
+    <div class="filter-card">
+      <div class="f-label">[R] Regime Filter</div>
+      <div class="f-name">Bull Regime Gate</div>
+      <p>Only take trades when Nifty 50 is above its own 200-day SMA — i.e., the market
+      itself is structurally bullish. Blocks entries during bear phases when even leaders tend
+      to mean-revert. Active 81% of trading days in this period.</p>
+    </div>
+
+    <div class="filter-card">
+      <div class="f-label">[V] Volume Filter</div>
+      <div class="f-name">Institutional Volume Confirmation</div>
+      <p>Only take the crossover trade if volume on that day exceeds 1.5× the 20-day average
+      volume. The premise: large players are participating in the breakout, validating the signal.
+      Tests whether high-volume crossovers have better follow-through.</p>
+    </div>
+
+    <div class="filter-card">
+      <div class="f-label">[R+V] Both Filters</div>
+      <div class="f-name">Regime + Volume Combined</div>
+      <p>Strictest gate: trade only when the market regime is bullish AND volume confirms the
+      crossover. Fewest signals; highest-quality filter bar. Tests whether combining both
+      qualitative overlays materially improves the strategy's return or risk profile.</p>
+    </div>
+
+  </div>
+</section>
+
+<!-- ═══════════════════════════════ RESULTS: 5Cr ═══════════════════════════════ -->
+<section>
+  <h2>Results — Universe A: ADT ≥ ₹5 Crore</h2>
+  <p>Broader universe. Includes mid-cap and small-cap names with meaningful liquidity.
+  <span class="star">★</span> = beats Nifty 50 buy-and-hold ARR of <strong>10.3%</strong>.
+  Nifty benchmark row shows its own max drawdown of <strong style="color:#ef4444">17.2%</strong>
+  for risk comparison.</p>
+  
+<h3 style="color:#cbd5e1;margin-bottom:12px;font-size:15px">Universe A — ADT ≥ ₹5 Crore
+  <span style="font-size:12px;color:#475569;font-weight:400;margin-left:8px">
+    429 signal-ready stocks &nbsp;|&nbsp; Min ADT ≥ ₹5Cr
+  </span>
+</h3>
+<div class="card" style="padding:0;margin-bottom:28px">
+  <div class="tbl-wrap">
+  <table class="main">
+    <thead>
+      <tr>
+        <th class="left">Filter</th>
+        <th class="left">Scenario</th>
+        <th>Trades</th>
+        <th>Win%</th>
+        <th>Avg Win</th>
+        <th>Avg Loss</th>
+        <th>SL Hit%</th>
+        <th>Avg Hold</th>
+        <th>ARR ★</th>
+        <th>Max DD</th>
+      </tr>
+    </thead>
+    <tbody>
+<tr class="section-hdr"><td colspan="10">▸ No Filter — Baseline</td></tr>
+<tr>
+  <td class="left tag"></td>
+  <td class="left"><strong>RS Only</strong> <span class="star">★</span></td>
+  <td>142</td>
+  <td>37.3%</td>
+  <td class="pos">+49.5%</td>
+  <td class="neg">-7.9%</td>
+  <td>38.7%</td>
+  <td>136d</td>
+  <td style="color:#f59e0b;font-weight:700">+13.5%</td>
+  <td style="color:#f59e0b">12.3%</td>
+</tr>
+<tr>
+  <td class="left tag"></td>
+  <td class="left"><strong>Dual — Either Exit</strong> <span class="star">★</span></td>
+  <td>152</td>
+  <td>36.8%</td>
+  <td class="pos">+37.4%</td>
+  <td class="neg">-7.5%</td>
+  <td>34.2%</td>
+  <td>126d</td>
+  <td style="color:#f59e0b;font-weight:700">+10.3%</td>
+  <td style="color:#f59e0b">11.0%</td>
+</tr>
+<tr>
+  <td class="left tag"></td>
+  <td class="left"><strong>Dual — Both Exit</strong></td>
+  <td>104</td>
+  <td>35.6%</td>
+  <td class="pos">+51.3%</td>
+  <td class="neg">-9.2%</td>
+  <td>51.9%</td>
+  <td>184d</td>
+  <td style="color:#ef4444;font-weight:700">+9.8%</td>
+  <td style="color:#ef4444">15.3%</td>
+</tr>
+<tr class="section-hdr"><td colspan="10">▸ Regime Filter Only</td></tr>
+<tr>
+  <td class="left tag">[R]</td>
+  <td class="left"><strong>RS Only</strong> <span class="star">★</span></td>
+  <td>137</td>
+  <td>36.5%</td>
+  <td class="pos">+49.4%</td>
+  <td class="neg">-8.2%</td>
+  <td>37.2%</td>
+  <td>133d</td>
+  <td style="color:#f59e0b;font-weight:700">+12.6%</td>
+  <td style="color:#f59e0b">12.3%</td>
+</tr>
+<tr>
+  <td class="left tag">[R]</td>
+  <td class="left"><strong>Dual — Either Exit</strong> <span class="star">★</span></td>
+  <td>124</td>
+  <td>40.3%</td>
+  <td class="pos">+40.8%</td>
+  <td class="neg">-6.8%</td>
+  <td>29.8%</td>
+  <td>146d</td>
+  <td style="color:#f59e0b;font-weight:700">+11.2%</td>
+  <td style="color:#f59e0b">11.0%</td>
+</tr>
+<tr>
+  <td class="left tag">[R]</td>
+  <td class="left"><strong>Dual — Both Exit</strong> <span class="star">★</span></td>
+  <td>90</td>
+  <td>41.1%</td>
+  <td class="pos">+62.7%</td>
+  <td class="neg">-8.1%</td>
+  <td>41.1%</td>
+  <td>201d</td>
+  <td style="color:#f59e0b;font-weight:700">+13.3%</td>
+  <td style="color:#7f1d1d">22.1%</td>
+</tr>
+<tr class="section-hdr"><td colspan="10">▸ Volume Filter Only</td></tr>
+<tr>
+  <td class="left tag">[V]</td>
+  <td class="left"><strong>RS Only</strong></td>
+  <td>156</td>
+  <td>30.1%</td>
+  <td class="pos">+47.6%</td>
+  <td class="neg">-8.6%</td>
+  <td>52.6%</td>
+  <td>115d</td>
+  <td style="color:#ef4444;font-weight:700">+9.8%</td>
+  <td style="color:#ef4444">15.4%</td>
+</tr>
+<tr>
+  <td class="left tag">[V]</td>
+  <td class="left"><strong>Dual — Either Exit</strong></td>
+  <td>148</td>
+  <td>29.7%</td>
+  <td class="pos">+48.1%</td>
+  <td class="neg">-8.6%</td>
+  <td>51.4%</td>
+  <td>118d</td>
+  <td style="color:#ef4444;font-weight:700">+9.4%</td>
+  <td style="color:#f59e0b">12.2%</td>
+</tr>
+<tr>
+  <td class="left tag">[V]</td>
+  <td class="left"><strong>Dual — Both Exit</strong></td>
+  <td>106</td>
+  <td>32.1%</td>
+  <td class="pos">+53.3%</td>
+  <td class="neg">-9.3%</td>
+  <td>54.7%</td>
+  <td>173d</td>
+  <td style="color:#ef4444;font-weight:700">+8.8%</td>
+  <td style="color:#f59e0b">12.8%</td>
+</tr>
+<tr class="section-hdr"><td colspan="10">▸ Regime + Volume Filters</td></tr>
+<tr>
+  <td class="left tag">[R+V]</td>
+  <td class="left"><strong>RS Only</strong></td>
+  <td>147</td>
+  <td>24.5%</td>
+  <td class="pos">+59.7%</td>
+  <td class="neg">-8.4%</td>
+  <td>55.1%</td>
+  <td>114d</td>
+  <td style="color:#ef4444;font-weight:700">+9.2%</td>
+  <td style="color:#ef4444">15.7%</td>
+</tr>
+<tr>
+  <td class="left tag">[R+V]</td>
+  <td class="left"><strong>Dual — Either Exit</strong> <span class="star">★</span></td>
+  <td>135</td>
+  <td>29.6%</td>
+  <td class="pos">+55.3%</td>
+  <td class="neg">-8.3%</td>
+  <td>50.4%</td>
+  <td>124d</td>
+  <td style="color:#f59e0b;font-weight:700">+10.6%</td>
+  <td style="color:#f59e0b">12.7%</td>
+</tr>
+<tr>
+  <td class="left tag">[R+V]</td>
+  <td class="left"><strong>Dual — Both Exit</strong> <span class="star">★</span></td>
+  <td>104</td>
+  <td>26.9%</td>
+  <td class="pos">+81.4%</td>
+  <td class="neg">-9.5%</td>
+  <td>65.4%</td>
+  <td>166d</td>
+  <td style="color:#f59e0b;font-weight:700">+11.4%</td>
+  <td style="color:#ef4444">17.9%</td>
+</tr>
+<tr class="benchmark">
+  <td class="left" colspan="2"><em>★ Nifty 50 Buy &amp; Hold (Benchmark)</em></td>
+  <td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>~5yr</td>
+  <td style="color:#93c5fd;font-weight:700">+10.3%</td>
+  <td style="color:#16a34a">17.2%</td>
+</tr>
+    </tbody>
+  </table>
+  </div>
+</div>
+</section>
+
+<!-- ═══════════════════════════════ RESULTS: 15Cr ═══════════════════════════════ -->
+<section>
+  <h2>Results — Universe B: ADT ≥ ₹15 Crore</h2>
+  <p>More liquid universe. Restricted to stocks trading at least ₹15 crore per day on average.
+  Reduces slippage risk and improves execution quality at the cost of a slightly smaller universe.
+  <span class="star">★</span> = beats Nifty 50 ARR of <strong>10.3%</strong>.</p>
+  
+<h3 style="color:#cbd5e1;margin-bottom:12px;font-size:15px">Universe B — ADT ≥ ₹15 Crore
+  <span style="font-size:12px;color:#475569;font-weight:400;margin-left:8px">
+    388 signal-ready stocks &nbsp;|&nbsp; Min ADT ≥ ₹15Cr
+  </span>
+</h3>
+<div class="card" style="padding:0;margin-bottom:28px">
+  <div class="tbl-wrap">
+  <table class="main">
+    <thead>
+      <tr>
+        <th class="left">Filter</th>
+        <th class="left">Scenario</th>
+        <th>Trades</th>
+        <th>Win%</th>
+        <th>Avg Win</th>
+        <th>Avg Loss</th>
+        <th>SL Hit%</th>
+        <th>Avg Hold</th>
+        <th>ARR ★</th>
+        <th>Max DD</th>
+      </tr>
+    </thead>
+    <tbody>
+<tr class="section-hdr"><td colspan="10">▸ No Filter — Baseline</td></tr>
+<tr>
+  <td class="left tag"></td>
+  <td class="left"><strong>RS Only</strong> <span class="star">★</span></td>
+  <td>142</td>
+  <td>35.2%</td>
+  <td class="pos">+52.2%</td>
+  <td class="neg">-8.1%</td>
+  <td>43.0%</td>
+  <td>136d</td>
+  <td style="color:#f59e0b;font-weight:700">+13.1%</td>
+  <td style="color:#f59e0b">13.9%</td>
+</tr>
+<tr>
+  <td class="left tag"></td>
+  <td class="left"><strong>Dual — Either Exit</strong> <span class="star">★</span></td>
+  <td>153</td>
+  <td>34.6%</td>
+  <td class="pos">+40.7%</td>
+  <td class="neg">-7.6%</td>
+  <td>37.3%</td>
+  <td>125d</td>
+  <td style="color:#f59e0b;font-weight:700">+10.4%</td>
+  <td style="color:#f59e0b">12.3%</td>
+</tr>
+<tr>
+  <td class="left tag"></td>
+  <td class="left"><strong>Dual — Both Exit</strong></td>
+  <td>112</td>
+  <td>32.1%</td>
+  <td class="pos">+41.4%</td>
+  <td class="neg">-8.9%</td>
+  <td>53.6%</td>
+  <td>171d</td>
+  <td style="color:#ef4444;font-weight:700">+6.6%</td>
+  <td style="color:#ef4444">15.7%</td>
+</tr>
+<tr class="section-hdr"><td colspan="10">▸ Regime Filter Only</td></tr>
+<tr>
+  <td class="left tag">[R]</td>
+  <td class="left"><strong>RS Only</strong> <span class="star">★</span></td>
+  <td>140</td>
+  <td>32.1%</td>
+  <td class="pos">+54.4%</td>
+  <td class="neg">-8.1%</td>
+  <td>39.3%</td>
+  <td>129d</td>
+  <td style="color:#f59e0b;font-weight:700">+12.1%</td>
+  <td style="color:#f59e0b">13.4%</td>
+</tr>
+<tr>
+  <td class="left tag">[R]</td>
+  <td class="left"><strong>Dual — Either Exit</strong> <span class="star">★</span></td>
+  <td>135</td>
+  <td>36.3%</td>
+  <td class="pos">+42.8%</td>
+  <td class="neg">-7.0%</td>
+  <td>33.3%</td>
+  <td>134d</td>
+  <td style="color:#f59e0b;font-weight:700">+11.0%</td>
+  <td style="color:#f59e0b">12.3%</td>
+</tr>
+<tr>
+  <td class="left tag">[R]</td>
+  <td class="left"><strong>Dual — Both Exit</strong> <span class="star">★</span></td>
+  <td>92</td>
+  <td>38.0%</td>
+  <td class="pos">+65.7%</td>
+  <td class="neg">-8.0%</td>
+  <td>42.4%</td>
+  <td>195d</td>
+  <td style="color:#f59e0b;font-weight:700">+13.1%</td>
+  <td style="color:#7f1d1d">25.9%</td>
+</tr>
+<tr class="section-hdr"><td colspan="10">▸ Volume Filter Only</td></tr>
+<tr>
+  <td class="left tag">[V]</td>
+  <td class="left"><strong>RS Only</strong></td>
+  <td>154</td>
+  <td>30.5%</td>
+  <td class="pos">+48.1%</td>
+  <td class="neg">-8.6%</td>
+  <td>51.3%</td>
+  <td>117d</td>
+  <td style="color:#f59e0b;font-weight:700">+10.1%</td>
+  <td style="color:#ef4444">15.6%</td>
+</tr>
+<tr>
+  <td class="left tag">[V]</td>
+  <td class="left"><strong>Dual — Either Exit</strong> <span class="star">★</span></td>
+  <td>142</td>
+  <td>33.1%</td>
+  <td class="pos">+47.1%</td>
+  <td class="neg">-8.5%</td>
+  <td>49.3%</td>
+  <td>123d</td>
+  <td style="color:#f59e0b;font-weight:700">+10.5%</td>
+  <td style="color:#f59e0b">11.8%</td>
+</tr>
+<tr>
+  <td class="left tag">[V]</td>
+  <td class="left"><strong>Dual — Both Exit</strong></td>
+  <td>100</td>
+  <td>35.0%</td>
+  <td class="pos">+51.8%</td>
+  <td class="neg">-9.0%</td>
+  <td>51.0%</td>
+  <td>184d</td>
+  <td style="color:#ef4444;font-weight:700">+9.4%</td>
+  <td style="color:#f59e0b">12.0%</td>
+</tr>
+<tr class="section-hdr"><td colspan="10">▸ Regime + Volume Filters</td></tr>
+<tr>
+  <td class="left tag">[R+V]</td>
+  <td class="left"><strong>RS Only</strong></td>
+  <td>152</td>
+  <td>24.3%</td>
+  <td class="pos">+48.9%</td>
+  <td class="neg">-8.5%</td>
+  <td>55.3%</td>
+  <td>109d</td>
+  <td style="color:#ef4444;font-weight:700">+6.7%</td>
+  <td style="color:#ef4444">15.1%</td>
+</tr>
+<tr>
+  <td class="left tag">[R+V]</td>
+  <td class="left"><strong>Dual — Either Exit</strong> <span class="star">★</span></td>
+  <td>128</td>
+  <td>32.0%</td>
+  <td class="pos">+53.9%</td>
+  <td class="neg">-8.5%</td>
+  <td>49.2%</td>
+  <td>131d</td>
+  <td style="color:#f59e0b;font-weight:700">+10.9%</td>
+  <td style="color:#f59e0b">12.3%</td>
+</tr>
+<tr>
+  <td class="left tag">[R+V]</td>
+  <td class="left"><strong>Dual — Both Exit</strong> <span class="star">★</span></td>
+  <td>98</td>
+  <td>29.6%</td>
+  <td class="pos">+77.1%</td>
+  <td class="neg">-9.6%</td>
+  <td>64.3%</td>
+  <td>176d</td>
+  <td style="color:#f59e0b;font-weight:700">+11.5%</td>
+  <td style="color:#ef4444">18.2%</td>
+</tr>
+<tr class="benchmark">
+  <td class="left" colspan="2"><em>★ Nifty 50 Buy &amp; Hold (Benchmark)</em></td>
+  <td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>~5yr</td>
+  <td style="color:#93c5fd;font-weight:700">+10.3%</td>
+  <td style="color:#16a34a">17.2%</td>
+</tr>
+    </tbody>
+  </table>
+  </div>
+</div>
+</section>
+
+<!-- ═══════════════════════════════ BENCHMARK COMPARISON ═══════════════════════════════ -->
+<section>
+  <h2>Benchmark Comparison — Nifty 50 Buy &amp; Hold</h2>
+  <div class="card">
+    <p>The Nifty 50 buy-and-hold benchmark over Jan 2021 – May 2026:</p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-top:16px">
+      <div class="meta-box">
+        <div class="lbl">Total Return</div>
+        <div class="val" style="color:#93c5fd">+68.0%</div>
+      </div>
+      <div class="meta-box">
+        <div class="lbl">Annual Return (ARR)</div>
+        <div class="val" style="color:#fbbf24">+10.3%</div>
+      </div>
+      <div class="meta-box">
+        <div class="lbl">Max Drawdown</div>
+        <div class="val" style="color:#ef4444">17.2%</div>
+      </div>
+      <div class="meta-box">
+        <div class="lbl">SL Risk</div>
+        <div class="val" style="color:#475569">Unlimited</div>
+      </div>
+    </div>
+    <p style="margin-top:16px">All strategy variants above use a hard 10% stop-loss per trade with
+    fixed-dollar risk sizing (0.5% RPT = ₹5,000 risked per trade on ₹10L capital). This caps
+    maximum per-trade loss and keeps drawdown bounded — an important structural advantage
+    versus buy-and-hold during sharp market corrections.</p>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════ YEAR-WISE ═══════════════════════════════ -->
+<section>
+  <h2>Year-by-Year Performance — RS Only (No Filter)</h2>
+  <p>Breakdown by calendar year for the baseline RS Only scenario across both ADT universes.
+  <span class="star">↑</span> = strategy beats Nifty that year.
+  Win% and Avg Win/Loss reflect trades <em>closed</em> within that calendar year.</p>
+
+  
+<div class="callout amber" style="margin-bottom:14px">
+  <p><strong>Note on annual returns:</strong> Portfolio returns are mark-to-market (MTM) at each
+  year-end, including unrealized gains on open positions. This is the correct measure for
+  year-on-year comparison. The "Trades" column shows positions
+  <em>closed</em> in that year — long-duration winners often span multiple years, so this
+  count understates activity. Overall win rate and avg win/loss are shown in the full-period
+  summary row. Year returns compound to the exact full-period total (verified).</p>
+</div>
+<div class="card" style="padding:0">
+<div class="tbl-wrap">
+<table class="main">
+  <thead>
+    <tr>
+      <th class="left" rowspan="2">Year</th>
+      <th colspan="3" style="border-bottom:1px solid #334155;color:#93c5fd">ADT ≥ ₹5 Cr &nbsp;(429 stocks)</th>
+      <th colspan="3" style="border-bottom:1px solid #334155;color:#fbbf24">ADT ≥ ₹15 Cr &nbsp;(388 stocks)</th>
+      <th colspan="2" style="border-bottom:1px solid #334155;color:#94a3b8">Nifty 50 B&amp;H</th>
+    </tr>
+    <tr>
+      <th>Return (MTM)</th><th>Max DD</th><th>Closed Trades</th>
+      <th>Return (MTM)</th><th>Max DD</th><th>Closed Trades</th>
+      <th>Return</th><th>Max DD</th>
+    </tr>
+  </thead>
+  <tbody>
+<tr>
+  <td class="left"><strong>2021</strong></td>
+  <td style="color:#22c55e;font-weight:700">+22.7% <span style="color:#ef4444;font-size:11px">↓</span></td><td style="color:#16a34a">8.3%</td><td>30</td>
+  <td style="color:#22c55e;font-weight:700">+22.7% <span style="color:#ef4444;font-size:11px">↓</span></td><td style="color:#16a34a">8.9%</td><td>35</td>
+  <td style="color:#22c55e">+23.8%</td><td style="color:#f59e0b">10.1%</td>
+</tr>
+<tr>
+  <td class="left"><strong>2022</strong></td>
+  <td style="color:#22c55e;font-weight:700">+10.2% <span style="color:#22c55e;font-size:11px">↑</span></td><td style="color:#f59e0b">12.3%</td><td>25</td>
+  <td style="color:#22c55e;font-weight:700">+10.1% <span style="color:#22c55e;font-size:11px">↑</span></td><td style="color:#f59e0b">13.9%</td><td>19</td>
+  <td style="color:#f59e0b">+2.7%</td><td style="color:#ef4444">16.5%</td>
+</tr>
+<tr>
+  <td class="left"><strong>2023</strong></td>
+  <td style="color:#16a34a;font-weight:700">+31.1% <span style="color:#22c55e;font-size:11px">↑</span></td><td style="color:#16a34a">7.2%</td><td>11</td>
+  <td style="color:#16a34a;font-weight:700">+28.4% <span style="color:#22c55e;font-size:11px">↑</span></td><td style="color:#16a34a">5.5%</td><td>14</td>
+  <td style="color:#22c55e">+19.4%</td><td style="color:#16a34a">7.1%</td>
+</tr>
+<tr>
+  <td class="left"><strong>2024</strong></td>
+  <td style="color:#f59e0b;font-weight:700">+5.4% <span style="color:#ef4444;font-size:11px">↓</span></td><td style="color:#16a34a">8.8%</td><td>27</td>
+  <td style="color:#f59e0b;font-weight:700">+6.9% <span style="color:#ef4444;font-size:11px">↓</span></td><td style="color:#16a34a">7.8%</td><td>24</td>
+  <td style="color:#f59e0b">+8.8%</td><td style="color:#f59e0b">10.9%</td>
+</tr>
+<tr>
+  <td class="left"><strong>2025</strong></td>
+  <td style="color:#f59e0b;font-weight:700">+2.6% <span style="color:#ef4444;font-size:11px">↓</span></td><td style="color:#16a34a">6.8%</td><td>34</td>
+  <td style="color:#f59e0b;font-weight:700">+0.2% <span style="color:#ef4444;font-size:11px">↓</span></td><td style="color:#16a34a">8.8%</td><td>36</td>
+  <td style="color:#22c55e">+10.1%</td><td style="color:#16a34a">8.7%</td>
+</tr>
+<tr>
+  <td class="left"><strong>2026</strong> <span style='font-size:10px;color:#475569'>(Jan–May)</span></td>
+  <td style="color:#f59e0b;font-weight:700">+1.9% <span style="color:#22c55e;font-size:11px">↑</span></td><td style="color:#16a34a">4.5%</td><td>15</td>
+  <td style="color:#f59e0b;font-weight:700">+3.4% <span style="color:#22c55e;font-size:11px">↑</span></td><td style="color:#16a34a">4.5%</td><td>14</td>
+  <td style="color:#ef4444">-9.9%</td><td style="color:#ef4444">15.2%</td>
+</tr>
+<tr class="benchmark">
+  <td class="left"><strong>Full Period</strong> <span style="font-size:10px">(2021–May 2026)</span></td>
+  <td style="color:#16a34a;font-weight:700">+95.3%</td>
+  <td style="color:#f59e0b">12.3%</td>
+  <td>142</td>
+  <td style="color:#16a34a;font-weight:700">+92.2%</td>
+  <td style="color:#f59e0b">13.9%</td>
+  <td>142</td>
+  <td style="color:#93c5fd;font-weight:700">+68.0%</td>
+  <td style="color:#ef4444">17.2%</td>
+</tr>
+  </tbody>
+</table>
+</div>
+</div>
+</section>
+
+<!-- ═══════════════════════════════ KEY FINDINGS ═══════════════════════════════ -->
+<section>
+  <h2>Key Findings</h2>
+
+  <div class="callout green">
+    <p><strong>RS Only (baseline, no filters) is the best single strategy</strong> — achieving
+    ARR of 13.5% on the 5Cr universe and
+    13.1% on the 15Cr universe, both beating
+    Nifty's 10.3% ARR with lower max drawdown than the index's 17.2%.</p>
+  </div>
+
+  <div class="callout amber">
+    <p><strong>The volume filter consistently hurts performance.</strong> Across both universes,
+    adding the [V] volume filter reduces ARR in most scenario + filter combinations. Hypothesis:
+    high-volume crossovers are late signals — institutional front-running has already occurred.
+    A future test: use volume in the 3–5 days <em>after</em> the crossover as confirmation
+    rather than on the crossover day itself.</p>
+  </div>
+
+  <div class="callout purple">
+    <p><strong>Regime filter has mixed impact.</strong> For RS Only, the regime filter reduces
+    ARR (fewer trades, but not proportionally better quality). For Dual-Both on 15Cr, regime
+    filtering slightly improves drawdown. The 88% bull-regime observation rate in this specific
+    period (2021–2026 was largely a bull market) limits the regime filter's discriminatory power.</p>
+  </div>
+
+  <div class="callout">
+    <p><strong>Universe size matters less than expected.</strong> The 5Cr and 15Cr universes
+    contain nearly the same stocks (435 vs 433), because most NSE 500 names already trade well
+    above 5Cr/day. True liquidity differentiation would require testing a much lower threshold
+    (e.g., 1–2Cr) or comparing versus a 50Cr+ large-cap-only universe.</p>
+  </div>
+
+  <div class="callout red">
+    <p><strong>Win rates are systematically below 50%.</strong> All combinations show 30–42% win
+    rates. This is normal for trend-following strategies — the edge comes from letting winners
+    run longer than losers (positive expectancy). Average hold times of 100–170 days confirm
+    multi-month trend riding as the return driver.</p>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════ METHODOLOGY ═══════════════════════════════ -->
+<section>
+  <h2>Methodology &amp; Assumptions</h2>
+  <div class="appendix-grid">
+    <div class="card" style="margin-bottom:0">
+      <h3 style="color:#e2e8f0;font-size:14px;margin-bottom:12px">Signal Construction</h3>
+      <ul>
+        <li><strong>RS Ratio</strong> = Stock Close ÷ Nifty 50 Close (daily, dimensionless)</li>
+        <li><strong>SMA20(RS)</strong> = 20-day rolling mean of the RS ratio</li>
+        <li><strong>SMA200(RS)</strong> = 200-day rolling mean of the RS ratio</li>
+        <li>A golden cross occurs when SMA20(RS) was ≤ SMA200(RS) yesterday and is &gt; today</li>
+        <li>Price crossovers use the same logic on stock close price directly</li>
+        <li>Volume filter: trade day volume &gt; 1.5× 20-day avg volume</li>
+        <li>ADT = 20-day rolling mean of (Close × Volume), checked on signal date</li>
+      </ul>
+    </div>
+    <div class="card" style="margin-bottom:0">
+      <h3 style="color:#e2e8f0;font-size:14px;margin-bottom:12px">Simulation Rules</h3>
+      <ul>
+        <li><strong>Execution</strong>: signals generated at close, executed at next day's open</li>
+        <li><strong>Position sizing</strong>: ₹50,000 fixed risk per trade (₹10L × 0.5% RPT ÷ 10% SL)</li>
+        <li><strong>Stop loss</strong>: 10% below entry price, hard floor (no trailing)</li>
+        <li><strong>SL execution</strong>: gap-downs exit at open; intraday SL exits at SL price</li>
+        <li><strong>Max positions</strong>: 10 concurrent open trades</li>
+        <li><strong>No shorting</strong>, no leverage, long-only</li>
+        <li><strong>No transaction costs</strong> modelled (conservative uplift ~0.3–0.5% ARR)</li>
+        <li>Warmup: 420 calendar days pre-period to initialise SMA200</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════ NEXT STEPS ═══════════════════════════════ -->
+<section>
+  <h2>Suggested Next Research Steps</h2>
+  <div class="card">
+    <ul>
+      <li><strong>Lagged volume confirmation</strong>: Require above-average volume in the 3–5 days
+      <em>after</em> the RS crossover, not on the crossover day itself. Tests if volume validates
+      continuation rather than just the trigger.</li>
+      <li><strong>Sector-relative RS</strong>: Compute RS versus sector index rather than Nifty
+      to identify sector leaders within already-bullish sectors.</li>
+      <li><strong>RS percentile ranking</strong>: Instead of a binary crossover, rank all stocks
+      by RS acceleration and buy the top decile. Creates a dynamic, always-on portfolio.</li>
+      <li><strong>Partial exits</strong>: Apply the Champion Trader exit framework (2R/NE/GE/EE)
+      instead of the binary crossover exit to maximise winners.</li>
+      <li><strong>Large-cap isolation</strong>: Test with an ADT ≥ 50Cr universe to see if very
+      liquid names show meaningfully different RS crossover dynamics.</li>
+      <li><strong>Walk-forward validation</strong>: Split the dataset into in-sample (2021–2023)
+      and out-of-sample (2024–2026) to test for parameter overfitting.</li>
+    </ul>
+  </div>
+</section>
+
+<div class="footer">
+  Generated by Champion Trader Research Engine · June 02, 2026 ·
+  Data source: NSE / Yahoo Finance · For internal research use only
+</div>
+
+</div>
+</body>
+</html>
