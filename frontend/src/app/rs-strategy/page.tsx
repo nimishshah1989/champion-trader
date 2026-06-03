@@ -133,8 +133,9 @@ function PortfolioPanel({
 
   const s = status;
   const returnPct = s.total_return_pct ?? 0;
-  const openTrades = trades.filter((t) => t.status === "OPEN" || t.status === "PARTIAL");
-  const closedTrades = trades.filter((t) => t.status === "CLOSED");
+  const safeTrades = Array.isArray(trades) ? trades : [];
+  const openTrades = safeTrades.filter((t) => t.status === "OPEN" || t.status === "PARTIAL");
+  const closedTrades = safeTrades.filter((t) => t.status === "CLOSED");
   const curveColor = returnPct >= 0 ? "#10b981" : "#ef4444";
 
   return (
@@ -143,7 +144,7 @@ function PortfolioPanel({
       <div className={`px-5 py-3 ${headerBg} flex items-center justify-between`}>
         <span className={`text-sm font-semibold ${headerText}`}>Portfolio {label}</span>
         <span className="text-xs text-slate-500">
-          {s.open_positions}/{s.config.max_positions} positions
+          {s.open_positions ?? 0}/{s.config?.max_positions ?? "?"} positions
         </span>
       </div>
 
@@ -174,7 +175,7 @@ function PortfolioPanel({
         </div>
 
         {/* Equity curve */}
-        {s.equity_curve.length > 1 ? (
+        {(s.equity_curve ?? []).length > 1 ? (
           <div className="rounded-xl border bg-white p-4 shadow-sm">
             <p className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-3">
               Equity Curve
@@ -297,19 +298,21 @@ function PortfolioPanel({
         </div>
 
         {/* Config */}
-        <div className="rounded-xl border bg-slate-50 p-4">
-          <p className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">Config</p>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-6 gap-y-1 text-xs text-slate-600">
-            <span>Capital: ₹{fmt(s.config.capital, 0)}</span>
-            <span>Stop Loss: {s.config.sl_pct}%</span>
-            <span>Position Size: ₹{fmt(s.config.pos_value, 0)}</span>
-            <span>Max Positions: {s.config.max_positions}</span>
-            <span>EMA Fast: {s.config.ema_fast}</span>
-            <span>EMA Slow: {s.config.ema_slow}</span>
-            <span>Min ADT: ₹{s.config.min_adt_cr}cr</span>
-            <span>Last Run: {s.last_run_date ?? "Never"}</span>
+        {s.config && (
+          <div className="rounded-xl border bg-slate-50 p-4">
+            <p className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">Config</p>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-6 gap-y-1 text-xs text-slate-600">
+              <span>Capital: ₹{fmt(s.config.capital, 0)}</span>
+              <span>Stop Loss: {s.config.sl_pct}%</span>
+              <span>Position Size: ₹{fmt(s.config.pos_value, 0)}</span>
+              <span>Max Positions: {s.config.max_positions}</span>
+              <span>EMA Fast: {s.config.ema_fast}</span>
+              <span>EMA Slow: {s.config.ema_slow}</span>
+              <span>Min ADT: ₹{s.config.min_adt_cr}cr</span>
+              <span>Last Run: {s.last_run_date ?? "Never"}</span>
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );
@@ -333,7 +336,11 @@ export default function RsStrategyPage() {
     try {
       const [s, t] = await Promise.all([getRsStrategyStatus(), getRsStrategyTrades()]);
       setPortfolios(s);
-      setTrades(t);
+      // Normalise: ensure both buckets are always arrays regardless of backend shape
+      setTrades({
+        A: Array.isArray(t?.A) ? t.A : [],
+        B: Array.isArray(t?.B) ? t.B : [],
+      });
     } catch {
       setFetchError(true);
     } finally {
