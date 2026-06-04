@@ -1,9 +1,9 @@
 """
 regime_classifier.py — Classifies current market into one of four regimes.
 
-Inputs (computed from yfinance data):
+Inputs (computed from Kite bar store):
   - Nifty 50 ADX (14-day)
-  - India VIX (^INDIAVIX)
+  - India VIX (defaulted to 15.0 — no live feed yet)
   - Price vs 150-day SMA of Nifty 50
   - Hurst exponent on Nifty 50 closes (90-day window)
 
@@ -15,13 +15,14 @@ Output: one of:
 """
 
 import logging
+import sqlite3
 from datetime import datetime, date as date_type
 
 import numpy as np
 import pandas as pd
-import yfinance as yf
 from scipy import stats as scipy_stats
 
+from backend.config import settings
 from backend.database import SessionLocal, RegimeLog
 
 logger = logging.getLogger(__name__)
@@ -129,27 +130,31 @@ async def classify_regime() -> dict:
     """
     logger.info("Running regime classification...")
 
-    # Fetch Nifty 50 data (6 months for 150-day SMA)
-    nifty = yf.download("^NSEI", period="8mo", progress=False)
-    if nifty.empty or len(nifty) < 150:
+    # Fetch Nifty 50 data from Kite bar store (250 bars for 150-day SMA)
+    try:
+        con = sqlite3.connect(settings.bars_db_path)
+        rows = con.execute(
+            "SELECT date, open, high, low, close, volume FROM bars "
+            "WHERE symbol='NIFTY 50' ORDER BY date DESC LIMIT 250"
+        ).fetchall()
+        con.close()
+    except Exception as e:
+        logger.error(f"Bar store unavailable for regime classification: {e}")
+        return {"regime": "RANGING_QUIET", "error": "bar_store_unavailable"}
+
+    if len(rows) < 150:
         logger.error("Insufficient Nifty data for regime classification")
         return {"regime": "RANGING_QUIET", "error": "insufficient_data"}
 
-    # Flatten MultiIndex columns if present
-    if isinstance(nifty.columns, pd.MultiIndex):
-        nifty.columns = nifty.columns.get_level_values(0)
+    rows = list(reversed(rows))
+    nifty = pd.DataFrame(rows, columns=["Date", "Open", "High", "Low", "Close", "Volume"])
+    nifty = nifty.rename(columns={"Date": "index"}).set_index("index")
 
     # ADX
     adx = calculate_adx(nifty, period=14)
 
-    # VIX
-    try:
-        vix_data = yf.download("^INDIAVIX", period="5d", progress=False)
-        if isinstance(vix_data.columns, pd.MultiIndex):
-            vix_data.columns = vix_data.columns.get_level_values(0)
-        india_vix = float(vix_data["Close"].iloc[-1]) if not vix_data.empty else 15.0
-    except Exception:
-        india_vix = 15.0  # Default if VIX unavailable
+    # VIX — no live feed yet; use neutral default
+    india_vix = 15.0
 
     # Price vs 150-day SMA
     nifty_close = float(nifty["Close"].iloc[-1])

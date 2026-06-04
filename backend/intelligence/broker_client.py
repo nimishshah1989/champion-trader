@@ -96,15 +96,19 @@ class PaperBrokerClient(BaseBrokerClient):
     async def place_market_order(
         self, symbol: str, qty: int, order_type: str = "SELL"
     ) -> dict:
-        import yfinance as yf
-
         self._order_counter += 1
         order_id = f"PAPER-{self._order_counter:06d}"
 
-        # Get approximate market price
+        # Get approximate market price from bar store
         try:
-            ticker = yf.Ticker(f"{symbol}.NS")
-            price = ticker.info.get("regularMarketPrice", 0) or ticker.info.get("previousClose", 0)
+            import sqlite3
+            from backend.config import settings
+            con = sqlite3.connect(settings.bars_db_path)
+            row = con.execute(
+                "SELECT close FROM bars WHERE symbol=? ORDER BY date DESC LIMIT 1", (symbol,)
+            ).fetchone()
+            con.close()
+            price = float(row[0]) if row else 0.0
         except Exception:
             price = 0.0
 
@@ -131,13 +135,17 @@ class PaperBrokerClient(BaseBrokerClient):
         return order
 
     async def get_live_price(self, symbol: str) -> float:
-        import yfinance as yf
         try:
-            ticker = yf.Ticker(f"{symbol}.NS")
-            price = ticker.info.get("regularMarketPrice") or ticker.info.get("previousClose", 0)
-            return float(price)
+            import sqlite3
+            from backend.config import settings
+            con = sqlite3.connect(settings.bars_db_path)
+            row = con.execute(
+                "SELECT close FROM bars WHERE symbol=? ORDER BY date DESC LIMIT 1", (symbol,)
+            ).fetchone()
+            con.close()
+            return float(row[0]) if row else 0.0
         except Exception as e:
-            logger.error(f"Failed to get live price for {symbol}: {e}")
+            logger.error(f"Failed to get bar store price for {symbol}: {e}")
             return 0.0
 
     async def cancel_order(self, order_id: str) -> bool:
@@ -175,13 +183,7 @@ class JhaveriBrokerClient(BaseBrokerClient):
         raise NotImplementedError("Jhaveri broker integration pending")
 
     async def get_live_price(self, symbol: str) -> float:
-        # Can still use yfinance as fallback
-        import yfinance as yf
-        try:
-            ticker = yf.Ticker(f"{symbol}.NS")
-            return float(ticker.info.get("regularMarketPrice", 0))
-        except Exception:
-            return 0.0
+        raise NotImplementedError("Jhaveri broker integration pending — use paper mode")
 
     async def cancel_order(self, order_id: str) -> bool:
         raise NotImplementedError("Jhaveri broker integration pending")
