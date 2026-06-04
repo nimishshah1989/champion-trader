@@ -94,8 +94,22 @@ def _store_con() -> sqlite3.Connection:
 
 
 def _universe(con: sqlite3.Connection) -> list[str]:
-    """The live universe = every symbol with ingested bars in the store."""
-    return [r[0] for r in con.execute("select symbol from done where n>0 order by symbol")]
+    """The live universe = every symbol with ingested bars in the store.
+
+    On a fresh install (empty done table) falls back to the bundled atlas
+    universe so the first-ever ingest has symbols to fetch — same logic as
+    scripts/ingest_kite_daily.py.
+    """
+    rows = [r[0] for r in con.execute("select symbol from done where n>0 order by symbol")]
+    if rows:
+        return rows
+    import json, os
+    path = os.path.join(os.path.dirname(__file__), "..", "data", "atlas_universe.json")
+    try:
+        return json.load(open(path))["symbols"]
+    except Exception as exc:
+        logger.warning(f"[v2 INGEST] atlas universe fallback failed: {exc}")
+        return []
 
 
 def run_daily_ingest(*, cache_path: Optional[str] = None,

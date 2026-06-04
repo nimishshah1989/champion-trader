@@ -361,6 +361,25 @@ export function resetLegacyData(): Promise<{
   return apiFetch("/admin/reset-legacy-data", { method: "POST" });
 }
 
+export function getBarStoreStatus(): Promise<{
+  symbols_with_bars: number;
+  total_bars: number;
+  latest_bar_date: string | null;
+  ready_for_scan: boolean;
+  error?: string;
+}> {
+  return apiFetch("/admin/bar-store-status");
+}
+
+export function runKiteIngest(quick = true): Promise<{
+  status: string;
+  quick?: boolean;
+  start_date?: string;
+  message: string;
+}> {
+  return apiFetch(`/admin/run-ingest?quick=${quick}`, { method: "POST" });
+}
+
 // --- RS EMA50×200 Strategy ---
 
 export function getRsStrategyStatus(): Promise<RsStrategyStatusResponse> {
