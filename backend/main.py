@@ -20,6 +20,7 @@ from backend.routers import (
     trades,
     watchlist,
 )
+from backend.routers.admin import router as admin_router
 from backend.routers.intelligence import router as intelligence_router
 from backend.routers.intelligence_strategy import router as intelligence_strategy_router
 from backend.routers.rs_strategy import router as rs_strategy_router
@@ -220,6 +221,9 @@ app.include_router(rs_strategy_router)
 
 # Kite OAuth callback
 app.include_router(kite_auth_router)
+
+# Admin / maintenance
+app.include_router(admin_router)
 
 
 @app.get("/")

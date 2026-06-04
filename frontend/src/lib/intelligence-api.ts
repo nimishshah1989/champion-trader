@@ -304,6 +304,33 @@ export async function getRiskStatus(): Promise<RiskStatus> {
 }
 
 // ---------------------------------------------------------------------------
+// API Functions — Manual triggers (regime + brief)
+// ---------------------------------------------------------------------------
+
+export async function classifyRegimeNow(): Promise<RegimeData> {
+  const raw = await apiFetch<Record<string, unknown>>("/api/intelligence/regime/classify", { method: "POST" });
+  return {
+    regime: (String(raw.regime ?? "UNKNOWN")) as RegimeType,
+    adx: num(raw.nifty_adx),
+    vix: num(raw.india_vix),
+    hurst: num(raw.hurst_exponent),
+    timestamp: String(raw.classified_at ?? ""),
+  };
+}
+
+export async function generateBriefNow(): Promise<DailyBrief> {
+  const raw = await apiFetch<RawBriefResponse>("/api/intelligence/brief/generate", { method: "POST" });
+  if (raw.error) throw new Error(raw.error);
+  return {
+    date: String(raw.date ?? ""),
+    brief_text: typeof raw.brief_text === "string" ? raw.brief_text : "",
+    generated_at: String(raw.generated_at ?? ""),
+    regime: (raw.regime as RegimeType) ?? "TRENDING_BULL",
+    top_setups: [],
+  };
+}
+
+// ---------------------------------------------------------------------------
 // API Functions — Shadow Portfolio
 // ---------------------------------------------------------------------------
 

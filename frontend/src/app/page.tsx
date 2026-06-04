@@ -7,6 +7,7 @@ import {
   getWatchlist,
   getTradeStats,
   healthCheck,
+  resetLegacyData,
   type Trade,
   type MarketStance,
   type WatchlistItem,
@@ -28,6 +29,70 @@ import {
 // ---------------------------------------------------------------------------
 // Main Dashboard
 // ---------------------------------------------------------------------------
+
+const V2_CUTOFF = "2025-01-01";
+
+function LegacyDataBanner({
+  openTrades,
+  onReset,
+}: {
+  openTrades: Trade[];
+  onReset: () => void;
+}) {
+  const [resetting, setResetting] = useState(false);
+  const [result, setResult] = useState<string | null>(null);
+
+  const hasLegacy =
+    openTrades.length > 0 &&
+    openTrades.some((t) => (t.entry_date || "") < V2_CUTOFF);
+
+  if (!hasLegacy && openTrades.length === 0) return null;
+
+  // Show if there are clearly too many open positions (v2 max = 15)
+  const manyOpen = openTrades.length > 15;
+  const legacyDates = openTrades.some((t) => (t.entry_date || "") < V2_CUTOFF);
+  if (!manyOpen && !legacyDates) return null;
+
+  async function handleReset() {
+    setResetting(true);
+    setResult(null);
+    try {
+      const res = await resetLegacyData();
+      setResult(res.message);
+      onReset();
+    } catch (err) {
+      setResult("Reset failed: " + String(err));
+    } finally {
+      setResetting(false);
+    }
+  }
+
+  return (
+    <div className="bg-amber-50 border border-amber-300 rounded-xl px-4 py-4">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="text-sm font-semibold text-amber-900">
+            Legacy data detected — {openTrades.length} pre-v2 open trades in the database
+          </p>
+          <p className="text-xs text-amber-700 mt-1">
+            These are old CTS trades from before the v2 migration. The v2 paper engine manages its
+            own trades. Click to archive them so the dashboard reflects the correct v2 state.
+          </p>
+          {result && (
+            <p className="text-xs text-amber-800 mt-2 font-medium">{result}</p>
+          )}
+        </div>
+        <button
+          onClick={handleReset}
+          disabled={resetting}
+          className="shrink-0 text-xs font-semibold bg-amber-600 hover:bg-amber-700 disabled:bg-amber-400 text-white rounded-lg px-3 py-2 transition-colors"
+        >
+          {resetting ? "Archiving..." : "Archive Legacy Data"}
+        </button>
+      </div>
+    </div>
+  );
+}
 
 export default function DashboardPage() {
   const [openTrades, setOpenTrades] = useState<Trade[]>([]);
@@ -81,6 +146,9 @@ export default function DashboardPage() {
         <h1 className="text-xl font-semibold text-slate-800">Dashboard</h1>
         <p className="text-sm text-slate-500 mt-0.5">Daily command centre — Champion Trader routine</p>
       </div>
+
+      {/* Legacy data migration banner */}
+      <LegacyDataBanner openTrades={openTrades} onReset={fetchAll} />
 
       {/* System Status */}
       <SystemStatusBanner health={health} />
