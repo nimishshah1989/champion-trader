@@ -19,7 +19,6 @@ import { SettingsButton } from "@/components/settings-drawer";
 const CORE_NAV = [
   { title: "Dashboard", href: "/" },
   { title: "Pipeline", href: "/pipeline" },
-  { title: "Actions", href: "/actions" },
   { title: "Trades", href: "/trades" },
   { title: "Review", href: "/review" },
 ] as const;
@@ -30,11 +29,9 @@ const STRATEGIES_NAV = [
 
 const INTELLIGENCE_NAV = [
   { title: "Intelligence", href: "/intelligence" },
-  { title: "Simulation", href: "/simulation" },
-  { title: "Optimize", href: "/intelligence/optimize" },
   { title: "Shadow", href: "/intelligence/shadow" },
   { title: "Attribution", href: "/intelligence/attribution" },
-  { title: "How It Works", href: "/intelligence/guide" },
+  { title: "Learning", href: "/intelligence/learning" },
 ] as const;
 
 function isActive(href: string, pathname: string): boolean {
