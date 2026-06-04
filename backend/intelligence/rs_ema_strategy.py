@@ -20,8 +20,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import os
-import sqlite3
+import time
 from datetime import date, datetime, timedelta
 
 import numpy as np
@@ -94,72 +93,61 @@ def _get_or_create_run(db, name: str) -> SimulationRun:
 # ── Data fetching ──────────────────────────────────────────────────────────────
 
 def _fetch_data_sync() -> tuple[pd.Series, dict[str, pd.DataFrame]]:
-    """Read BUFFER_DAYS of OHLCV for Nifty 50 + NSE stocks from the Kite bar store.
+    """Fetch NIFTY 50 + NSE universe OHLCV directly from Kite API.
 
-    Reads from the pre-ingested SQLite bar store (settings.bars_db_path), which is
-    kept fresh by the corpus_updater job via KiteHistoricalAdapter. No network calls.
+    No bar store required — just needs KITE_API_KEY + KITE_ACCESS_TOKEN in .env.
+    Throttled to ~3 req/s (Kite limit). ~750 stocks takes roughly 5 minutes.
     """
-    bars_path = settings.bars_db_path
-    if not os.path.exists(bars_path):
+    from backend.engine.kite_data import KiteHistoricalAdapter
+
+    if not (settings.kite_api_key and settings.kite_access_token):
         raise RuntimeError(
-            f"Bar store not found at {bars_path}. "
-            "Run scripts/ingest_kite_daily.py or wait for the corpus_updater job."
+            "Kite not configured. Set KITE_API_KEY and KITE_ACCESS_TOKEN in .env"
         )
 
-    cutoff = (datetime.now() - timedelta(days=BUFFER_DAYS)).strftime("%Y-%m-%d")
-    logger.info(f"[RS-EMA] Reading bar store {bars_path} from {cutoff}")
+    adapter = KiteHistoricalAdapter(settings.kite_api_key, settings.kite_access_token)
+    end_dt   = date.today()
+    start_dt = end_dt - timedelta(days=BUFFER_DAYS)
 
-    con = sqlite3.connect(bars_path)
-    try:
-        # ── NIFTY 50 index closes ────────────────────────────────────────────
-        rows = con.execute(
-            "SELECT date, close FROM index_bars "
-            "WHERE index_code='NIFTY 50' AND date >= ? ORDER BY date",
-            (cutoff,),
-        ).fetchall()
-        if not rows:
-            raise RuntimeError(
-                "No 'NIFTY 50' rows in index_bars. "
-                "Run scripts/ingest_kite_daily.py to populate the bar store."
-            )
-        nifty_close = pd.Series(
-            [float(r[1]) for r in rows],
-            index=pd.to_datetime([r[0] for r in rows]),
-        )
-        logger.info(f"[RS-EMA] NIFTY 50: {len(nifty_close)} days")
+    logger.info(f"[RS-EMA] Fetching from Kite: {start_dt} → {end_dt} ({len(NSE_UNIVERSE)} symbols)")
 
-        # ── Stock OHLCV (universe = symbols already in the store) ────────────
-        available = {
-            r[0]
-            for r in con.execute("SELECT symbol FROM done WHERE n > 0").fetchall()
-        }
-        symbols = [s for s in NSE_UNIVERSE if s in available]
-        logger.info(f"[RS-EMA] {len(symbols)} symbols available in bar store")
+    # NIFTY 50 index closes
+    nifty_bars = adapter.daily_bars("NIFTY 50", start_dt, end_dt)
+    if not nifty_bars:
+        raise RuntimeError("Kite returned no NIFTY 50 data — is the access token fresh?")
+    nifty_close = pd.Series(
+        [float(b.close) for b in nifty_bars],
+        index=pd.to_datetime([b.date for b in nifty_bars]),
+    )
+    logger.info(f"[RS-EMA] NIFTY 50: {len(nifty_close)} bars, last={nifty_close.index[-1].date()}")
+    time.sleep(0.35)
 
-        stock_data: dict[str, pd.DataFrame] = {}
-        for sym in symbols:
-            bar_rows = con.execute(
-                "SELECT date, open, high, low, close, volume FROM bars "
-                "WHERE symbol=? AND date >= ? ORDER BY date",
-                (sym, cutoff),
-            ).fetchall()
-            if len(bar_rows) < SLOW_N + 10:
-                continue
-            idx = pd.to_datetime([r[0] for r in bar_rows])
-            stock_data[sym] = pd.DataFrame(
-                {
-                    "Open":   [float(r[1]) for r in bar_rows],
-                    "High":   [float(r[2]) for r in bar_rows],
-                    "Low":    [float(r[3]) for r in bar_rows],
-                    "Close":  [float(r[4]) for r in bar_rows],
-                    "Volume": [int(r[5]) for r in bar_rows],
-                },
-                index=idx,
-            )
-    finally:
-        con.close()
+    # Stock OHLCV
+    stock_data: dict[str, pd.DataFrame] = {}
+    skipped = 0
+    for sym in NSE_UNIVERSE:
+        try:
+            bars = adapter.daily_bars(sym, start_dt, end_dt)
+            if len(bars) >= SLOW_N + 10:
+                idx = pd.to_datetime([b.date for b in bars])
+                stock_data[sym] = pd.DataFrame(
+                    {
+                        "Open":   [float(b.open)  for b in bars],
+                        "High":   [float(b.high)  for b in bars],
+                        "Low":    [float(b.low)   for b in bars],
+                        "Close":  [float(b.close) for b in bars],
+                        "Volume": [b.volume       for b in bars],
+                    },
+                    index=idx,
+                )
+        except KeyError:
+            skipped += 1  # symbol not in Kite — skip silently
+        except Exception as e:
+            logger.warning(f"[RS-EMA] {sym}: {e}")
+            skipped += 1
+        time.sleep(0.35)
 
-    logger.info(f"[RS-EMA] Loaded {len(stock_data)} stocks from bar store")
+    logger.info(f"[RS-EMA] Fetched {len(stock_data)} stocks ({skipped} not in Kite)")
     return nifty_close, stock_data
 
 

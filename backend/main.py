@@ -29,6 +29,7 @@ from backend.routers.alerts_app import router as alerts_app_router
 from backend.routers.intelligence import router as intelligence_router
 from backend.routers.intelligence_strategy import router as intelligence_strategy_router
 from backend.routers.rs_strategy import router as rs_strategy_router
+from backend.routers.kite_auth import router as kite_auth_router
 
 
 # ── APScheduler Setup ────────────────────────────────────────────────
@@ -96,6 +97,16 @@ def _setup_scheduler():
             CronTrigger(day_of_week="mon-fri", hour=17, minute=30, timezone=IST),
             id="corpus_updater",
             name="Corpus Updater: Market Data Ingestion",
+        )
+
+        # Kite morning login alert — 08:45 IST, user taps link to authorize
+        from backend.intelligence.kite_morning_alert import send_kite_login_alert
+
+        scheduler.add_job(
+            send_kite_login_alert,
+            CronTrigger(day_of_week="mon-fri", hour=8, minute=45, timezone=IST),
+            id="kite_morning_alert",
+            name="Kite Morning Alert: Daily login link via Telegram (08:45 IST)",
         )
 
         # RS EMA50×200 Strategy — daily signals + position update at 16:30 IST
@@ -255,6 +266,9 @@ app.include_router(intelligence_strategy_router)
 
 # RS EMA50×200 paper trading
 app.include_router(rs_strategy_router)
+
+# Kite OAuth callback
+app.include_router(kite_auth_router)
 
 
 @app.get("/")

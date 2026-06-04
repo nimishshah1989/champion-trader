@@ -46,16 +46,44 @@ jobs:
     steps:
       - name: Deploy backend via SSH
         uses: appleboy/ssh-action@v1.0.3
+        env:
+          KITE_API_KEY: ${{ secrets.KITE_API_KEY }}
+          KITE_API_SECRET: ${{ secrets.KITE_API_SECRET }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script_stop: true
           command_timeout: 15m
+          envs: KITE_API_KEY,KITE_API_SECRET,TELEGRAM_BOT_TOKEN,TELEGRAM_CHAT_ID
           script: |
             set -e
             cd ~/apps/champion
             git pull origin main
+
+            # Write .env from GitHub Secrets (preserves KITE_ACCESS_TOKEN if already set)
+            EXISTING_TOKEN=$(grep -oP '(?<=^KITE_ACCESS_TOKEN=).+' .env 2>/dev/null || true)
+            cat > .env << ENVEOF
+            DATABASE_URL=sqlite:///./db_data/champion_trader.db
+            TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+            TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
+            KITE_API_KEY=${KITE_API_KEY}
+            KITE_API_SECRET=${KITE_API_SECRET}
+            KITE_ACCESS_TOKEN=${EXISTING_TOKEN}
+            APP_PORT=8000
+            ENVIRONMENT=production
+            BARS_DB_PATH=./champion_cache.sqlite
+            PAPER_CAPITAL=1000000
+            DEFAULT_ACCOUNT_VALUE=1000000
+            DEFAULT_RPT_PCT=0.50
+            DEFAULT_EXCHANGE=NSE
+            AUTOOPTIMIZE_ENABLED=false
+            BROKER_LIVE_TRADING=false
+            BROKER_TYPE=paper
+            ENVEOF
+            sed -i 's/^            //' .env
 
             echo "Building backend image..."
             docker build -f Dockerfile.backend -t champion-trader:latest .
@@ -68,7 +96,6 @@ jobs:
               --env-file .env \
               -p 8003:8000 \
               -v ~/apps/champion/db_data:/app/db_data \
-              -e DATABASE_URL=sqlite:///./db_data/champion_trader.db \
               --restart unless-stopped \
               champion-trader:latest
 
