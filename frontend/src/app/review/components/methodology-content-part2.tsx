@@ -228,9 +228,10 @@ export function Section10RiskManagement() {
 
 export function Section11DailyRoutine() {
   const blocks = [
-    { time: "EVE", label: "After Close (5:30-5:50 PM) -- Automated", dur: "system", clr: "blue", items: ["Ingest Kite-adjusted bars into the store", "Close-based 5xATR exit check on open trades", "Open breakout entries, sized by the risk overlay", "Run the v2 setup scan -> READY watchlist"] },
-    { time: "AM", label: "9:15 AM -- Gap Check (Automated)", dur: "system", clr: "amber", items: ["System checks open positions for a gap-down through the stop", "Telegram pings you on any fill", "Otherwise there is nothing to do"] },
-    { time: "YOU", label: "Your Daily Glance", dur: "~5 min", clr: "teal", items: ["Open the dashboard: positions + trailing stops", "Check the drawdown-breaker state", "Skim READY setups and any Telegram fills"] },
+    { time: "8:45", label: "8:45 AM -- Kite Auth (You tap once)", dur: "10 sec", clr: "amber", items: ["Telegram sends a login link to your phone", "Tap it, log in to Zerodha (~10 seconds)", "Backend auto-captures the access token for today's scan", "Without this, the 16:30 RS EMA and 17:30 ingest won't have data"] },
+    { time: "9:15", label: "9:15 AM -- Gap Check (Automated)", dur: "system", clr: "amber", items: ["System checks open positions for a gap-down through the stop", "Telegram pings you on any exit fill", "Otherwise there is nothing to do"] },
+    { time: "EVE", label: "After Close (5:30-5:50 PM) -- Automated", dur: "system", clr: "blue", items: ["Ingest Kite-adjusted bars into the store", "Close-based 5xATR exit check on open trades", "Open breakout entries, sized by the risk overlay", "Run the v2 setup scan -> READY watchlist for tomorrow"] },
+    { time: "YOU", label: "Your Daily Glance (anytime)", dur: "~5 min", clr: "teal", items: ["Open the dashboard: positions + trailing stops", "Check the drawdown-breaker state", "Skim READY setups and any Telegram fills", "Check RS EMA tab for any new paper signals"] },
     { time: "SAT", label: "Weekend -- Weekly Review", dur: "1 hour", clr: "slate", items: ["Fill out the weekly trading journal", "Review closed trades + the equity curve", "Confirm the system behaved as designed", "Plan for the coming week"] },
   ];
   const cm: Record<string, { ring: string; bg: string; text: string }> = {

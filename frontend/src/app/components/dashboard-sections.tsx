@@ -421,7 +421,7 @@ export function RsPortfolioCard() {
 
   useEffect(() => {
     getRsStrategyStatus()
-      .then((s) => { setStatus(s); setFetchError(false); })
+      .then((s) => { setStatus(s?.A ?? null); setFetchError(false); })
       .catch(() => { setStatus(null); setFetchError(true); })
       .finally(() => setLoading(false));
   }, []);

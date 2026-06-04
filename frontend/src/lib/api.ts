@@ -27,6 +27,8 @@ export type {
   HealthStatus,
   RsPortfolioStatus,
   RsStrategyTrade,
+  RsStrategyStatusResponse,
+  RsStrategyTradesResponse,
   RsRunNowResult,
 } from "./api-types";
 
@@ -51,6 +53,8 @@ import type {
   HealthStatus,
   RsPortfolioStatus,
   RsStrategyTrade,
+  RsStrategyStatusResponse,
+  RsStrategyTradesResponse,
   RsRunNowResult,
 } from "./api-types";
 
@@ -347,12 +351,12 @@ export function healthCheck(): Promise<HealthStatus> {
 
 // --- RS EMA50×200 Strategy ---
 
-export function getRsStrategyStatus(): Promise<RsPortfolioStatus> {
-  return apiFetch<RsPortfolioStatus>("/rs-strategy/status");
+export function getRsStrategyStatus(): Promise<RsStrategyStatusResponse> {
+  return apiFetch<RsStrategyStatusResponse>("/rs-strategy/status");
 }
 
-export function getRsStrategyTrades(): Promise<RsStrategyTrade[]> {
-  return apiFetch<RsStrategyTrade[]>("/rs-strategy/trades");
+export function getRsStrategyTrades(): Promise<RsStrategyTradesResponse> {
+  return apiFetch<RsStrategyTradesResponse>("/rs-strategy/trades");
 }
 
 export function runRsStrategyNow(): Promise<RsRunNowResult> {
