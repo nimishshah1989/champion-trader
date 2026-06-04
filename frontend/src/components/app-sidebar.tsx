@@ -25,13 +25,12 @@ const CORE_NAV = [
 
 const STRATEGIES_NAV = [
   { title: "RS EMA50×200", href: "/rs-strategy" },
+  { title: "Strategy Guide", href: "/strategy-guide" },
 ] as const;
 
 const INTELLIGENCE_NAV = [
   { title: "Intelligence", href: "/intelligence" },
-  { title: "Shadow", href: "/intelligence/shadow" },
   { title: "Attribution", href: "/intelligence/attribution" },
-  { title: "Learning", href: "/intelligence/learning" },
 ] as const;
 
 function isActive(href: string, pathname: string): boolean {
