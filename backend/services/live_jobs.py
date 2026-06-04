@@ -145,6 +145,7 @@ def run_daily_scan(scan_date: Optional[date] = None,
     con = _store_con()
     db = SessionLocal()
     try:
+        market_store.ensure_schema(con)          # safe no-op on existing schema
         universe = symbols if symbols is not None else _universe(con)
         rows = run_v2_scan(con, universe, scan_date, as_of=scan_date)   # leakage-safe
         for row in rows:

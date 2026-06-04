@@ -349,6 +349,18 @@ export function healthCheck(): Promise<HealthStatus> {
   return apiFetch<HealthStatus>("/health");
 }
 
+// --- Admin ---
+
+export function resetLegacyData(): Promise<{
+  status: string;
+  trades_archived: number;
+  watchlist_cleared: number;
+  scans_cleared: number;
+  message: string;
+}> {
+  return apiFetch("/admin/reset-legacy-data", { method: "POST" });
+}
+
 // --- RS EMA50×200 Strategy ---
 
 export function getRsStrategyStatus(): Promise<RsStrategyStatusResponse> {
