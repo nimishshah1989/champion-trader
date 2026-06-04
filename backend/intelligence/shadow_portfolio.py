@@ -11,8 +11,9 @@ import logging
 from datetime import date as date_type
 from decimal import Decimal
 
-import yfinance as yf
+import sqlite3
 
+from backend.config import settings
 from backend.database import SessionLocal, ShadowTrade, Trade
 from backend.intelligence.regime_classifier import get_latest_regime
 
@@ -107,16 +108,24 @@ async def update_shadow_exits() -> None:
         db.close()
 
 
-def _evaluate_shadow_exit(shadow: ShadowTrade) -> None:
-    """Check a single shadow trade against live price for stop/target."""
+def _latest_close_from_store(symbol: str) -> Decimal | None:
+    """Read the most recent close for a symbol from the Kite bar store."""
     try:
-        ticker = yf.Ticker(f"{shadow.symbol}.NS")
-        raw_price = ticker.info.get("regularMarketPrice") or ticker.info.get(
-            "previousClose", 0
-        )
-        price = Decimal(str(raw_price))
-    except Exception as e:
-        logger.warning(f"Price fetch failed for shadow {shadow.symbol}: {e}")
+        con = sqlite3.connect(settings.bars_db_path)
+        row = con.execute(
+            "SELECT close FROM bars WHERE symbol=? ORDER BY date DESC LIMIT 1", (symbol,)
+        ).fetchone()
+        con.close()
+        return Decimal(str(row[0])) if row else None
+    except Exception:
+        return None
+
+
+def _evaluate_shadow_exit(shadow: ShadowTrade) -> None:
+    """Check a single shadow trade against latest bar close for stop/target."""
+    price = _latest_close_from_store(shadow.symbol)
+    if price is None or price <= 0:
+        logger.warning(f"No bar store price for shadow {shadow.symbol} — skipping")
         return
 
     if price <= 0:

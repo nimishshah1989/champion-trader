@@ -1,6 +1,5 @@
 """
-Scanner engine — runs PPC, NPC, and Contraction scans on NIFTY 200 stocks.
-Uses pre-downloaded OHLCV data (dict of symbol → DataFrame) to detect patterns.
+Scanner engine — v2 SETUP scan over the Kite bar store.
 """
 
 from __future__ import annotations
@@ -17,7 +16,6 @@ import pandas as pd
 from backend.engine.backtest_fast import load_bars
 from backend.engine.runtime import signal_service
 from backend.engine.runtime.config import RISK_V2, STRATEGY_V2, RiskParams, StrategyParams
-from backend.services.data_fetcher import fetch_all_stocks
 from backend.intelligence.strategy import PARAMETERS
 from backend.services.technical import (
     calculate_atr_slope,
@@ -247,50 +245,6 @@ def _scan_contraction(all_data: dict[str, pd.DataFrame], scan_date: str) -> list
 
     logger.info(f"Contraction scan complete: {len(results)} stocks matched")
     return results
-
-
-async def run_ppc_scan(scan_date: str, data: dict[str, pd.DataFrame] | None = None) -> list[dict]:
-    """Run PPC scan. Fetches data if not provided."""
-    if data is None:
-        data = await fetch_all_stocks(scan_date)
-    return _scan_ppc(data, scan_date)
-
-
-async def run_npc_scan(scan_date: str, data: dict[str, pd.DataFrame] | None = None) -> list[dict]:
-    """Run NPC scan. Fetches data if not provided."""
-    if data is None:
-        data = await fetch_all_stocks(scan_date)
-    return _scan_npc(data, scan_date)
-
-
-async def run_contraction_scan(scan_date: str, data: dict[str, pd.DataFrame] | None = None) -> list[dict]:
-    """Run Contraction scan. Fetches data if not provided."""
-    if data is None:
-        data = await fetch_all_stocks(scan_date)
-    return _scan_contraction(data, scan_date)
-
-
-async def run_all_scans(
-    scan_date: str, data: dict[str, pd.DataFrame] | None = None
-) -> tuple[list[dict], dict[str, pd.DataFrame]]:
-    """
-    Run all three scans using a single shared data download.
-    Returns (results, data) so callers can reuse the OHLCV data.
-    """
-    if data is None:
-        data = await fetch_all_stocks(scan_date)
-    logger.info(f"Data fetched for {len(data)} symbols. Running all scans...")
-
-    ppc_results = _scan_ppc(data, scan_date)
-    npc_results = _scan_npc(data, scan_date)
-    contraction_results = _scan_contraction(data, scan_date)
-
-    all_results = ppc_results + npc_results + contraction_results
-    logger.info(
-        f"All scans complete: {len(ppc_results)} PPC, "
-        f"{len(npc_results)} NPC, {len(contraction_results)} Contraction"
-    )
-    return all_results, data
 
 
 # --- v2 SETUP scan (the validated entry gate) -----------------------------------------

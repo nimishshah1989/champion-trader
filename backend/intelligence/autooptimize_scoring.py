@@ -22,7 +22,10 @@ from backend.database import (
     SimulationRun,
     SimulationTrade,
 )
-from backend.services.backtest_engine import run_backtest as _bt_run_backtest
+# AutoOptimize is frozen for v2 rollout — backtest_engine removed.
+# Re-enable only when a versioned research config is ready.
+def _bt_run_backtest(*args, **kwargs):
+    raise NotImplementedError("AutoOptimize is frozen — backtest_engine has been removed.")
 
 logger = logging.getLogger("autooptimize")
 

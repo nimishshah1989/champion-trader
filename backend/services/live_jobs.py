@@ -1,16 +1,14 @@
 """The v2 daily jobs — the thin orchestration the scheduler triggers (paper-live).
 
 Each opens its own DB session + bar-store connection, delegates to a validated runtime
-service, and returns a summary. Kept OUT of main.py so the live pipeline is unit-testable
-without standing up FastAPI/APScheduler. The validated daily loop, post-close on the day's
-Kite-adjusted bar (the same feed the backtest reads):
+service, and returns a summary. The validated daily loop, post-close on the day's
+Kite-adjusted bar:
 
-    17:30 ingest (corpus_updater) → 17:40 EXIT (close-based stop) → 17:45 ENTRY (breakouts)
+    17:30 ingest → 17:40 EXIT (close-based chandelier) → 17:45 ENTRY (breakouts)
     → 17:50 SCAN (refresh the watchlist for tomorrow);  next 09:15 → morning gap-down exits
 
 Exit runs before entry so realised P&L and freed slots feed the entry sizing — exactly the
-backtest's per-day order. In Phase-2 LIVE the ENTRY pass moves to the last 30 min on intraday
-ticks (strategy_runtime.evaluate_live_entry); the validated decision logic is unchanged.
+backtest's per-day order.
 """
 from __future__ import annotations
 
@@ -18,19 +16,68 @@ import asyncio
 import logging
 import sqlite3
 from datetime import date
+from decimal import Decimal
 from typing import Optional
 
 from backend.config import settings
-from backend.database import ScanResult, SessionLocal
+from backend.database import ScanResult, SessionLocal, Trade, Watchlist
 from backend.engine import market_store
 from backend.services import entry_runtime, exit_runtime
-from backend.services.autopilot import run_post_scan_automation
 from backend.services.notifications import send_entry_fills, send_exit_fills
 from backend.services.scanner_engine import run_v2_scan
 
 logger = logging.getLogger(__name__)
 
 _INDICES = ("NIFTY 50", "NIFTY 500")
+_MIN_TRP = Decimal("2.0")
+
+
+def _populate_watchlist_from_scan(db, scan_date: date) -> int:
+    """Read today's scan results and auto-add qualifying stocks to the watchlist."""
+    results = db.query(ScanResult).filter(ScanResult.scan_date == scan_date).all()
+    if not results:
+        return 0
+
+    existing = {
+        w.symbol for w in db.query(Watchlist).filter(Watchlist.status == "ACTIVE").all()
+    }
+    open_trades = {
+        t.symbol for t in db.query(Trade).filter(Trade.status.in_(["OPEN", "PARTIAL"])).all()
+    }
+
+    added = 0
+    for scan in results:
+        if scan.symbol in existing or scan.symbol in open_trades:
+            continue
+        if scan.watchlist_bucket not in ("READY", "NEAR"):
+            continue
+        if not scan.passes_liquidity_filter:
+            continue
+        trp_src = scan.avg_trp if scan.avg_trp is not None else scan.trp
+        if not trp_src or Decimal(str(trp_src)) < _MIN_TRP:
+            continue
+        trp_val = Decimal(str(trp_src))
+        db.add(Watchlist(
+            symbol=scan.symbol,
+            added_date=scan_date,
+            bucket=scan.watchlist_bucket,
+            stage=scan.stage,
+            base_days=scan.base_days,
+            base_quality=scan.base_quality,
+            wuc_types=scan.wuc_type,
+            trigger_level=scan.trigger_level,
+            planned_entry_price=scan.trigger_level,
+            planned_sl_pct=trp_val,
+            status="ACTIVE",
+            notes=f"Auto-added from {scan.scan_type} scan on {scan_date}",
+        ))
+        existing.add(scan.symbol)
+        added += 1
+
+    if added:
+        db.commit()
+    logger.info(f"[v2 SCAN] +{added} to watchlist from {scan_date} scan")
+    return added
 
 
 def _notify(coro) -> None:
@@ -108,7 +155,7 @@ def run_daily_scan(scan_date: Optional[date] = None,
             ).delete()
             db.add(ScanResult(**row))
         db.commit()
-        added = run_post_scan_automation().get("watchlist_added", 0)
+        added = _populate_watchlist_from_scan(db, scan_date)
         logger.info(f"[v2 SCAN] {len(rows)} setups for {scan_date}; +{added} to watchlist")
         return {"setups": len(rows), "watchlist_added": added}
     except Exception as exc:

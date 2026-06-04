@@ -15,17 +15,11 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 from backend.routers import (
-    actions,
-    alerts,
-    calculator,
     journal,
-    market_stance,
     scanner,
-    simulation,
     trades,
     watchlist,
 )
-from backend.routers.alerts_app import router as alerts_app_router
 from backend.routers.intelligence import router as intelligence_router
 from backend.routers.intelligence_strategy import router as intelligence_strategy_router
 from backend.routers.rs_strategy import router as rs_strategy_router
@@ -38,7 +32,7 @@ scheduler = None
 
 
 def _setup_scheduler():
-    """Configure APScheduler with all intelligence jobs."""
+    """Configure APScheduler with all v2 pipeline jobs."""
     global scheduler
     try:
         from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -89,16 +83,6 @@ def _setup_scheduler():
             name="CIO Agent: Daily Brief",
         )
 
-        # Corpus Updater — daily at 17:30 IST
-        from backend.intelligence.corpus_updater import ingest_daily
-
-        scheduler.add_job(
-            ingest_daily,
-            CronTrigger(day_of_week="mon-fri", hour=17, minute=30, timezone=IST),
-            id="corpus_updater",
-            name="Corpus Updater: Market Data Ingestion",
-        )
-
         # Kite morning login alert — 08:45 IST, user taps link to authorize
         from backend.intelligence.kite_morning_alert import send_kite_login_alert
 
@@ -119,22 +103,6 @@ def _setup_scheduler():
             name="RS EMA50×200: Daily Signal Scan + Paper Trades (16:30 IST)",
         )
 
-        # AutoOptimize — start at 18:00 IST (halts internally at 08:00)
-        if settings.autooptimize_enabled:
-            from backend.intelligence.autooptimize import start_loop
-
-            scheduler.add_job(
-                start_loop,
-                CronTrigger(
-                    day_of_week="mon-fri",
-                    hour=settings.autooptimize_start_hour,
-                    minute=0,
-                    timezone=IST,
-                ),
-                id="autooptimize",
-                name="AutoOptimize: Overnight Research Loop",
-            )
-
         # Shadow Portfolio — update exits every 30 min during market hours
         from backend.intelligence.shadow_portfolio import update_shadow_exits
 
@@ -146,17 +114,12 @@ def _setup_scheduler():
         )
 
         # ── v2 validated daily pipeline (paper-live) ─────────────────────
-        # Post-close on the day's Kite-adjusted bar — the SAME feed the backtest reads —
-        # so the live scan/entry/exit are parity-faithful. The order mirrors the backtest's
-        # per-day loop (exit, then entry, then refresh the watchlist for tomorrow):
-        #   17:30 ingest (corpus_updater)
-        #   17:40 EXIT   — close-based 5xATR chandelier on open trades
-        #   17:45 ENTRY  — fill breakouts of yesterday's READY watchlist on the day's bar
-        #   17:50 SCAN   — v2 SETUP scan -> ScanResult -> watchlist triggers for tomorrow
+        # Order mirrors the backtest's per-day loop (exit → entry → scan):
+        #   17:30 ingest — Kite adjusted bars → bar store
+        #   17:40 EXIT   — close-based 5×ATR chandelier on open trades
+        #   17:45 ENTRY  — fill breakouts of yesterday's READY watchlist
+        #   17:50 SCAN   — v2 SETUP scan → ScanResult → watchlist for tomorrow
         #   09:15 GAP    — exit any position that gaps open below its stop
-        # Replaces the legacy yfinance scan + the 2-min intraday 2R/4R/8R/12R ladder
-        # (decisions #5/#6: exit once post-close + 09:15 gap; volume gate finalised on the
-        # close). In Phase-2 LIVE the ENTRY pass moves to the last 30 min on intraday ticks.
         from backend.services.live_jobs import (
             run_daily_ingest,
             run_daily_scan,
@@ -213,15 +176,13 @@ async def lifespan(app: FastAPI):
     init_db()
     logger.info("Database initialized")
 
-    # Start scheduler
     sched = _setup_scheduler()
     if sched:
         sched.start()
-        logger.info("APScheduler started — intelligence jobs active")
+        logger.info("APScheduler started — v2 pipeline active")
 
     yield
 
-    # Shutdown
     if sched and sched.running:
         sched.shutdown(wait=False)
         logger.info("APScheduler shut down")
@@ -231,15 +192,13 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Champion Trader System",
-    description="Swing trading intelligence platform based on Afzal Lokhandwala's Champion Trader methodology",
+    description="v2 validated swing trading pipeline — Kite data, chandelier exits, RS EMA paper trading",
     version="2.0.0",
     lifespan=lifespan,
 )
 
-# Decimal-fix middleware — must be added BEFORE CORS so it runs after CORS
 app.add_middleware(DecimalFixMiddleware)
 
-# CORS — private trading tool, allow all origins
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -248,23 +207,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Register all routers — v1
+# v2 pipeline routers
 app.include_router(scanner.router)
 app.include_router(watchlist.router)
-app.include_router(calculator.router)
 app.include_router(trades.router)
 app.include_router(journal.router)
-app.include_router(market_stance.router)
-app.include_router(alerts.router)
-app.include_router(alerts_app_router)
-app.include_router(actions.router)
-app.include_router(simulation.router)
 
-# Register intelligence routers — v2
+# Intelligence + strategy
 app.include_router(intelligence_router)
 app.include_router(intelligence_strategy_router)
-
-# RS EMA50×200 paper trading
 app.include_router(rs_strategy_router)
 
 # Kite OAuth callback
@@ -277,35 +228,7 @@ def root():
         "name": "Champion Trader System",
         "version": "2.0.0",
         "environment": settings.environment,
-        "intelligence": True,
-        "autopilot": True,
     }
-
-
-@app.get("/autopilot/status")
-def autopilot_status():
-    """Virtual portfolio status — shows all autopilot trades and P&L."""
-    from backend.services.autopilot_report import get_virtual_portfolio_summary
-    return get_virtual_portfolio_summary()
-
-
-@app.post("/autopilot/run-now")
-def autopilot_run_now():
-    """Manually trigger autopilot: populate watchlist + execute alerts."""
-    from backend.services.autopilot import (
-        run_post_scan_automation,
-        run_post_alert_automation,
-    )
-    scan_result = run_post_scan_automation()
-    alert_result = run_post_alert_automation()
-    return {"scan_automation": scan_result, "alert_automation": alert_result}
-
-
-@app.get("/autopilot/comparison")
-def autopilot_comparison(days: int = 30):
-    """A/B comparison: optimized params vs frozen defaults over time."""
-    from backend.services.baseline_scanner import get_comparison_history
-    return get_comparison_history(days)
 
 
 @app.get("/health")

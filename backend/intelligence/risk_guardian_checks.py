@@ -19,7 +19,7 @@ import logging
 from datetime import datetime
 from decimal import Decimal
 
-import yfinance as yf
+import sqlite3
 
 from backend.config import settings
 from backend.database import Stock, Trade
@@ -111,18 +111,16 @@ async def check_single_position(db: object, trade: Trade, live_price: float) -> 
 
 
 def fetch_prior_day_low(symbol: str) -> float | None:
-    """Fetch the prior trading day's low for LOD trailing."""
+    """Fetch the prior trading day's low from the Kite bar store."""
     try:
-        data = yf.download(
-            f"{symbol}.NS",
-            period=f"{LOD_LOOKBACK_DAYS}d",
-            auto_adjust=True,
-            progress=False,
-        )
-        if isinstance(data.columns, __import__("pandas").MultiIndex):
-            data.columns = data.columns.get_level_values(0)
-        if len(data) >= 2:
-            return float(data["Low"].iloc[LOD_PRIOR_DAY_INDEX])
+        con = sqlite3.connect(settings.bars_db_path)
+        rows = con.execute(
+            "SELECT low FROM bars WHERE symbol=? ORDER BY date DESC LIMIT ?",
+            (symbol, LOD_LOOKBACK_DAYS),
+        ).fetchall()
+        con.close()
+        if len(rows) >= 2:
+            return float(rows[abs(LOD_PRIOR_DAY_INDEX)][0])
     except Exception:
         pass
     return None
@@ -294,44 +292,21 @@ def build_sector_map(db: object, symbols: list[str]) -> dict[str, str]:
 # ---------------------------------------------------------------------------
 
 async def batch_fetch_prices(symbols: list[str]) -> dict[str, float]:
-    """Fetch live prices for multiple NSE symbols via yfinance."""
+    """Fetch latest close prices for NSE symbols from the Kite bar store."""
     prices: dict[str, float] = {}
     if not symbols:
         return prices
-
     try:
-        tickers = [f"{s}.NS" for s in symbols]
-        data = yf.download(tickers, period="1d", progress=False)
-
-        pd = __import__("pandas")
-        if isinstance(data.columns, pd.MultiIndex):
-            for sym in symbols:
-                ticker = f"{sym}.NS"
-                try:
-                    if ticker in data.columns.get_level_values(1):
-                        close = data["Close"][ticker].iloc[-1]
-                        prices[sym] = float(close)
-                except Exception:
-                    continue
-        elif len(symbols) == 1:
-            if isinstance(data.columns, pd.MultiIndex):
-                data.columns = data.columns.get_level_values(0)
-            prices[symbols[0]] = float(data["Close"].iloc[-1])
+        con = sqlite3.connect(settings.bars_db_path)
+        for sym in symbols:
+            row = con.execute(
+                "SELECT close FROM bars WHERE symbol=? ORDER BY date DESC LIMIT 1", (sym,)
+            ).fetchone()
+            if row:
+                prices[sym] = float(row[0])
+        con.close()
     except Exception as e:
-        logger.error(f"Batch price fetch failed: {e}")
-
-    # Fallback: individual fetches for any missing symbols
-    missing = [s for s in symbols if s not in prices]
-    for sym in missing:
-        try:
-            ticker = yf.Ticker(f"{sym}.NS")
-            p = ticker.info.get("regularMarketPrice") or ticker.info.get(
-                "previousClose", 0
-            )
-            prices[sym] = float(p)
-        except Exception:
-            continue
-
+        logger.error(f"Bar store price fetch failed: {e}")
     return prices
 
 
