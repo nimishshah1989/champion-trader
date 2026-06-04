@@ -179,8 +179,8 @@ def run_all_checks() -> list[CheckResult]:
     results.append(check_api_endpoint("Daily Brief", "/api/intelligence/brief", dict))
     results.append(check_api_endpoint("Risk Status", "/api/intelligence/risk/status", dict))
     results.append(check_api_endpoint("Optimize Status", "/api/intelligence/optimize/status", dict))
-    results.append(check_api_endpoint("Attribution", "/api/intelligence/attribution"))
-    results.append(check_api_endpoint("Shadow", "/api/intelligence/shadow/comparison", dict))
+    results.append(check_api_endpoint("Attribution", "/api/intelligence/attribution", dict))
+    results.append(check_api_endpoint("Shadow", "/api/intelligence/shadow", dict))
 
     # RS EMA Strategy API
     results.append(check_api_endpoint("RS EMA Status", "/rs-strategy/status", dict))
