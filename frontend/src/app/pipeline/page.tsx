@@ -10,6 +10,8 @@ import {
   addToWatchlist,
   updateWatchlistItem,
   removeFromWatchlist,
+  getBarStoreStatus,
+  runKiteIngest,
   type ScanResult,
   type WatchlistItem,
 } from "@/lib/api";
@@ -44,6 +46,12 @@ export default function PipelinePage() {
   const [hasScanned, setHasScanned] = useState(false);
 
   const [updatingSymbols, setUpdatingSymbols] = useState<Set<string>>(new Set());
+
+  // Bar store state
+  const [barStoreSymbols, setBarStoreSymbols] = useState<number | null>(null);
+  const [barStoreDate, setBarStoreDate] = useState<string | null>(null);
+  const [ingestRunning, setIngestRunning] = useState(false);
+  const [ingestMessage, setIngestMessage] = useState<string | null>(null);
 
   // ---------------------------------------------------------------------------
   // Derived
@@ -113,10 +121,28 @@ export default function PipelinePage() {
     }
   }, []);
 
+  const fetchBarStoreStatus = useCallback(async () => {
+    try {
+      const s = await getBarStoreStatus();
+      setBarStoreSymbols(s.symbols_with_bars);
+      setBarStoreDate(s.latest_bar_date);
+    } catch {
+      // silent — bar store might not be set up yet
+    }
+  }, []);
+
   useEffect(() => {
     fetchLatestScan();
     fetchWatchlist();
-  }, [fetchLatestScan, fetchWatchlist]);
+    fetchBarStoreStatus();
+  }, [fetchLatestScan, fetchWatchlist, fetchBarStoreStatus]);
+
+  // Poll bar store status while ingest is running
+  useEffect(() => {
+    if (!ingestRunning) return;
+    const id = setInterval(fetchBarStoreStatus, 8_000);
+    return () => clearInterval(id);
+  }, [ingestRunning, fetchBarStoreStatus]);
 
   // ---------------------------------------------------------------------------
   // Handlers
@@ -220,6 +246,21 @@ export default function PipelinePage() {
     }
   }
 
+  async function handleRunIngest() {
+    setIngestRunning(true);
+    setIngestMessage(null);
+    try {
+      const res = await runKiteIngest(true);
+      setIngestMessage(res.message);
+    } catch (err) {
+      setIngestMessage("Ingest failed: " + String(err));
+      setIngestRunning(false);
+    }
+    // ingestRunning stays true until bar store shows progress via polling
+    // Auto-stop after 15 minutes as a safety valve
+    setTimeout(() => setIngestRunning(false), 15 * 60 * 1000);
+  }
+
   function handleRetry() {
     setLoadingWatchlist(true);
     setLoadingScan(true);
@@ -242,6 +283,57 @@ export default function PipelinePage() {
           Scan for v2 setups, auto-categorize into READY / NEAR / AWAY, and track stocks toward entry
         </p>
       </div>
+
+      {/* Bar store status + ingest trigger */}
+      {barStoreSymbols !== null && barStoreSymbols === 0 && (
+        <div className="bg-amber-50 border border-amber-300 rounded-xl px-4 py-4">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-amber-900">Kite bar store is empty — ingest required before scanning</p>
+              <p className="text-xs text-amber-700 mt-1">
+                The v2 scanner reads from a local SQLite bar store populated by the Kite API.
+                Since Kite is now authorized, click to fetch the last 18 months of OHLCV data for all 1 300 NSE symbols (~7 min).
+              </p>
+              {ingestMessage && (
+                <p className="text-xs text-amber-800 mt-2 font-medium truncate">{ingestMessage}</p>
+              )}
+            </div>
+            <button
+              onClick={handleRunIngest}
+              disabled={ingestRunning}
+              className="shrink-0 text-xs font-semibold bg-teal-600 hover:bg-teal-700 disabled:bg-teal-400 text-white rounded-lg px-3 py-2 transition-colors"
+            >
+              {ingestRunning ? "Ingesting..." : "Run Ingest Now"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {barStoreSymbols !== null && barStoreSymbols > 0 && (
+        <div className="bg-white border border-slate-200 rounded-xl px-4 py-3 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-6">
+            <div>
+              <p className="text-[10px] text-slate-400 uppercase tracking-wide font-medium">Bar Store</p>
+              <p className="text-sm font-semibold text-slate-800">{barStoreSymbols.toLocaleString()} symbols</p>
+            </div>
+            {barStoreDate && (
+              <div>
+                <p className="text-[10px] text-slate-400 uppercase tracking-wide font-medium">Latest Bar</p>
+                <p className="text-sm font-semibold text-slate-800">
+                  {new Date(barStoreDate).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                </p>
+              </div>
+            )}
+          </div>
+          <button
+            onClick={handleRunIngest}
+            disabled={ingestRunning}
+            className="text-xs text-teal-600 hover:text-teal-700 disabled:text-slate-400 font-medium transition-colors"
+          >
+            {ingestRunning ? "Updating..." : "Refresh Bars"}
+          </button>
+        </div>
+      )}
 
       {/* Scan controls */}
       <ScanControls
