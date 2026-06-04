@@ -140,6 +140,7 @@ def metrics(eq, closed, label):
     yrs = (eq.index[-1] - eq.index[0]).days / 365.25
     cagr = r.iloc[-1] ** (1 / yrs) - 1
     dd = (eq / eq.cummax() - 1).min()
+    calmar = cagr / abs(dd) if dd else float("inf")
     rets = eq.pct_change().dropna()
     sharpe = (rets.mean() - RF / 252) / (rets.std() + 1e-12) * math.sqrt(252)
     pnls = [c[2] for c in closed]
@@ -154,10 +155,10 @@ def metrics(eq, closed, label):
     print(f"\n=== {label} ===")
     print(f"  window      {eq.index[0].date()} -> {eq.index[-1].date()}  ({yrs:.1f}y)")
     print(f"  final       Rs{eq.iloc[-1]/1e5:.2f}L  ({(r.iloc[-1]-1)*100:+.0f}%)")
-    print(f"  CAGR        {cagr*100:.1f}%   maxDD {dd*100:.1f}%   Calmar {cagr/abs(dd):.2f}   Sharpe {sharpe:.2f}")
+    print(f"  CAGR        {cagr*100:.1f}%   maxDD {dd*100:.1f}%   Calmar {calmar:.2f}   Sharpe {sharpe:.2f}")
     print(f"  trades      {len(pnls)}   win% {wr:.0f}   PF {pf:.2f}")
     print(f"  top-10 winners = {top10_share:.0f}% of gross profit | ex-top-10 final Rs{ex/1e5:.2f}L")
-    return dict(cagr=cagr, dd=dd, calmar=cagr/abs(dd), trades=len(pnls), final=eq.iloc[-1],
+    return dict(cagr=cagr, dd=dd, calmar=calmar, trades=len(pnls), final=eq.iloc[-1],
                 top10_share=top10_share, ex_top10=ex)
 
 
