@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ASI-Evolve × CTS — Idea, Architecture & Claude Council Review</title>
+<style>
+  :root{
+    --bg:#0e1117; --panel:#161b22; --panel2:#1c2330; --ink:#e6edf3; --muted:#9aa7b4;
+    --line:#2a313c; --accent:#4f9cff; --good:#3fb950; --warn:#d29922; --bad:#f85149;
+    --kel:#a371f7;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  .wrap{max-width:980px;margin:0 auto;padding:48px 24px 96px}
+  header.hero{border:1px solid var(--line);border-radius:16px;padding:32px;background:linear-gradient(160deg,#13203a,#161b22 60%)}
+  h1{font-size:30px;margin:0 0 6px;letter-spacing:-.5px}
+  .sub{color:var(--muted);font-size:15px;margin:0}
+  .badge{display:inline-block;padding:5px 12px;border-radius:999px;font-size:12.5px;font-weight:700;letter-spacing:.3px;vertical-align:middle}
+  .b-bad{background:rgba(248,81,73,.15);color:#ff8b84;border:1px solid rgba(248,81,73,.4)}
+  .b-warn{background:rgba(210,153,34,.15);color:#e3b341;border:1px solid rgba(210,153,34,.4)}
+  .b-good{background:rgba(63,185,80,.15);color:#56d364;border:1px solid rgba(63,185,80,.4)}
+  h2{font-size:22px;margin:48px 0 8px;padding-top:12px;border-top:1px solid var(--line)}
+  h3{font-size:17px;margin:26px 0 6px;color:#cdd9e5}
+  p{margin:10px 0}
+  .lead{font-size:17px;color:#d7e2ee}
+  .muted{color:var(--muted)}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px 20px;margin:16px 0}
+  .panel.alt{background:var(--panel2)}
+  .callout{border-left:4px solid var(--accent);padding:12px 16px;background:rgba(79,156,255,.07);border-radius:0 8px 8px 0;margin:16px 0}
+  .callout.bad{border-color:var(--bad);background:rgba(248,81,73,.07)}
+  .callout.good{border-color:var(--good);background:rgba(63,185,80,.07)}
+  .callout.warn{border-color:var(--warn);background:rgba(210,153,34,.07)}
+  code,.mono{font-family:"SF Mono", "JetBrains Mono",Menlo,Consolas,monospace;font-size:13.5px}
+  pre{background:#0b0f15;border:1px solid var(--line);border-radius:10px;padding:16px;overflow:auto;font-size:13px;line-height:1.5;color:#c9d4df}
+  table{width:100%;border-collapse:collapse;margin:16px 0;font-size:14.5px}
+  th,td{border:1px solid var(--line);padding:9px 11px;text-align:left;vertical-align:top}
+  th{background:#0b0f15;color:#cdd9e5;font-weight:600}
+  td.v-bad{color:#ff8b84;font-weight:700}
+  td.v-warn{color:#e3b341;font-weight:700}
+  td.v-good{color:#56d364;font-weight:700}
+  ul,ol{margin:10px 0 10px 4px;padding-left:22px}
+  li{margin:5px 0}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media(max-width:720px){.grid{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+  .card h4{margin:0 0 6px;font-size:15px}
+  .pipe{display:flex;flex-direction:column;gap:8px;margin:16px 0}
+  .row{background:#0b0f15;border:1px solid var(--line);border-radius:8px;padding:10px 14px}
+  .row .t{font-weight:600;color:#cdd9e5}
+  .arrow{text-align:center;color:var(--muted);font-size:13px}
+  .tag{display:inline-block;font-size:11px;padding:2px 7px;border-radius:5px;background:#222b38;color:#9aa7b4;margin-left:6px}
+  .kbd{font-family:"SF Mono",monospace;font-size:12px;background:#222b38;border:1px solid var(--line);border-radius:5px;padding:1px 6px}
+  footer{margin-top:60px;color:var(--muted);font-size:13px;border-top:1px solid var(--line);padding-top:18px}
+  .scorelabel{font-weight:700}
+  .num{font-variant-numeric:tabular-nums}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <h1>ASI-Evolve × Champion Trader System</h1>
+  <p class="sub">What we explored · how ASI-Evolve works · the architecture · and the Claude Council's verdict on whether this is the best use of the capability</p>
+  <div style="margin-top:18px">
+    <span class="badge b-bad">COUNCIL VERDICT&nbsp;·&nbsp;NOT THE BEST USE</span>
+    &nbsp;<span class="muted" style="font-size:13.5px">4× "Wrong use" · 1× "Conditional" · avg confidence ~7/10 against — with a clear, higher-EV redirect.</span>
+  </div>
+</header>
+
+<div class="callout">
+  <strong>TL;DR.</strong> The "Explained-Blip" engine is a creative, well-intentioned idea with a real kernel — but pointing
+  <em>ASI-Evolve</em> (a relentless score-maximizer) at <strong>trade selection</strong> re-runs the composite-alpha-score
+  experiment CTS already killed, and "evolve explanations, not shapes" adds a <strong>second overfitting surface
+  (narrative-fitting)</strong>. The council's redirect: aim ASI-Evolve at CTS's <strong>proven edge — the EXIT logic and
+  the cost/execution model</strong> (verifiable objective, high N), keep mechanism-attribution as plain statistics (LLM may
+  <em>propose</em>, never <em>promote</em>), and if the blip idea is pursued, prove it with a lean walk-forward script first.
+  The real #1 remains unglamorous: <strong>forward paper-trade v2 on live Kite.</strong>
+</div>
+
+<h2>1 · What we set out to build — the "Explained-Blip" engine</h2>
+<p class="lead">An engine that treats each instrument as having a repeating <em>behavioural fingerprint</em>, watches for moments it
+behaves abnormally (a "blip"), <em>explains</em> the blip with a named economic mechanism, and trades only the explainable
+ones — using the explanation itself as the risk control.</p>
+
+<div class="panel">
+  <strong>The three moves:</strong> &nbsp;<span class="mono">normal → abnormal → why</span>
+  <ol>
+    <li><strong>Fingerprint</strong> — learn each stock's own "normal" from Kite OHLCV (typical pullback depth, volume-price signature, volatility rhythm, earnings reaction).</li>
+    <li><strong>Blip</strong> — detect a statistical deviation from <em>that stock's own</em> normal (not a generic indicator).</li>
+    <li><strong>Explain</strong> — attach a falsifiable <em>mechanism</em> (e.g. post-earnings drift, index-rebalance flow, quiet accumulation / information-leakage à la Bajo 2010). <strong>Discard any blip with no nameable cause.</strong></li>
+    <li><strong>Trade the explained ones</strong> — size and exit set by the mechanism's confidence and its <em>failure condition</em> (mechanism invalidated → exit). Slogan: <em>"the why is the risk control."</em></li>
+  </ol>
+</div>
+
+<h3>Worked example (illustrative)</h3>
+<pre>┌─ EXPLAINED BLIP ──────────────────────────────┐
+│ BHARATFORGE · LONG                            │
+│ Why: abnormal delivery-volume, no news →      │
+│      quiet accumulation (info-leakage edge)   │
+│ Normal: ~₹120cr/day, 3–4% dips on fading vol  │
+│ Today: +4.5% on 3× vol, delivery 2.4σ high    │
+│ Plan (set BY the reason, not a guess):        │
+│   • Hold ~2–3 weeks (drift horizon)           │
+│   • EXIT IF a high-volume reversal prints      │
+│     (= "the buyer is gone") → thesis dead     │
+│   • Confidence 0.62                            │
+└───────────────────────────────────────────────┘</pre>
+<p class="muted">The core thesis: durable patterns repeat because their <em>cause</em> repeats; price alone cannot tell a causal
+pattern from a lucky coincidence — so evolve <em>explanations</em>, not shapes. (The council's central critique is that this
+reasoning, while appealing, does not actually remove the overfitting — see §4.)</p>
+
+<h2>2 · The "evolve git" — what ASI-Evolve actually is</h2>
+<p><a class="mono" style="color:var(--accent)" href="https://github.com/GAIR-NLP/ASI-Evolve">GAIR-NLP/ASI-Evolve</a> is an
+<strong>AlphaEvolve-style autonomous research framework</strong>: an LLM-driven multi-agent loop that evolves code to maximise
+a score you define.</p>
+<div class="grid">
+  <div class="card"><h4>Researcher</h4><p class="muted">Proposes the next candidate program, reading a FAISS <em>cognition store</em> of seeded knowledge + an experiment DB of prior trials.</p></div>
+  <div class="card"><h4>Engineer</h4><p class="muted">Runs the candidate, collects structured metrics.</p></div>
+  <div class="card"><h4>Analyzer</h4><p class="muted">Distils each outcome into reusable "lessons" fed back into the store.</p></div>
+  <div class="card"><h4>Sampler</h4><p class="muted">Picks which prior trials to learn from via UCB1 / greedy / random / <em>MAP-Elites</em> islands (diversity-preserving).</p></div>
+</div>
+<p><strong>You supply:</strong> a problem description, a <em>baseline program</em>, an <span class="kbd">eval.sh</span> that returns
+a <strong>score</strong> (the fitness function), and optional cognition seeds.</p>
+<div class="callout warn">
+  <strong>The decisive property.</strong> ASI-Evolve's demonstrated wins are in domains with <strong>stable, verifiable,
+  cheap, low-noise objectives</strong> — neural-architecture search (+0.97), data curation (+18 on MMLU), RL algorithm design
+  (+12.5), drug-target prediction (+6.94 AUROC). It is, fundamentally, a <strong>score-maximiser over code</strong>. Whatever
+  number <span class="kbd">eval.sh</span> returns, it will relentlessly find code that maximises it — including by exploiting noise.
+  <strong>The fitness function is the entire ballgame.</strong>
+</div>
+
+<h2>3 · The proposed architecture (mapped onto CTS)</h2>
+<div class="pipe">
+  <div class="row"><span class="t">DATA</span> &nbsp;Kite OHLCV <span class="tag">have ✅</span> · NSE bhavcopy delivery% <span class="tag">small add</span> · NSE/BSE announcements <span class="tag">small add — lookahead-risky</span></div>
+  <div class="arrow">▼ bars + delivery + events</div>
+  <div class="row"><span class="t">engine/runtime/ — PURE BRAIN</span> &nbsp;① Fingerprint → ② Blip detector → ③ Explainer (reads Mechanism Scoreboard)</div>
+  <div class="arrow">▼ explained blips</div>
+  <div class="row"><span class="t">services / nightly job (thin)</span> &nbsp;blip_scan → writes <span class="mono">explained_blips</span> table</div>
+  <div class="arrow">▼</div>
+  <div class="row"><span class="t">API router → Next.js page</span> &nbsp;"Explained Blips" — ranked cards, each with a built-in risk plan</div>
+  <div class="arrow" style="margin-top:6px">· · · offline, later · · ·</div>
+  <div class="row" style="border-style:dashed"><span class="t">Evolution loop (ASI-Evolve)</span> &nbsp;scores how past blips resolved → updates the Mechanism Scoreboard → feeds the Explainer</div>
+</div>
+<p class="muted">Pipe: nightly after close — ingest → (weekly) recompute fingerprints → blip_scan → for each blip fetch
+<em>point-in-time</em> news for that <span class="mono">(symbol, date)</span> → explainer tags mechanism + confidence → write
+row → page renders. The live module and the evolution loop talk through exactly one shared object: the Mechanism Scoreboard.</p>
+
+<h2>4 · 🏛️ The Claude Council Review</h2>
+<p>Five independent expert lenses were convened to answer one question: <em>"Is this the best way to use ASI-Evolve's
+capability for CTS?"</em> Each was briefed identically and instructed to be adversarial, not agreeable.</p>
+
+<table>
+  <thead><tr><th>Council member</th><th>Verdict</th><th class="num">Conf.*</th><th>One-line takeaway</th></tr></thead>
+  <tbody>
+    <tr><td>Quant Statistician</td><td class="v-bad">Wrong use</td><td class="num">8/10</td><td>"Evolve explanations not shapes" relocates overfitting from geometry to <em>story</em> — and stories are easier to overfit. N of truly independent causal events is too small to clear MinTRL.</td></tr>
+    <tr><td>Evolutionary-Search Expert</td><td class="v-bad">Wrong use</td><td class="num">8/10</td><td>A mechanism scoreboard is an attribution problem, not program-search. Trading feedback is noisy &amp; expensive — "a Ferrari sitting in traffic." Use the LLM to <em>propose</em>, never to <em>promote</em>.</td></tr>
+    <tr><td>NSE Markets Practitioner</td><td class="v-warn">Conditional</td><td class="num">3/10</td><td>The fillable kernel is narrow: PEAD + index-rebalance flow in the liquid universe. "Accumulation / leakage" mostly mines toxic small-cap flow → the fill-mirage / survivorship trap CTS already flagged.</td></tr>
+    <tr><td>Systems Architect</td><td class="v-warn">Conditional</td><td class="num">7/10 (not best)</td><td>Prove the cheap, pure core with one script before any module; keep the explainer deterministic or it breaks the parity gate; don't stand up ASI-Evolve until a signal exists.</td></tr>
+    <tr><td>Red Team / Devil's Advocate</td><td class="v-bad">Wrong use</td><td class="num">8/10</td><td>It's the team's already-killed alpha-score "wearing a lab coat." Opportunity cost: v2 has never traded a live tick. Do the boring thing first.</td></tr>
+  </tbody>
+</table>
+<p class="muted">* Confidence that the <em>proposed</em> approach is <strong>not</strong> the best use of the capability (architect/practitioner phrased on their own scale).</p>
+
+<h3>Where all five converged</h3>
+<div class="callout bad">
+  <strong>1. Don't aim a score-maximiser at trade <em>selection</em>.</strong> CTS already built a composite ML alpha-score to
+  pick setups, ran it out-of-sample (IC 0.03–0.08), and concluded <em>"the edge is in the EXIT, not in selection."</em> This
+  proposal is a more elaborate, more <em>persuasive</em> version of the same bet. The added "mechanism" is a human-pleasing
+  narrative, not causal proof — and it actively <strong>disarms</strong> the Deflated-Sharpe / plateau discipline that protects you,
+  because you'll wave through a curve-fit blip "because it has a reason."
+</div>
+<div class="callout warn">
+  <strong>2. Wrong tool for the sub-task.</strong> ASI-Evolve shines at 10³–10⁶ cheap, low-noise, verifiable evals. A
+  walk-forward backtest budget is ~10²–10³ <em>total</em>, and the signal is buried in noise — exactly where an LLM evolver has
+  no edge over a plain sweep / Bayesian optimisation and far more failure surface (reward-hacking, candidate-DB poisoning by lucky
+  trials, prompt drift). The mechanism scoreboard is fundamentally a <span class="mono">GROUP BY mechanism</span> over your existing
+  attribution tables — statistics, not program search.
+</div>
+<div class="callout good">
+  <strong>3. The genuinely best use of ASI-Evolve = evolve the EXIT &amp; the cost/execution model.</strong> Your <em>proven</em>
+  source of returns, on a verifiable, stationary-ish, high-N objective (every bar of every open trade is a decision) where the tool
+  <em>cannot fool you</em>. Let it search the exit/trail <em>structural form</em> (chandelier multiple, time-stop, partial-scaling,
+  regime-conditional trail) and calibrate a realistic slippage/impact model — against the existing walk-forward harness, writing only
+  params back, never touching the runtime path.
+</div>
+
+<h3>The steelman (what's genuinely right in the idea)</h3>
+<ul>
+  <li><strong>"Explain-or-discard" is a real regulariser</strong> — requiring a nameable mechanism is a guard against blind multiple-comparisons mining, <em>if</em> the mechanism set is small and pre-registered.</li>
+  <li><strong>"The why is the risk control" is sound</strong> — an economically-meaningful exit beats an arbitrary ATR line.</li>
+  <li><strong>Two mechanisms are real, durable, and fillable in NSE:</strong> <em>post-earnings-announcement drift (PEAD)</em> (behavioural under-reaction, 50 years of global persistence) and <em>index-rebalance flow</em> (advance-noticed, measurable point-in-time).</li>
+</ul>
+
+<h2>5 · The council-revised recommendation</h2>
+
+<h3>Track A — point ASI-Evolve where it earns its keep <span class="tag">primary</span></h3>
+<div class="panel">
+  <strong>Evolve the exit / sizing policy of v2 (and the cost model), not trade selection.</strong>
+  <pre>input.md   :  "Improve OOS Calmar of v2 by evolving the EXIT/trail/sizing
+              policy (structural form + params), net of NSE costs."
+baseline   :  STRATEGY_V2 exit logic in engine/runtime/
+eval.sh    :  run_strategy_wf.py  →  Deflated Sharpe / OOS Calmar,
+              net of tiered slippage + circuit-lock, survivorship-aware
+cognition  :  STRATEGY_HANDOFF.md §4 (what's already tested) +
+              RESEARCH_VOLUME_MOMENTUM.md  (so it won't redo Tracks 1–5)
+write-back :  params only → a new versioned config (v2.x) → A/B → adopt
+              ONLY on a plateau. Runtime path never touched by the LLM.</pre>
+  <p class="muted">MAP-Elites is genuinely useful here — maintain an elite exit-program per (volatility regime × trend regime) cell, not "diverse mechanisms."</p>
+</div>
+
+<h3>Track B — if the blip idea is pursued, do it lean &amp; honest <span class="tag">secondary</span></h3>
+<ol>
+  <li><strong>Phase 0 — one script, no module.</strong> Add a bhavcopy delivery% ingester (needed anyway), write <span class="mono">fingerprint()</span> + <span class="mono">detect_blip()</span> as pure functions, and a research script that ranks historical blips through <span class="mono">run_strategy_wf.py</span>. <strong>One report. If blip-rank doesn't correlate with forward edge — stop. Days spent, not weeks.</strong></li>
+  <li><strong>Hard liquidity / ASM floor first.</strong> Restrict to ≥ ₹5cr/day ADV (ideally ₹25cr+) and exclude anything ever on ASM/GSM or with a ≤5% circuit band — <em>before</em> any search, so the toxic small-cap tail can't be mined.</li>
+  <li><strong>Keep only PEAD + index-rebalance flow.</strong> Demote delivery% to a confirmation filter; quarantine "accumulation / leakage" as a standalone trigger.</li>
+  <li><strong>Deterministic, rule-based explainer.</strong> No LLM in the decision path — it would break the parity gate. The LLM may <em>propose</em> mechanism hypotheses offline; humans + statistics <em>promote</em> them.</li>
+  <li><strong>Point-in-time everything.</strong> News/announcements are a lookahead minefield — an evolutionary searcher will ruthlessly exploit any leakage. Use purged/embargoed walk-forward around all event dates; next-open execution only.</li>
+</ol>
+
+<h3>Track 0 — do this first regardless <span class="tag">highest EV</span></h3>
+<div class="callout">
+  <strong>Forward paper-trade v2 on live Kite (backlog #1).</strong> v2 has never traded a live tick. Wire execution by hand
+  (deterministic, <em>not</em> LLM-evolved): tick rounding, position reconciliation, adjusted-vs-raw data, circuit checks.
+  This is the only true out-of-sample test, and no new alpha should be built on an unvalidated base.
+</div>
+
+<h2>6 · Guardrails (non-negotiable if any searcher touches a backtest)</h2>
+<ul>
+  <li><strong>Lock a final holdout</strong> before search; judge the winner there once. Never let the loop optimise on it.</li>
+  <li><strong>Deflated Sharpe + Harvey–Liu haircut</strong> using the <em>true trial count</em> (ASI-Evolve logs every trial — feed N in).</li>
+  <li><strong>PBO via CSCV / purged-embargoed CV</strong> → demand PBO &lt; ~10–20%; reject above 50%.</li>
+  <li><strong>Pre-register a small mechanism / hypothesis set</strong> with explicit failure conditions; cap the count.</li>
+  <li><strong>Optimise a tail statistic (CVaR / 5th-percentile), not the mean</strong> — noise-mining lifts the mean but hurts the tail.</li>
+  <li><strong>Plateau, not a peak</strong> — score the ±10–20% neighbourhood, the standard CTS already holds.</li>
+</ul>
+
+<h2>7 · Decision &amp; next steps</h2>
+<table>
+  <thead><tr><th>Option</th><th>Effort</th><th>Council view</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Track 0</strong> — forward paper-trade v2 live</td><td>Medium</td><td class="v-good">Highest EV · do first</td></tr>
+    <tr><td><strong>Track A</strong> — ASI-Evolve on exits + cost model</td><td>Medium</td><td class="v-good">Best use of the tool</td></tr>
+    <tr><td><strong>Track B Phase-0</strong> — blip walk-forward script</td><td>Low</td><td class="v-warn">Worth a small, bounded bet</td></tr>
+    <tr><td>Original proposal — full blip module + ASI-Evolve scoreboard now</td><td>High</td><td class="v-bad">Not recommended as scoped</td></tr>
+  </tbody>
+</table>
+<p>Recommended sequence: <strong>Track 0 → Track A → (only if Phase-0 shows edge) Track B</strong>. The creative instinct behind
+the blip engine is preserved — but expressed as a cheap, falsifiable experiment and a correctly-aimed evolutionary search, rather
+than a large speculative build pointed at the one task the team already proved doesn't generalise.</p>
+
+<footer>
+  Champion Trader System — internal research memo · Generated from a 5-member Claude Council review of the ASI-Evolve integration proposal.<br>
+  Sources referenced: GAIR-NLP/ASI-Evolve · STRATEGY_HANDOFF.md · RESEARCH_VOLUME_MOMENTUM.md · ARCHITECTURE.md · Bajo (2010) · Bailey &amp; López de Prado (PBO / Deflated Sharpe) · Harvey &amp; Liu (haircut Sharpe).
+</footer>
+
+</div>
+</body>
+</html>
