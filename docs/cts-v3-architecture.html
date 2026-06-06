@@ -1,0 +1,895 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>CTS v3 — Architecture & Vision</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #22263a;
+    --border: #2e3348;
+    --teal: #14b8a6;
+    --teal-dim: #0d9488;
+    --teal-faint: rgba(20,184,166,0.08);
+    --amber: #f59e0b;
+    --amber-faint: rgba(245,158,11,0.08);
+    --red: #ef4444;
+    --green: #22c55e;
+    --blue: #3b82f6;
+    --purple: #a855f7;
+    --text: #e2e8f0;
+    --muted: #64748b;
+    --muted2: #94a3b8;
+    font-size: 15px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    line-height: 1.6;
+  }
+
+  /* Layout */
+  .page { max-width: 960px; margin: 0 auto; padding: 48px 32px 80px; }
+  section { margin-bottom: 64px; }
+
+  /* Typography */
+  h1 { font-size: 2.25rem; font-weight: 800; letter-spacing: -0.03em; }
+  h1 span { color: var(--teal); }
+  h2 { font-size: 1.35rem; font-weight: 700; margin-bottom: 20px; padding-bottom: 12px;
+       border-bottom: 1px solid var(--border); }
+  h3 { font-size: 1rem; font-weight: 600; margin-bottom: 10px; color: var(--teal); }
+  p  { color: var(--muted2); margin-bottom: 12px; line-height: 1.75; }
+  strong { color: var(--text); font-weight: 600; }
+  code  { font-family: 'JetBrains Mono', 'Fira Code', monospace; font-size: 0.85em;
+          background: var(--surface2); padding: 2px 6px; border-radius: 4px; color: var(--teal); }
+
+  /* Header band */
+  .hero {
+    background: linear-gradient(135deg, var(--surface) 0%, var(--surface2) 100%);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 40px;
+    margin-bottom: 56px;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero::before {
+    content: '';
+    position: absolute;
+    top: -60px; right: -60px;
+    width: 240px; height: 240px;
+    background: radial-gradient(circle, rgba(20,184,166,0.12) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .hero-label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--teal);
+    margin-bottom: 12px;
+  }
+  .hero p { font-size: 1.05rem; max-width: 680px; }
+  .goal-box {
+    margin-top: 24px;
+    background: var(--teal-faint);
+    border: 1px solid rgba(20,184,166,0.25);
+    border-radius: 10px;
+    padding: 18px 22px;
+    font-size: 0.95rem;
+    color: var(--text);
+    line-height: 1.7;
+  }
+
+  /* Cards */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+  }
+  .card-grid { display: grid; gap: 16px; }
+  .card-grid.col2 { grid-template-columns: repeat(2, 1fr); }
+  .card-grid.col3 { grid-template-columns: repeat(3, 1fr); }
+  .card-grid.col4 { grid-template-columns: repeat(4, 1fr); }
+
+  /* Pill tags */
+  .tag {
+    display: inline-block;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 3px 9px;
+    border-radius: 20px;
+    margin-bottom: 8px;
+  }
+  .tag-teal  { background: var(--teal-faint);  color: var(--teal);   border: 1px solid rgba(20,184,166,0.25); }
+  .tag-amber { background: var(--amber-faint); color: var(--amber);  border: 1px solid rgba(245,158,11,0.25); }
+  .tag-blue  { background: rgba(59,130,246,0.08); color: var(--blue); border: 1px solid rgba(59,130,246,0.25); }
+  .tag-purple{ background: rgba(168,85,247,0.08); color: var(--purple); border: 1px solid rgba(168,85,247,0.25); }
+
+  /* Flow diagram */
+  .flow {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    overflow-x: auto;
+    padding: 24px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+  }
+  .flow-node {
+    flex-shrink: 0;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 18px;
+    text-align: center;
+    min-width: 110px;
+  }
+  .flow-node .fn-icon { font-size: 1.4rem; margin-bottom: 4px; }
+  .flow-node .fn-label { font-size: 0.78rem; font-weight: 600; color: var(--text); }
+  .flow-node .fn-sub   { font-size: 0.68rem; color: var(--muted); margin-top: 2px; }
+  .flow-node.active { border-color: var(--teal); background: var(--teal-faint); }
+  .flow-arrow {
+    flex-shrink: 0;
+    color: var(--muted);
+    font-size: 1.2rem;
+    padding: 0 6px;
+  }
+
+  /* Code block */
+  .code-block {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px 24px;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 0.82rem;
+    line-height: 1.75;
+    overflow-x: auto;
+  }
+  .kw  { color: #c084fc; }   /* keyword */
+  .fn  { color: #60a5fa; }   /* function name */
+  .cm  { color: #475569; }   /* comment */
+  .st  { color: #86efac; }   /* string */
+  .ty  { color: #f59e0b; }   /* type */
+  .co  { color: #94a3b8; }   /* default code */
+
+  /* Directory tree */
+  .tree {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px 24px;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 0.82rem;
+    line-height: 1.9;
+  }
+  .tree .dir  { color: var(--teal); font-weight: 600; }
+  .tree .file { color: var(--muted2); }
+  .tree .note { color: var(--muted); font-style: italic; }
+  .tree .new  { color: var(--amber); }
+
+  /* Portfolio lifecycle */
+  .lifecycle {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 0;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .lc-step {
+    padding: 20px 16px;
+    border-right: 1px solid var(--border);
+    position: relative;
+  }
+  .lc-step:last-child { border-right: none; }
+  .lc-num {
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: var(--teal);
+    letter-spacing: 0.08em;
+    margin-bottom: 8px;
+  }
+  .lc-title { font-size: 0.88rem; font-weight: 700; margin-bottom: 6px; }
+  .lc-desc  { font-size: 0.75rem; color: var(--muted); line-height: 1.5; }
+
+  /* Evaluation page mockup */
+  .eval-mock {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .eval-tabs {
+    display: flex;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface2);
+  }
+  .eval-tab {
+    padding: 12px 20px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--muted);
+    border-right: 1px solid var(--border);
+    cursor: default;
+  }
+  .eval-tab.active { color: var(--teal); background: var(--surface); border-bottom: 2px solid var(--teal); }
+  .eval-body { padding: 24px; }
+  .metric-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
+  .metric-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px;
+  }
+  .metric-label { font-size: 0.68rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; }
+  .metric-value { font-size: 1.3rem; font-weight: 700; }
+  .metric-value.pos { color: var(--green); }
+  .metric-value.neg { color: var(--red); }
+  .metric-value.neu { color: var(--text); }
+
+  /* Chart placeholder */
+  .chart-ph {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    height: 160px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--muted);
+    font-size: 0.8rem;
+    position: relative;
+    overflow: hidden;
+    margin-bottom: 16px;
+  }
+  .chart-ph .chart-line {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 100%;
+    background: linear-gradient(to top, rgba(20,184,166,0.06), transparent);
+  }
+  .chart-ph svg { position: absolute; bottom: 0; left: 0; width: 100%; height: 100%; }
+
+  /* Phase table */
+  .phase-table { width: 100%; border-collapse: collapse; }
+  .phase-table th {
+    text-align: left;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface2);
+  }
+  .phase-table td {
+    padding: 12px 16px;
+    font-size: 0.85rem;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  .phase-table tr:last-child td { border-bottom: none; }
+  .phase-table td:first-child { font-weight: 700; color: var(--teal); width: 90px; }
+  .phase-table td:last-child  { color: var(--muted); text-align: right; width: 80px; }
+
+  /* Divider */
+  hr { border: none; border-top: 1px solid var(--border); margin: 48px 0; }
+
+  @media (max-width: 640px) {
+    .card-grid.col2, .card-grid.col3, .card-grid.col4 { grid-template-columns: 1fr; }
+    .lifecycle { grid-template-columns: 1fr 1fr; }
+    .lifecycle .lc-step { border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+    .metric-row { grid-template-columns: repeat(2, 1fr); }
+    h1 { font-size: 1.6rem; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- HERO -->
+  <div class="hero">
+    <div class="hero-label">CTS v3 — Architecture Vision</div>
+    <h1>Champion Trader System<br /><span>as a Strategy Platform</span></h1>
+    <p style="margin-top:16px;">
+      A flexible, code-first portfolio testing and simulation platform. Deploy any trading
+      logic as a Python strategy class. One data source. Automatic backtesting. Live tracking
+      from day one. A standardised evaluation page for every strategy.
+    </p>
+    <div class="goal-box">
+      <strong>The Goal:</strong> Convert CTS into a platform where we can deploy strategies as
+      Python logic, test them instantly against 1Y / 3Y / 5Y of historical data, run walk-forward
+      validation, and then track them live from the moment they are "locked" — with a fully
+      standardised evaluation page showing all risk, reward, equity curve, benchmark comparison,
+      and a complete transactions ledger with capital gains and charges. The platform is the
+      infrastructure; each strategy is a plug-in.
+    </div>
+  </div>
+
+  <!-- THE CORE LOOP -->
+  <section>
+    <h2>The Core Loop</h2>
+    <p>Every strategy follows the same lifecycle, fully automated once the strategy code is written.</p>
+    <div class="flow" style="margin-top:20px;">
+      <div class="flow-node">
+        <div class="fn-icon">✍️</div>
+        <div class="fn-label">Write Strategy</div>
+        <div class="fn-sub">Python class</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-node">
+        <div class="fn-icon">📁</div>
+        <div class="fn-label">Register</div>
+        <div class="fn-sub">Drop in folder</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-node active">
+        <div class="fn-icon">⏪</div>
+        <div class="fn-label">Backtest</div>
+        <div class="fn-sub">1Y · 3Y · 5Y auto</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-node active">
+        <div class="fn-icon">🔄</div>
+        <div class="fn-label">Walk-Forward</div>
+        <div class="fn-sub">OOS validation</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-node">
+        <div class="fn-icon">🔒</div>
+        <div class="fn-label">Lock Strategy</div>
+        <div class="fn-sub">Freeze params</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-node active">
+        <div class="fn-icon">📡</div>
+        <div class="fn-label">Go Live</div>
+        <div class="fn-sub">Paper → Real</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-node">
+        <div class="fn-icon">📊</div>
+        <div class="fn-label">Evaluate</div>
+        <div class="fn-sub">Unified page</div>
+      </div>
+    </div>
+    <p style="margin-top:14px; font-size:0.85rem;">
+      <strong>Lock Strategy</strong> is the key moment. Once locked, the strategy's parameters are
+      frozen and a live run begins. From that date forward, every daily result is tracked in
+      real-time exactly as if capital were deployed — even if the strategy is still paper trading.
+      You always know how a strategy is doing from its live date, not just in hindsight.
+    </p>
+  </section>
+
+  <!-- DATA LAYER -->
+  <section>
+    <h2>Data Layer — Single Source</h2>
+    <p>
+      All data comes from <strong>Kite (Zerodha)</strong>. No other data sources, ever.
+      Derived metrics (EMAs, ATR, TRP, stage classification, etc.) are computed
+      <em>per strategy</em> from raw OHLCV — not stored globally.
+    </p>
+    <div class="card-grid col3" style="margin-top:16px;">
+      <div class="card">
+        <div class="tag tag-teal">Historical</div>
+        <h3>Kite Historical API</h3>
+        <p style="font-size:0.85rem;">
+          Daily OHLCV bars for ~1,300 NSE stocks + indices. Fetched once, stored in a local
+          SQLite bar store. Incremental updates daily at 5:30 PM IST.
+          Up to 10 years of history available.
+        </p>
+        <code>backend/data/bar_store.py</code>
+      </div>
+      <div class="card">
+        <div class="tag tag-amber">Live</div>
+        <h3>Kite Quote API</h3>
+        <p style="font-size:0.85rem;">
+          Last traded price, OHLC for today, volume. Polled every 15 seconds during market
+          hours (9:15–3:30 IST) for all symbols in any active live portfolio.
+        </p>
+        <code>backend/data/live_feed.py</code>
+      </div>
+      <div class="card">
+        <div class="tag tag-blue">Derived</div>
+        <h3>Per-Strategy Metrics</h3>
+        <p style="font-size:0.85rem;">
+          Each strategy computes its own indicators (EMA50/200, ATR, TRP, stage, contraction
+          score, etc.) from raw bars. No shared indicator cache. Strategies are self-contained.
+        </p>
+        <code>strategy.compute_features(bars)</code>
+      </div>
+    </div>
+  </section>
+
+  <!-- STRATEGY LAYER -->
+  <section>
+    <h2>Strategy Layer — The Python Interface</h2>
+    <p>
+      Every strategy is a Python class inheriting from <code>AbstractStrategy</code>.
+      The <strong>same class</strong> runs in backtest mode and live mode.
+      No separate backtesting code. No drift between tested logic and deployed logic.
+    </p>
+
+    <div class="code-block">
+<span class="co"><span class="cm"># backend/strategies/base.py — the contract every strategy must implement</span></span>
+
+<span class="kw">class</span> <span class="ty">AbstractStrategy</span>(<span class="ty">ABC</span>):
+
+    <span class="cm"># ── Identity ──────────────────────────────────────────────────────</span>
+    name:         <span class="ty">str</span>          <span class="cm"># "v2-setup" — DB key, URL slug</span>
+    display_name: <span class="ty">str</span>          <span class="cm"># "Champion Trader v2 Setup"</span>
+    description:  <span class="ty">str</span>
+    version:      <span class="ty">str</span>          <span class="cm"># "1.0.0" — bumped when logic changes</span>
+
+    <span class="cm"># ── Core methods (called identically in backtest AND live) ────────</span>
+    <span class="kw">@abstractmethod</span>
+    <span class="kw">def</span> <span class="fn">generate_signals</span>(
+        <span class="co">self,</span>
+        bars:    <span class="ty">dict</span>[<span class="ty">str</span>, <span class="ty">pd.DataFrame</span>],  <span class="cm"># {symbol → OHLCV dataframe}</span>
+        date:    <span class="ty">date</span>,
+    ) -> <span class="ty">list</span>[<span class="ty">Signal</span>]: <span class="st">...</span>            <span class="cm"># entry candidates for this date</span>
+
+    <span class="kw">@abstractmethod</span>
+    <span class="kw">def</span> <span class="fn">should_exit</span>(
+        <span class="co">self,</span>
+        position: <span class="ty">Position</span>,
+        bars:     <span class="ty">dict</span>[<span class="ty">str</span>, <span class="ty">pd.DataFrame</span>],
+    ) -> <span class="ty">ExitDecision</span> | <span class="ty">None</span>: <span class="st">...</span>    <span class="cm"># None = hold</span>
+
+    <span class="kw">@abstractmethod</span>
+    <span class="kw">def</span> <span class="fn">size_position</span>(
+        <span class="co">self,</span>
+        signal:         <span class="ty">Signal</span>,
+        account_value:  <span class="ty">float</span>,
+        open_count:     <span class="ty">int</span>,
+    ) -> <span class="ty">PositionSize</span>: <span class="st">...</span>           <span class="cm"># qty, entry_price, stop_price</span>
+
+    <span class="cm"># ── Params (used by backtest engine and UI sliders) ───────────────</span>
+    <span class="kw">def</span> <span class="fn">get_params</span>(<span class="co">self</span>) -> <span class="ty">dict</span>:      <span class="cm"># default parameters</span>
+    <span class="kw">def</span> <span class="fn">get_param_ranges</span>(<span class="co">self</span>) -> <span class="ty">dict</span>: <span class="cm"># {param: (min, max, step)} for future optimization</span>
+    </div>
+
+    <div style="margin-top:20px;">
+      <h3 style="color:var(--text); margin-bottom:12px;">Folder structure — adding a strategy = adding a folder</h3>
+      <div class="tree">
+<span class="dir">backend/strategies/</span>
+├── <span class="file">base.py</span>         <span class="note">← AbstractStrategy, Signal, Position, ExitDecision types</span>
+├── <span class="file">registry.py</span>     <span class="note">← auto-discovers every strategy.py in subdirectories</span>
+├── <span class="file">engine.py</span>       <span class="note">← runs any strategy in backtest OR live mode (same code path)</span>
+│
+├── <span class="dir">v2_setup/</span>       <span class="note">← Stage 2 + contraction + 5-day break</span>
+│   ├── <span class="file">strategy.py</span>
+│   └── <span class="file">params.py</span>
+│
+├── <span class="dir">rs_ema/</span>         <span class="note">← EMA50 × EMA200 golden cross</span>
+│   ├── <span class="file">strategy.py</span>
+│   └── <span class="file">params.py</span>
+│
+└── <span class="new">my_new_strategy/</span> <span class="note">← drop here → auto-registered, backtest starts immediately</span>
+    <span class="new">├── strategy.py</span>
+    <span class="new">└── params.py</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- PORTFOLIO LIFECYCLE -->
+  <section>
+    <h2>Portfolio Lifecycle</h2>
+    <p>A "portfolio" is one instance of a strategy with a specific capital, params, and start date.
+       You can run multiple portfolios of the same strategy (different params) simultaneously.</p>
+    <div class="lifecycle" style="margin-top:20px;">
+      <div class="lc-step" style="background:var(--surface);">
+        <div class="lc-num">01</div>
+        <div class="lc-title">Create</div>
+        <div class="lc-desc">Pick a strategy. Set capital, RPT%, max positions. Name the portfolio. Click Create.</div>
+      </div>
+      <div class="lc-step" style="background:var(--surface);">
+        <div class="lc-num">02</div>
+        <div class="lc-title">Backtest</div>
+        <div class="lc-desc">Engine runs 1Y, 3Y, 5Y backtests automatically using bar store history. Results ready in seconds–minutes.</div>
+      </div>
+      <div class="lc-step" style="background:var(--surface);">
+        <div class="lc-num">03</div>
+        <div class="lc-title">Walk-Forward</div>
+        <div class="lc-desc">Splits history into IS (in-sample) and OOS (out-of-sample) windows. Tests strategy on data it never saw.</div>
+      </div>
+      <div class="lc-step" style="background:var(--teal-faint); border-color: rgba(20,184,166,0.25);">
+        <div class="lc-num" style="color:var(--teal);">04</div>
+        <div class="lc-title">Lock</div>
+        <div class="lc-desc">Params are frozen. Strategy enters paper-live mode. Every result from this date is tracked as if real.</div>
+      </div>
+      <div class="lc-step" style="background:var(--surface);">
+        <div class="lc-num">05</div>
+        <div class="lc-title">Go Real</div>
+        <div class="lc-desc">Optionally connect to a real Kite account. Same signals, same sizing — now with real order placement.</div>
+      </div>
+    </div>
+    <p style="margin-top:14px; font-size:0.85rem; color:var(--muted);">
+      Walk-forward validation: history is split into rolling windows (e.g. 12 months IS → test 3 months OOS, slide forward).
+      This prevents overfitting — a strategy must work on data it was never trained on.
+      Monte Carlo simulation (later): randomise trade order and entry timing thousands of times to stress-test the edge.
+    </p>
+  </section>
+
+  <!-- EVALUATION PAGE -->
+  <section>
+    <h2>Strategy Evaluation Page — What Every Portfolio Shows</h2>
+    <p>Every strategy gets the same standardised evaluation page. No custom one-offs.
+       The tabs are fixed; the data is strategy-specific.</p>
+
+    <div class="eval-mock">
+      <div class="eval-tabs">
+        <div class="eval-tab active">Overview</div>
+        <div class="eval-tab">Backtest</div>
+        <div class="eval-tab">Walk-Forward</div>
+        <div class="eval-tab">Live</div>
+        <div class="eval-tab">Transactions</div>
+      </div>
+      <div class="eval-body">
+
+        <!-- KPI row -->
+        <div class="metric-row">
+          <div class="metric-card">
+            <div class="metric-label">CAGR (3Y)</div>
+            <div class="metric-value pos">+24.3%</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-label">Max Drawdown</div>
+            <div class="metric-value neg">−18.7%</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-label">Sharpe Ratio</div>
+            <div class="metric-value neu">1.42</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-label">Win Rate</div>
+            <div class="metric-value neu">38.5%</div>
+          </div>
+        </div>
+
+        <!-- Equity curve placeholder -->
+        <div class="chart-ph">
+          <div class="chart-line"></div>
+          <svg viewBox="0 0 900 160" preserveAspectRatio="none">
+            <polyline
+              points="0,140 80,135 160,120 240,128 320,100 400,88 480,70 560,82 640,55 720,42 820,30 900,18"
+              fill="none" stroke="#14b8a6" stroke-width="2" opacity="0.8"/>
+            <polyline
+              points="0,140 80,138 160,132 240,135 320,125 400,120 480,118 560,122 640,115 720,110 820,108 900,104"
+              fill="none" stroke="#475569" stroke-width="1.5" stroke-dasharray="4 3" opacity="0.6"/>
+          </svg>
+          <span style="position:relative; z-index:1; background:var(--surface2); padding:4px 10px; border-radius:6px; font-size:0.75rem;">
+            Equity Curve vs Nifty 50 — 3 Year Backtest
+          </span>
+        </div>
+
+        <!-- Second metric row -->
+        <div class="metric-row">
+          <div class="metric-card">
+            <div class="metric-label">Avg Win / Avg Loss</div>
+            <div class="metric-value neu">2.93×</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-label">Sortino Ratio</div>
+            <div class="metric-value neu">1.87</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-label">Calmar Ratio</div>
+            <div class="metric-value neu">1.30</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-label">Profit Factor</div>
+            <div class="metric-value pos">1.71</div>
+          </div>
+        </div>
+
+        <p style="font-size:0.78rem; color:var(--muted); text-align:center;">
+          ↑ Sample numbers for illustration. Actual values computed from real backtest results.
+        </p>
+      </div>
+    </div>
+
+    <div class="card-grid col2" style="margin-top:16px;">
+      <div class="card">
+        <div class="tag tag-teal">Overview Tab</div>
+        <h3>Risk & Reward Summary</h3>
+        <p style="font-size:0.83rem;">
+          CAGR, Total Return, Sharpe, Sortino, Calmar, Max Drawdown, Avg Drawdown,
+          Win Rate, Avg R-Multiple (win), Avg R-Multiple (loss), Profit Factor,
+          Expectancy per trade, Recovery Factor, Ulcer Index.
+          Benchmark comparison line (Nifty 50) always overlaid on equity curve.
+        </p>
+      </div>
+      <div class="card">
+        <div class="tag tag-amber">Backtest Tab</div>
+        <h3>Historical Results</h3>
+        <p style="font-size:0.83rem;">
+          Equity curves for 1Y, 3Y, 5Y windows. Annual returns table (year by year vs Nifty).
+          Monthly returns heatmap. Drawdown chart. Trade distribution histogram.
+          Parameter sensitivity table (how results shift as each param moves ±20%).
+        </p>
+      </div>
+      <div class="card">
+        <div class="tag tag-blue">Walk-Forward Tab</div>
+        <h3>Out-of-Sample Validation</h3>
+        <p style="font-size:0.83rem;">
+          Rolling IS/OOS windows shown as a timeline. Per-window equity. OOS vs IS performance
+          ratio (efficiency score). Detects overfitting — a strategy that degrades badly OOS
+          is curve-fitted. Walk-forward efficiency > 70% is the quality gate.
+        </p>
+      </div>
+      <div class="card">
+        <div class="tag tag-purple">Transactions Tab</div>
+        <h3>Full Ledger</h3>
+        <p style="font-size:0.83rem;">
+          Every entry and exit with date, price, qty, P&L, R-multiple, holding period.
+          Capital gains breakdown (short-term &lt;1Y vs long-term). Brokerage + STT + exchange
+          charges computed per trade. Net P&L after charges. Exportable as CSV.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- LIVE VIEW -->
+  <section>
+    <h2>Live View During Market Hours</h2>
+    <p>
+      From 9:15 AM to 3:30 PM, every open position in a locked portfolio shows live data.
+      Prices update every 15 seconds via the Kite Quote API.
+    </p>
+    <div class="card" style="margin-top:16px; padding:20px;">
+      <div style="display:grid; gap:12px;">
+        <!-- Position card mock -->
+        <div style="background:var(--surface2); border:1px solid var(--border); border-radius:8px; padding:16px; display:grid; grid-template-columns:1fr 1fr 1fr 1fr 200px; gap:12px; align-items:center;">
+          <div>
+            <div style="font-weight:700; margin-bottom:2px;">VAIBHAVGBL</div>
+            <div style="font-size:0.73rem; color:var(--muted);">Entry ₹232.10 · Qty 215</div>
+          </div>
+          <div>
+            <div style="font-size:0.73rem; color:var(--muted); margin-bottom:2px;">LTP</div>
+            <div style="font-size:1.1rem; font-weight:700;">₹241.50</div>
+          </div>
+          <div>
+            <div style="font-size:0.73rem; color:var(--muted); margin-bottom:2px;">Unrealised P&L</div>
+            <div style="font-size:1.1rem; font-weight:700; color:var(--green);">+₹2,021 (+0.41R)</div>
+          </div>
+          <div>
+            <div style="font-size:0.73rem; color:var(--muted); margin-bottom:2px;">Stop · Distance</div>
+            <div style="font-size:0.9rem;">₹208.89 · <span style="color:var(--green);">13.5% away</span></div>
+          </div>
+          <div>
+            <div style="font-size:0.7rem; color:var(--muted); margin-bottom:4px;">Distance to stop</div>
+            <div style="background:var(--border); border-radius:4px; height:6px; overflow:hidden;">
+              <div style="width:87%; background:var(--green); height:100%; border-radius:4px;"></div>
+            </div>
+          </div>
+        </div>
+        <div style="background:var(--surface2); border:1px solid rgba(245,158,11,0.3); border-radius:8px; padding:16px; display:grid; grid-template-columns:1fr 1fr 1fr 1fr 200px; gap:12px; align-items:center;">
+          <div>
+            <div style="font-weight:700; margin-bottom:2px;">SFL</div>
+            <div style="font-size:0.73rem; color:var(--muted);">Entry ₹625.00 · Qty 80</div>
+          </div>
+          <div>
+            <div style="font-size:0.73rem; color:var(--muted); margin-bottom:2px;">LTP</div>
+            <div style="font-size:1.1rem; font-weight:700;">₹641.20</div>
+          </div>
+          <div>
+            <div style="font-size:0.73rem; color:var(--muted); margin-bottom:2px;">Unrealised P&L</div>
+            <div style="font-size:1.1rem; font-weight:700; color:var(--green);">+₹1,296 (+0.26R)</div>
+          </div>
+          <div>
+            <div style="font-size:0.73rem; color:var(--muted); margin-bottom:2px;">Stop · Distance</div>
+            <div style="font-size:0.9rem;">₹562.50 · <span style="color:var(--amber);">12.3% away</span></div>
+          </div>
+          <div>
+            <div style="font-size:0.7rem; color:var(--muted); margin-bottom:4px;">Distance to stop</div>
+            <div style="background:var(--border); border-radius:4px; height:6px; overflow:hidden;">
+              <div style="width:76%; background:var(--amber); height:100%; border-radius:4px;"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <p style="margin-top:12px; font-size:0.78rem; color:var(--muted);">
+        ● Green = comfortable (>5% from stop) &nbsp;|&nbsp;
+        ● Amber = approaching (&lt;5%) &nbsp;|&nbsp;
+        ● Red = breached — exit triggered
+      </p>
+    </div>
+  </section>
+
+  <!-- TECHNICAL ARCHITECTURE -->
+  <section>
+    <h2>Technical Architecture</h2>
+    <div class="card-grid col2">
+      <div class="card">
+        <div class="tag tag-teal">Backend</div>
+        <h3>FastAPI + Python</h3>
+        <p style="font-size:0.83rem;">
+          <code>GET /strategies</code> — list all registered strategies<br/>
+          <code>POST /portfolios</code> — create a new portfolio run<br/>
+          <code>GET /portfolios/{id}/backtest</code> — fetch backtest results<br/>
+          <code>GET /portfolios/{id}/live</code> — SSE stream of live P&L<br/>
+          <code>GET /portfolios/{id}/transactions</code> — full ledger
+        </p>
+      </div>
+      <div class="card">
+        <div class="tag tag-blue">Frontend</div>
+        <h3>Next.js + TypeScript</h3>
+        <p style="font-size:0.83rem;">
+          <code>/strategies</code> — strategy selector grid<br/>
+          <code>/strategies/[slug]</code> — per-strategy hub<br/>
+          <code>/strategies/[slug]/[portfolio-id]</code> — evaluation page<br/>
+          Charts: Recharts (equity curve, drawdown, heatmap)<br/>
+          Live: SSE connection auto-reconnects every 15s
+        </p>
+      </div>
+      <div class="card">
+        <div class="tag tag-amber">Backtest Engine</div>
+        <h3>Event-Driven Loop</h3>
+        <p style="font-size:0.83rem;">
+          Pure Python. No backtesting library dependency — we own the loop.
+          Bar-by-bar iteration over the bar store. Calls
+          <code>strategy.generate_signals()</code> and <code>strategy.should_exit()</code>
+          identically to the live scheduler. Fills stored as <code>PortfolioTrade</code> rows.
+          Equity snapshots stored daily.
+        </p>
+      </div>
+      <div class="card">
+        <div class="tag tag-purple">Database</div>
+        <h3>SQLite → Postgres-ready</h3>
+        <p style="font-size:0.83rem;">
+          New tables: <code>portfolios</code>, <code>portfolio_trades</code>,
+          <code>portfolio_equity</code>, <code>portfolio_params</code>.<br/>
+          Existing tables kept for v1 data reference.<br/>
+          Every backtest result is versioned by a hash of the params — changing a param
+          automatically queues a new backtest.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- BUILD PLAN -->
+  <section>
+    <h2>Build Plan — Systematic Phases</h2>
+    <div class="card" style="padding:0; overflow:hidden;">
+      <table class="phase-table">
+        <thead>
+          <tr>
+            <th>Phase</th>
+            <th>Deliverable</th>
+            <th>Key work</th>
+            <th>Est.</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>P1</td>
+            <td><strong>Strategy Plugin Architecture</strong></td>
+            <td style="color:var(--muted2);">
+              <code>base.py</code>, <code>registry.py</code>.
+              Migrate v2 Setup + RS EMA into new structure.
+              Update scheduler to call registry.
+            </td>
+            <td>3 days</td>
+          </tr>
+          <tr>
+            <td>P2</td>
+            <td><strong>Backtest Engine</strong></td>
+            <td style="color:var(--muted2);">
+              <code>engine.py</code> — event-driven bar loop.
+              Auto-backtest on strategy register.
+              Walk-forward splitter.
+              DB schema for portfolios/trades/equity.
+            </td>
+            <td>4 days</td>
+          </tr>
+          <tr>
+            <td>P3</td>
+            <td><strong>Evaluation Page (Backend)</strong></td>
+            <td style="color:var(--muted2);">
+              Risk metrics calculator (Sharpe, Sortino, Calmar, drawdown, etc.).
+              Benchmark comparison (Nifty 50 from bar store).
+              Transactions ledger with charges + capital gains.
+              REST endpoints for all tabs.
+            </td>
+            <td>3 days</td>
+          </tr>
+          <tr>
+            <td>P4</td>
+            <td><strong>Live Feed</strong></td>
+            <td style="color:var(--muted2);">
+              <code>live_feed.py</code> — Kite Quote API poller.
+              SSE endpoint streaming P&L for all live portfolios.
+              Live position cards with stop-distance bar.
+            </td>
+            <td>2 days</td>
+          </tr>
+          <tr>
+            <td>P5</td>
+            <td><strong>Strategy Frontend</strong></td>
+            <td style="color:var(--muted2);">
+              <code>/strategies</code> grid + <code>/strategies/[slug]</code> hub.
+              Evaluation page: 5 tabs, equity charts, monthly heatmap, drawdown chart,
+              transactions table with CSV export.
+            </td>
+            <td>4 days</td>
+          </tr>
+          <tr>
+            <td>P6</td>
+            <td><strong>5-Year History</strong></td>
+            <td style="color:var(--muted2);">
+              Full Kite ingest (bars from 2015, one-time, ~2–3 hrs).
+              Re-run all backtests over full history.
+              Annual returns table populated.
+            </td>
+            <td>1 day</td>
+          </tr>
+          <tr>
+            <td>P7 ↗</td>
+            <td><strong>Monte Carlo (future)</strong></td>
+            <td style="color:var(--muted);">
+              Randomise trade sequence + timing N=10,000 runs.
+              Probability of ruin, 95th percentile drawdown, expected CAGR distribution.
+            </td>
+            <td>TBD</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="margin-top:14px; font-size:0.85rem;">
+      <strong>Total P1–P6:</strong> ~17 working days.
+      Each phase is independently deployable — the system keeps running between phases.
+    </p>
+  </section>
+
+  <!-- WHAT DOESNT CHANGE -->
+  <section>
+    <h2>What Stays the Same</h2>
+    <div class="card-grid col3">
+      <div class="card">
+        <h3>Trading Rules</h3>
+        <p style="font-size:0.83rem;">
+          The v2 Champion Trader methodology is unchanged. Stage 2 + contraction + 5-day break,
+          5×ATR chandelier stop, 0.35% RPT — all stay as the v2 strategy module.
+          Nothing about the logic changes; it just moves into the new structure.
+        </p>
+      </div>
+      <div class="card">
+        <h3>Data Pipeline</h3>
+        <p style="font-size:0.83rem;">
+          Kite ingest at 5:30 PM. Exit pass at 5:40 PM. Entry pass at 5:45 PM. Scan at 5:50 PM.
+          The scheduler continues running these jobs — they just call into the new strategy engine
+          instead of the old live_jobs.py functions.
+        </p>
+      </div>
+      <div class="card">
+        <h3>Dashboard + Actions</h3>
+        <p style="font-size:0.83rem;">
+          The daily workflow pages (Dashboard, Pipeline, Trades, Actions) remain unchanged.
+          The new strategy pages are additive — a layer on top for deeper analysis,
+          not a replacement for the operational flow.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <hr />
+
+  <p style="text-align:center; color:var(--muted); font-size:0.82rem;">
+    CTS v3 Architecture Document · June 2026 · Confirm to begin Phase 1
+  </p>
+
+</div>
+</body>
+</html>
